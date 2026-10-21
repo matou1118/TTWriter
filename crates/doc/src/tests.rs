@@ -17,6 +17,19 @@ fn word_count() {
 }
 
 #[test]
+fn word_count_counts_east_asian_characters_as_words() {
+    // Chinese has no word spaces: each character is a word, the way Word counts it.
+    // The sentence is 24 characters, two of them punctuation, so 22 words.
+    assert_eq!(count_words("这是一段中文文本，用于验证字数统计功能是否正确。"), 22);
+    // A mixed sentence counts the hanzi and the Latin words both ways.
+    assert_eq!(count_words("中文 mixed 文本"), 2 + 1 + 2);
+    // Punctuation and spaces are not words.
+    assert_eq!(count_words("，。！？"), 0);
+    // Japanese and Korean are written without spaces too.
+    assert_eq!(count_words("こんにちは"), 5);
+}
+
+#[test]
 fn word_count_includes_numbered_list_labels_but_not_bullets() {
     let mut d = Document::new();
     let num_id = d.numbering.add_list(ListKind::Numbered);

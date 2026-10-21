@@ -1445,8 +1445,49 @@ impl PermRange {
 }
 
 /// Words in `s` (tokens separated by whitespace that contain at least one alphanumeric char).
+///
+/// East Asian text has no word spaces, so each ideograph counts as a word — the way Word counts
+/// Chinese (a sentence of 24 hanzi is 24 words, not one). Latin runs keep counting as one word
+/// each, so a mixed sentence counts both ways.
 pub fn count_words(s: &str) -> usize {
-    s.split(|c: char| c.is_whitespace() || c == para::OBJ).filter(|w| w.chars().any(char::is_alphanumeric)).count()
+    let mut words = 0usize;
+    let mut token_has_alnum = false;
+    for c in s.chars() {
+        if is_hanzi(c) {
+            // A hanzi ends the Latin token it follows and is a word of its own.
+            if token_has_alnum {
+                words += 1;
+                token_has_alnum = false;
+            }
+            words += 1;
+        } else if c.is_whitespace() || c == para::OBJ {
+            if token_has_alnum {
+                words += 1;
+                token_has_alnum = false;
+            }
+        } else if c.is_alphanumeric() {
+            token_has_alnum = true;
+        }
+    }
+    if token_has_alnum {
+        words += 1;
+    }
+    words
+}
+
+/// A CJK ideograph (a hanzi, a kana or a hangul syllable): one written character, one word.
+///
+/// Kana and hangul are included because they are written without spaces too, so the same rule
+/// applies to Japanese and Korean. The ranges are the same ones the layout uses for East Asian
+/// text; this crate sits below the layout, so it keeps its own copy.
+fn is_hanzi(c: char) -> bool {
+    matches!(c as u32,
+        0x3040..=0x30FF        // hiragana, katakana
+        | 0x3400..=0x4DBF      // CJK extension A
+        | 0x4E00..=0x9FFF      // CJK unified ideographs
+        | 0xF900..=0xFAFF      // compatibility ideographs
+        | 0xAC00..=0xD7AF      // hangul syllables
+        | 0x20000..=0x2A6DF)   // CJK extension B
 }
 
 /// How deep in nested tables [`Document::para_paths`] goes: cells below this are skipped.
