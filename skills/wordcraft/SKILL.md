@@ -88,6 +88,9 @@ wordcraft-cli run --script job.json
   file instead of fighting `cmd.exe` quoting.
 - **Commands act on the selection.** After inserting, the caret moves; `styles.apply` applies to
   the selection. Sequence matters: insert text, then style it.
+- **In a table, `caret.right` steps to the next cell.** `caret.docEnd` jumps to the end of the
+  *document* — after the table — so text lands outside it and the cells stay empty. See
+  [references/commands.md](references/commands.md#filling-a-table).
 - **Only include fields you mean.** `format.set` / `para.set` / `styles.modify` take a props
   object where every field is optional; a field you leave out keeps what the style chain gives.
   An unknown field name is **ignored, not refused** — so a typo silently does nothing. Check

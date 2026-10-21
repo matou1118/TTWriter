@@ -27,6 +27,9 @@ next command applies there. If the order is wrong, the formatting lands on the w
 The fix is to be explicit: `caret.docEnd`, `caret.docStart`, `select.all`,
 `select.text {"text": "...", "occurrence": 2}`, or `caret.set {"anchor": {...}, "focus": {...}}`.
 
+**Inside a table**, `caret.docEnd` goes to the end of the *document* — after the table — so
+text lands outside it and the cells stay empty. Use `caret.right` to step between cells.
+
 ---
 
 ## "everything is one paragraph"

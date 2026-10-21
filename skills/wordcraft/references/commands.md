@@ -62,7 +62,7 @@ are `"RRGGBB"` or `"#RRGGBB"`, or `[r, g, b]`.
 
 | Command | Parameters | Notes |
 |---|---|---|
-| `insert.table` | `{"rows": n, "cols": n, "style"?: string}` | Insert a table at the caret. |
+| `insert.table` | `{"rows": n, "cols": n, "style"?: string}` | Insert a table at the caret. **The caret lands in the first cell.** |
 | `insert.picture` | `{"path": string, ...}` | Insert a picture. **The caret stays after it**, so typing next does not replace it. |
 | `insert.pageNumber` | `{"position"?: "top\|bottom\|current", "align"?: "left\|center\|right", "format"?: "x of y"}` | Page number field. |
 | `insert.pageBreak` | `{}` | Page break. |
@@ -139,6 +139,31 @@ are `"RRGGBB"` or `"#RRGGBB"`, or `[r, g, b]`.
 | `layout.differentFirstPage` / `layout.differentOddEven` | `{"enabled": bool}` | First page / odd-even headers. |
 
 > **There is no `page.*` namespace** — page setup lives under `layout.*`.
+
+## Filling a table
+
+`insert.table` leaves the caret in the **first cell**. **`caret.right` moves to the next
+cell** (and wraps to the next row), so the way to fill a table is to type and step:
+
+```json
+{ "command": "insert.table", "params": { "rows": 2, "cols": 3 } },
+{ "command": "text.insert", "params": { "text": "A1" } },
+{ "command": "caret.right" },
+{ "command": "text.insert", "params": { "text": "B1" } },
+{ "command": "caret.right" },
+{ "command": "text.insert", "params": { "text": "C1" } },
+{ "command": "caret.right" },
+{ "command": "text.insert", "params": { "text": "A2" } }
+```
+
+> **⚠️ Do not use `caret.docEnd` to move between cells.** It jumps to the end of the
+> *document*, which is *after* the table — the text lands outside the table and the cells
+> stay empty. This is the single easiest way to get a wrong document.
+
+There is no "go to cell N" command. `table.selectAt` takes page coordinates, which you would
+have to compute — use `caret.right` instead.
+
+---
 
 ## Verification and output
 
