@@ -106,11 +106,15 @@ pub fn rpr_inner(w: &mut W, c: &CharProps) {
     }
     toggle(w, "w:rtl", c.rtl);
     toggle(w, "w:cs", c.cs);
-    match (&c.lang, &c.lang_bidi) {
-        (Some(l), Some(b)) => w.empty("w:lang", &[("w:val", l), ("w:bidi", b)]),
-        (Some(l), None) => w.val("w:lang", l),
-        (None, Some(b)) => w.empty("w:lang", &[("w:bidi", b)]),
-        (None, None) => {}
+    match (&c.lang, &c.lang_bidi, &c.lang_ea) {
+        (Some(l), Some(b), Some(e)) => w.empty("w:lang", &[("w:val", l), ("w:eastAsia", e), ("w:bidi", b)]),
+        (Some(l), None, Some(e)) => w.empty("w:lang", &[("w:val", l), ("w:eastAsia", e)]),
+        (Some(l), Some(b), None) => w.empty("w:lang", &[("w:val", l), ("w:bidi", b)]),
+        (Some(l), None, None) => w.val("w:lang", l),
+        (None, Some(b), Some(e)) => w.empty("w:lang", &[("w:eastAsia", e), ("w:bidi", b)]),
+        (None, None, Some(e)) => w.empty("w:lang", &[("w:eastAsia", e)]),
+        (None, Some(b), None) => w.empty("w:lang", &[("w:bidi", b)]),
+        (None, None, None) => {}
     }
     // After w:lang (CT_RPr's sequence).
     if let Some(l) = &c.east_asian_layout {

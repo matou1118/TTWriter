@@ -421,6 +421,9 @@ pub struct CharProps {
     /// BCP 47 language of complex-script text (`w:lang/@w:bidi`, e.g. `fa-IR`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lang_bidi: Option<String>,
+    /// BCP 47 language of East Asian text (`w:lang/@w:eastAsia`, e.g. `zh-CN`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lang_ea: Option<String>,
     /// East Asian typography: two lines in one and horizontal in vertical (`w:eastAsianLayout`).
     /// Kept for round trip; layout doesn't apply it yet.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -549,7 +552,7 @@ impl CharProps {
     pub fn minus(mut self, base: &CharProps) -> CharProps {
         drop_same_fields!(self, base; style, font, sym_font, size, bold, italic, underline, underline_color, strike, double_strike, color, highlight,
             shading, border, vert_align, caps, small_caps, hidden, spacing, scale, position, kern, outline, shadow, emboss, engrave, lang, no_proof, rtl,
-            cs, font_cs, size_cs, bold_cs, italic_cs, lang_bidi, east_asian_layout, link, ins, del, ligatures);
+            cs, font_cs, size_cs, bold_cs, italic_cs, lang_bidi, lang_ea, east_asian_layout, link, ins, del, ligatures);
         self
     }
 
@@ -560,7 +563,7 @@ impl CharProps {
     pub fn overlay(&mut self, patch: &CharProps) {
         overlay_fields!(self, patch; style, font, sym_font, size, bold, italic, underline, underline_color, strike, double_strike, color, highlight,
             shading, border, vert_align, caps, small_caps, hidden, spacing, scale, position, kern, outline, shadow, emboss, engrave, lang, no_proof, rtl,
-            cs, font_cs, font_ea, size_cs, bold_cs, italic_cs, lang_bidi, east_asian_layout, link, ins, del, fmt_change, ligatures);
+            cs, font_cs, font_ea, size_cs, bold_cs, italic_cs, lang_bidi, lang_ea, east_asian_layout, link, ins, del, fmt_change, ligatures);
         if let Some(p) = &patch.text_effects {
             self.text_effects.get_or_insert_with(Default::default).overlay(p);
         }
