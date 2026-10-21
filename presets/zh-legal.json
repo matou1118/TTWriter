@@ -1,0 +1,14 @@
+{
+  "commands": [
+    { "command": "layout.margins", "params": { "top": 104.9, "bottom": 99.2, "left": 79.4, "right": 73.7 } },
+    { "command": "styles.modify", "params": { "style": "Normal",
+      "chr": { "font": "Times New Roman", "fontEa": "宋体", "size": 12, "color": "000000" },
+      "para": { "lineSpacing": { "rule": "multiple", "value": 1.5 }, "indentFirstChars": 2 } } },
+    { "command": "styles.modify", "params": { "style": "Title",
+      "chr": { "font": "Times New Roman", "fontEa": "黑体", "size": 22, "bold": false, "color": "000000" },
+      "para": { "align": "center", "lineSpacing": { "rule": "multiple", "value": 1.5 }, "indentFirstChars": 0 } } },
+    { "command": "styles.modify", "params": { "style": "Heading1",
+      "chr": { "font": "Times New Roman", "fontEa": "黑体", "size": 16, "bold": false, "color": "000000" },
+      "para": { "lineSpacing": { "rule": "multiple", "value": 1.5 }, "indentFirstChars": 0 } } }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "commands": [
+    { "command": "layout.margins", "params": { "top": 104.9, "bottom": 99.2, "left": 79.4, "right": 73.7 } },
+    { "command": "styles.modify", "params": { "style": "Normal",
+      "chr": { "font": "Times New Roman", "fontEa": "仿宋_GB2312", "size": 16, "color": "000000" },
+      "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 2 } } },
+    { "command": "styles.modify", "params": { "style": "Title",
+      "chr": { "font": "Times New Roman", "fontEa": "方正小标宋简体", "size": 22, "bold": false, "color": "000000" },
+      "para": { "align": "center", "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 0 } } },
+    { "command": "styles.modify", "params": { "style": "Heading1",
+      "chr": { "font": "Times New Roman", "fontEa": "黑体", "size": 16, "bold": false, "color": "000000" },
+      "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 0 } } },
+    { "command": "styles.modify", "params": { "style": "Heading2",
+      "chr": { "font": "Times New Roman", "fontEa": "楷体_GB2312", "size": 16, "bold": false, "color": "000000" },
+      "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 0 } } },
+    { "command": "styles.modify", "params": { "style": "Heading3",
+      "chr": { "font": "Times New Roman", "fontEa": "仿宋_GB2312", "size": 16, "bold": true, "color": "000000" },
+      "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 0 } } }
+  ]
+}
