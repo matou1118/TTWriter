@@ -4,7 +4,7 @@ description: 按 GB/T 7713（论文编写规则）排版中文学位论文，参
 license: Apache-2.0
 compatibility: Needs the wordcraft-cli binary on PATH. No network access needed.
 metadata:
-  author: WordCraft Chinese edition
+  author: 蜻蜓文档 TTWriter
   version: "1.0"
   standard: GB/T 7713-2006, GB/T 7714-2015
 ---

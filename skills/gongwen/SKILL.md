@@ -4,7 +4,7 @@ description: 按《党政机关公文格式》GB/T 9704—2012 排版中文公�
 license: Apache-2.0
 compatibility: Needs the wordcraft-cli binary on PATH. No network access needed.
 metadata:
-  author: WordCraft Chinese edition
+  author: 蜻蜓文档 TTWriter
   version: "1.0"
   standard: GB/T 9704-2012
 ---

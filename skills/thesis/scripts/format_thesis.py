@@ -92,13 +92,10 @@ def build_commands(args) -> list[dict]:
             "para": {"align": "center", "lineSpacing": {"rule": "multiple", "value": 1.0}, "indentFirstChars": 0},
         }},
     ]
-    if args.title:
-        cmds.append({"command": "insert.header", "params": {"text": args.title}})
-    if args.header:
-        cmds.append({"command": "insert.header", "params": {"text": args.header}})
-    if args.page_numbers:
-        cmds.append({"command": "insert.footer", "params": {"preset": "blankThree"}})
-        cmds.append({"command": "insert.pageNumber", "params": {"position": "bottom", "align": "center"}})
+    # Body commands first. `insert.header` / `insert.footer` move the caret into the header or
+    # footer story, and a command that only works in the main text (references.toc,
+    # references.bibliography) fails there with "goes in the main text" — so the header goes last
+    # and the footer just before it.
     if args.toc:
         cmds.append({"command": "references.toc", "params": {
             "levels": 3, "title": "目 录", "pageNumbers": True,
@@ -109,6 +106,13 @@ def build_commands(args) -> list[dict]:
         # and `references.bibliography` takes a title, so pass the Chinese one.
         if args.bibliography_title:
             cmds.append({"command": "references.bibliography", "params": {"title": args.bibliography_title}})
+    if args.page_numbers:
+        cmds.append({"command": "insert.footer", "params": {"preset": "blankThree"}})
+        cmds.append({"command": "insert.pageNumber", "params": {"position": "bottom", "align": "center"}})
+    if args.title:
+        cmds.append({"command": "insert.header", "params": {"text": args.title}})
+    if args.header:
+        cmds.append({"command": "insert.header", "params": {"text": args.header}})
     return cmds
 
 

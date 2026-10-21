@@ -1,0 +1,97 @@
+From 5aea619cc6c025b344a68b4297262d56c185de22 Mon Sep 17 00:00:00 2001
+From: WordCraft CN <dev@local>
+Date: Wed, 21 Oct 2026 19:05:41 +0800
+Subject: [PATCH 1/2] fix(doc): count East Asian characters as words (G2)
+
+Chinese and Japanese are written without word spaces, so count_words()
+counted a whole Chinese paragraph as one word. Word counts each
+ideograph as a word. Count hanzi, kana and hangul syllables one by one
+and keep counting Latin runs as one word each, so a mixed sentence
+counts both ways.
+
+Verified: a 24-character Chinese sentence now reports 22 words (two
+marks of punctuation) instead of 1.
+---
+ crates/doc/src/lib.rs   | 43 ++++++++++++++++++++++++++++++++++++++++-
+ crates/doc/src/tests.rs | 13 +++++++++++++
+ 2 files changed, 55 insertions(+), 1 deletion(-)
+
+diff --git a/crates/doc/src/lib.rs b/crates/doc/src/lib.rs
+index d313f6be..48bbd1c1 100644
+--- a/crates/doc/src/lib.rs
++++ b/crates/doc/src/lib.rs
+@@ -1445,8 +1445,49 @@ impl PermRange {
+ }
+ 
+ /// Words in `s` (tokens separated by whitespace that contain at least one alphanumeric char).
++///
++/// East Asian text has no word spaces, so each ideograph counts as a word — the way Word counts
++/// Chinese (a sentence of 24 hanzi is 24 words, not one). Latin runs keep counting as one word
++/// each, so a mixed sentence counts both ways.
+ pub fn count_words(s: &str) -> usize {
+-    s.split(|c: char| c.is_whitespace() || c == para::OBJ).filter(|w| w.chars().any(char::is_alphanumeric)).count()
++    let mut words = 0usize;
++    let mut token_has_alnum = false;
++    for c in s.chars() {
++        if is_hanzi(c) {
++            // A hanzi ends the Latin token it follows and is a word of its own.
++            if token_has_alnum {
++                words += 1;
++                token_has_alnum = false;
++            }
++            words += 1;
++        } else if c.is_whitespace() || c == para::OBJ {
++            if token_has_alnum {
++                words += 1;
++                token_has_alnum = false;
++            }
++        } else if c.is_alphanumeric() {
++            token_has_alnum = true;
++        }
++    }
++    if token_has_alnum {
++        words += 1;
++    }
++    words
++}
++
++/// A CJK ideograph (a hanzi, a kana or a hangul syllable): one written character, one word.
++///
++/// Kana and hangul are included because they are written without spaces too, so the same rule
++/// applies to Japanese and Korean. The ranges are the same ones the layout uses for East Asian
++/// text; this crate sits below the layout, so it keeps its own copy.
++fn is_hanzi(c: char) -> bool {
++    matches!(c as u32,
++        0x3040..=0x30FF        // hiragana, katakana
++        | 0x3400..=0x4DBF      // CJK extension A
++        | 0x4E00..=0x9FFF      // CJK unified ideographs
++        | 0xF900..=0xFAFF      // compatibility ideographs
++        | 0xAC00..=0xD7AF      // hangul syllables
++        | 0x20000..=0x2A6DF)   // CJK extension B
+ }
+ 
+ /// How deep in nested tables [`Document::para_paths`] goes: cells below this are skipped.
+diff --git a/crates/doc/src/tests.rs b/crates/doc/src/tests.rs
+index 94437562..5cfdcf0d 100644
+--- a/crates/doc/src/tests.rs
++++ b/crates/doc/src/tests.rs
+@@ -16,6 +16,19 @@ fn word_count() {
+     assert_eq!(count_words(" -- "), 0);
+ }
+ 
++#[test]
++fn word_count_counts_east_asian_characters_as_words() {
++    // Chinese has no word spaces: each character is a word, the way Word counts it.
++    // The sentence is 24 characters, two of them punctuation, so 22 words.
++    assert_eq!(count_words("这是一段中文文本，用于验证字数统计功能是否正确。"), 22);
++    // A mixed sentence counts the hanzi and the Latin words both ways.
++    assert_eq!(count_words("中文 mixed 文本"), 2 + 1 + 2);
++    // Punctuation and spaces are not words.
++    assert_eq!(count_words("，。！？"), 0);
++    // Japanese and Korean are written without spaces too.
++    assert_eq!(count_words("こんにちは"), 5);
++}
++
+ #[test]
+ fn word_count_includes_numbered_list_labels_but_not_bullets() {
+     let mut d = Document::new();

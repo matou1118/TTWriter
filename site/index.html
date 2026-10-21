@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>蜻蜓文档 TTWriter · 面向中文写作的 WordCraft 发行版</title>
+<meta name="description" content="蜻蜓文档 TTWriter 是 WordCraft 的中文发行版：完整上游 Rust 源码，加上公文（GB/T 9704）、学位论文（GB/T 7713 / 7714）、法务文书的国标排版层，中文字数统计与东亚字体 / 语言标记。离线可用。">
+<meta name="author" content="码头哥">
+<meta name="theme-color" content="#f7f5f0">
+<link rel="canonical" href="https://matou1118.github.io/ttwriter/">
+<link rel="alternate" hreflang="zh-CN" href="index.html">
+<link rel="alternate" hreflang="en" href="en.html">
+<link rel="icon" href="icon/icon.svg">
+<link rel="stylesheet" href="style.css">
+<meta property="og:type" content="website">
+<meta property="og:title" content="蜻蜓文档 TTWriter">
+<meta property="og:description" content="面向中文写作的 WordCraft 发行版：公文、论文、法务文书的国标排版，加上中文字数统计与东亚字体 / 语言标记。">
+<meta property="og:image" content="images/zh/hero.png">
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="icon/icon.png" alt="" width="28" height="28">
+      蜻蜓文档 <span class="sub">TTWriter</span>
+    </a>
+    <nav class="nav" aria-label="页面导航">
+      <a href="#what" class="opt">这是什么</a>
+      <a href="#cjk" class="opt">中文排版</a>
+      <a href="#changes" class="opt">迭代了什么</a>
+      <a href="#shots" class="opt">截图</a>
+      <a href="#upstream" class="opt">与上游</a>
+      <a href="https://github.com/matou1118/ttwriter">GitHub</a>
+      <a href="en.html" title="Switch to English">EN</a>
+      <button class="icon-btn" id="theme" type="button" aria-label="切换深浅色" title="切换深浅色">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <div class="hero" id="top">
+    <div class="wrap">
+      <p class="eyebrow">基于 WordCraft · Rust · 离线</p>
+      <h1>
+        <span class="zh">按中文的规矩排版</span>
+        <span class="en">蜻蜓文档 TTWriter</span>
+      </h1>
+      <p class="lede">
+        这是 <a href="https://github.com/storytold/wordcraft">WordCraft</a> 的<strong>中文发行版</strong>：
+        一份能编译、能跑、能改的<strong>完整源码</strong>，在上游之上补上中文写作真正需要的那一层——
+        公文、学位论文、法务文书的国标版式，中文字数怎么算，字体怎么正确写进文件。
+      </p>
+      <p class="note">
+        上游 WordCraft 由 ArtCraft 团队开发（MIT OR Apache-2.0）。本项目不是 ArtCraft，不代表 ArtCraft，
+        也不使用任何 ArtCraft 标识，仅以平文本说明「基于 WordCraft」。
+      </p>
+
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/matou1118/ttwriter/releases">下载发行版</a>
+        <a class="btn btn-ghost" href="https://github.com/matou1118/ttwriter">看源码</a>
+        <a class="btn btn-ghost" href="https://www.ttread.cn">码头哥的其他作品 →</a>
+      </div>
+
+      <ul class="chips">
+        <li>简体中文界面</li>
+        <li>中文字数按字计</li>
+        <li>东亚字体与语言标记</li>
+        <li>四个排版技能</li>
+        <li>四套中文预设</li>
+        <li>600+ 条命令</li>
+        <li>CLI · MCP · 控制通道</li>
+        <li>不联网</li>
+      </ul>
+
+      <figure class="shot hero-shot reveal">
+        <img src="images/zh/hero.png" width="3200" height="2000" fetchpriority="high" alt="蜻蜓文档 TTWriter 打开一份公文：简体中文界面，正文是三号仿宋，一级标题是黑体">
+        <figcaption>简体中文界面 + 一份按 GB/T 9704—2012 排好的公文。正文三号仿宋，一级标题三号黑体。</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <section id="what">
+    <div class="wrap">
+      <h2><span class="num">01</span>这是什么</h2>
+      <p class="section-lede">
+        不是插件，不是皮肤。一个仓库 clone 下来就能构建，里面就是 WordCraft 本体加一层中文。
+      </p>
+
+      <div class="grid">
+        <article class="card reveal">
+          <span class="mark">完整源码</span>
+          <h3>完整上游源码 + 补丁</h3>
+          <p>与上游的分歧只有两处小补丁，都在小函数里。合并上游很容易，其余部分照上游原样保留。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">字数</span>
+          <h3>中文字数按字计</h3>
+          <p>中文没有空格可切。原先把一段中文按空格分词统计，字数严重偏少；现在按 Word 的中文字数口径统计。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">字体与语言</span>
+          <h3>东亚字体与语言标记</h3>
+          <p><code>w:rFonts/@w:eastAsia</code> 与 <code>w:lang/@w:eastAsia</code> 正确读写。中文文档在 Word 里打开不掉字体、不掉语言标记。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">排版层</span>
+          <h3>国标排版技能与预设</h3>
+          <p>公文 GB/T 9704、学位论文 GB/T 7713 与参考文献 GB/T 7714、法务文书，四套技能配四套预设，一次应用。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">离线</span>
+          <h3>不联网，不上传</h3>
+          <p>没有账号，没有云同步，没有遥测。稿子留在你自己的机器上。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">可被程序驱动</span>
+          <h3>命令行、MCP、控制通道</h3>
+          <p>每个功能都是命令。界面、快捷键、CLI、MCP 走同一套命令注册表，AI 助手也能安全地操作文档。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="cjk">
+    <div class="wrap">
+      <h2><span class="num">02</span>中文排版层</h2>
+      <p class="section-lede">
+        技能是给 AI 助手用的操作手册：什么时候用哪条命令、国标要求什么、哪里会踩坑，每个技能都配了可直接运行的脚本。
+        技能<strong>只做排版</strong>——内容必须是已经定稿的文本，它不会替你写、编或改一个字。
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>技能</th><th>干什么</th><th>依据</th></tr></thead>
+          <tbody>
+            <tr><td><code>gongwen</code></td><td>公文：通知、请示、报告、函、纪要、批复、意见</td><td>GB/T 9704—2012</td></tr>
+            <tr><td><code>thesis</code></td><td>学位论文：封面、页眉、目录、图表编号、参考文献</td><td>GB/T 7713.1、GB/T 7714—2015</td></tr>
+            <tr><td><code>legal-docs</code></td><td>民事起诉状、律师函、法律意见书、合同审查报告，可出对外脱敏版</td><td>法务文书惯例</td></tr>
+            <tr><td><code>wordcraft</code></td><td>WordCraft 全部命令的用法、可用性核查与证据台账</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="section-lede" style="margin-top:32px">
+        <code>presets/</code> 下四套中文页面与默认样式，是一段可直接跑的脚本：
+      </p>
+<pre><code>wordcraft-cli run --file 稿子.docx --script presets/zh-gongwen.json --save out.docx</code></pre>
+
+      <div class="gallery">
+        <figure class="shot reveal">
+          <img src="images/zh/page-gongwen.png" width="1191" height="1684" loading="lazy" alt="公文第一页：版心居中的仿宋正文与黑体标题">
+          <figcaption>公文 · A4，GB/T 9704—2012 版心</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/page-thesis.png" width="1191" height="1684" loading="lazy" alt="学位论文第一页">
+          <figcaption>学位论文 · 封面、标题层级与正文</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/page-legal.png" width="1191" height="1684" loading="lazy" alt="民事起诉状第一页">
+          <figcaption>民事起诉状 · 当事人、诉讼请求、事实与理由</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="changes">
+    <div class="wrap">
+      <h2><span class="num">03</span>相对上游迭代了什么</h2>
+      <p class="section-lede">基线是上游 WordCraft <strong>v0.9.0</strong>。</p>
+
+      <div class="grid">
+        <article class="card reveal">
+          <span class="mark">已提交上游 · 1</span>
+          <h3>中文字数按字统计</h3>
+          <p>一段中文原来会被按空格切开数，字数严重偏少。现在按 Word 的中文字数口径（G2）统计，数字与字符也一并算清。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">已提交上游 · 2</span>
+          <h3><code>w:lang/@w:eastAsia</code> 读写</h3>
+          <p>中文段落之前会丢掉东亚语言标记，在 Word 里打开后拼写检查语言会跑成英语。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">本发行版</span>
+          <h3>修掉公文排版的字体名</h3>
+          <p>现代 Windows 上并不存在 <code>仿宋_GB2312</code> 这个字体名，写了会<strong>静默回退成黑体</strong>，公文的仿宋 / 楷体区分整个丢掉。现在按候选顺序取真机上真实存在的字体名。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">本发行版</span>
+          <h3>修掉论文脚本的命令顺序</h3>
+          <p>插入页眉会把光标移进页眉文本区，此后只能在正文执行的命令会失败。现在目录与著录排在前，页脚页眉排在后。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">本发行版</span>
+          <h3>换成自己的图标</h3>
+          <p>移除全部 ArtCraft 图案，换成朱砂圆角方块加一个「文」，一个脚本生成 SVG / PNG / ICO / ICNS。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">本发行版</span>
+          <h3>薄发行版</h3>
+          <p>crate 名、二进制名、配置目录、包名都保持上游原样，方便与上游同步。运行起来的程序仍然叫 WordCraft——它本来就是。</p>
+        </article>
+      </div>
+
+      <p class="section-lede" style="margin-top:34px">
+        已知限制写在文档里，不藏着：
+      </p>
+      <ul class="list limits">
+        <li><strong>没有中文拼写 / 语法校对。</strong>WordCraft 的校对只覆盖英、俄、波、葡、意几种语言，本发行版也没有假装有。</li>
+        <li><strong>GB/T 7714 条目模板缺期号槽位</strong>，期刊论文的期号需要手工补。</li>
+        <li><strong>参考文献默认标题是英文 <code>References</code></strong>，用 <code>references.bibliography</code> 的 <code>title</code> 参数改成「参考文献」。</li>
+        <li><strong>方正小标宋简体不是 Windows 自带字体</strong>，机器上没有时公文标题会回退为黑体并给出提示。</li>
+        <li><strong>简繁转换、拼音排序、按地区自动选默认样式</strong>还没做。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="shots">
+    <div class="wrap">
+      <h2><span class="num">04</span>装上试试</h2>
+      <p class="section-lede">从源码构建，然后命令行、MCP 或直接开界面用。</p>
+
+<pre><code>git clone https://github.com/matou1118/ttwriter
+cd ttwriter
+cargo build --release -p wordcraft        # 需要 Rust 1.95+
+
+wordcraft-cli convert 稿子.docx 稿子.pdf            # 转格式
+wordcraft-cli render 稿子.docx page1.png --page 1   # 渲染成图
+wordcraft-cli commands                              # 列出全部命令
+wordcraft-cli mcp                                   # 以 MCP 服务器方式跑，交给 AI 用</code></pre>
+
+      <div class="gallery">
+        <figure class="shot reveal">
+          <img src="images/zh/app-thesis.png" width="3200" height="2000" loading="lazy" alt="蜻蜓文档 TTWriter 打开一份学位论文">
+          <figcaption>学位论文：标题层级、页眉、页脚页码</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/app-legal.png" width="3200" height="2000" loading="lazy" alt="蜻蜓文档 TTWriter 打开一份民事起诉状">
+          <figcaption>民事起诉状：当事人信息、诉讼请求</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/app-dark.png" width="3200" height="2000" loading="lazy" alt="蜻蜓文档 TTWriter 的深色界面">
+          <figcaption>深色界面同样可用</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="upstream">
+    <div class="wrap">
+      <h2><span class="num">05</span>与上游的关系</h2>
+      <p class="section-lede">
+        这是一个<strong>薄发行版</strong>：与上游的分歧尽量少，通用改进往上游提 PR。
+        两条路都欢迎——通用问题请优先提到上游，中文层的问题提给这里。
+      </p>
+
+      <div class="grid">
+        <article class="card reveal">
+          <h3>上游代码不变许</h3>
+          <p>WordCraft 本体仍是 MIT OR Apache-2.0。本仓库新增的技能、预设、工具与文档是 Apache-2.0。</p>
+        </article>
+        <article class="card reveal">
+          <h3>不使用上游标识</h3>
+          <p>移除全部 ArtCraft 图案，只在正文里以平文本说明出处。素材逐条记在 ATTRIBUTION.md。</p>
+        </article>
+        <article class="card reveal">
+          <h3>素材底线</h3>
+          <p>不复制、不描摹、不截屏裁切 Microsoft / Adobe / Avid / Autodesk 的任何图标、模板、主题或字模。国标版式以公开标准文本为依据自行实现。</p>
+        </article>
+        <article class="card reveal">
+          <h3>致谢</h3>
+          <p>地基是 ArtCraft 团队与 WordCraft 的全部贡献者从零写起的这个 Rust 文字处理器。简体中文界面来自上游。</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <h4>蜻蜓文档 TTWriter</h4>
+        <ul>
+          <li><a href="https://github.com/matou1118/ttwriter">GitHub 仓库</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/releases">发行版下载</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/CHANGELOG.md">更新日志</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/ATTRIBUTION.md">素材来源</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>参与</h4>
+        <ul>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/CONTRIBUTING.md">贡献指南</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/issues/new/choose">提 Issue</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/security/advisories/new">报告安全问题</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/CODE_OF_CONDUCT.md">行为准则</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>上游与相关</h4>
+        <ul>
+          <li><a href="https://github.com/storytold/wordcraft">WordCraft（上游）</a></li>
+          <li><a href="https://github.com/storytold/craftrules">craftrules（开发守则）</a></li>
+          <li><a href="https://www.ttread.cn">蜻蜓伴读 · 码头哥</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="fine">
+      代码 MIT OR Apache-2.0，本仓库新增内容 Apache-2.0。基于 WordCraft（ArtCraft 团队），本项目与 ArtCraft 无隶属关系。
+      © 2026 蜻蜓文档 TTWriter 贡献者。
+    </p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

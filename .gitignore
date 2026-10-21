@@ -2,6 +2,7 @@
 plan/
 /target
 /dist
+/_site/
 /corpus
 /log
 .DS_Store

@@ -1,0 +1,48 @@
+name: Pages
+
+# 官网（GitHub Pages）。源码在 site/，截图仍只有 docs/images/ 一份，发布时拷进来，
+# 免得同一张图在仓库里存两遍。
+
+on:
+  push:
+    branches: [main, master]
+    paths: ["site/**", "docs/images/**", "assets/app-icon/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: assemble the site
+        run: |
+          mkdir -p _site
+          cp -r site/. _site/
+          mkdir -p _site/images _site/icon
+          cp -r docs/images/. _site/images/
+          cp assets/app-icon/hicolor/256x256/apps/ai.storyteller.wordcraft.png _site/icon/icon.png
+          cp assets/app-icon/wordcraft.svg _site/icon/icon.svg
+          rm -f _site/README.md
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

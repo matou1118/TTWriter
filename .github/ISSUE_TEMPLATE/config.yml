@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 安全问题 / 崩溃
+    url: https://github.com/matou1118/ttwriter/security/advisories/new
+    about: 恶意文件导致的崩溃、越权写入等，请走私密渠道，不要开公开 Issue。
+  - name: 上游 WordCraft
+    url: https://github.com/storytold/wordcraft/issues
+    about: 通用问题（解析、排版、渲染、界面）也请报告给上游，让所有用户都受益。
+  - name: 官网 · 作品集
+    url: https://www.ttread.cn
+    about: 蜻蜓伴读 · 码头哥的其他作品。

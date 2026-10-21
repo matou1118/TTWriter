@@ -1487,7 +1487,7 @@ fn is_hanzi(c: char) -> bool {
         | 0x4E00..=0x9FFF      // CJK unified ideographs
         | 0xF900..=0xFAFF      // compatibility ideographs
         | 0xAC00..=0xD7AF      // hangul syllables
-        | 0x20000..=0x2A6DF)   // CJK extension B
+        | 0x20000..=0x2A6DF) // CJK extension B
 }
 
 /// How deep in nested tables [`Document::para_paths`] goes: cells below this are skipped.

@@ -1,0 +1,76 @@
+name: Bug 报告
+description: 报告一个问题：崩了、排版不对、命令没反应、字不对
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        谢谢报告。**安全和崩溃问题**（恶意文件导致的 panic、越权写入等）请不要开公开 Issue，
+        走 [私密渠道](../security/advisories/new)，见 [SECURITY.md](../blob/master/SECURITY.md)。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 你做了什么，期望什么，实际看到了什么。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 越具体越好。如果和某个文件有关，请描述它是怎么来的（哪些命令生成的），**不要上传涉密或含个人信息的文档**。
+      placeholder: |
+        1. wordcraft-cli render 稿子.docx page1.png --page 1
+        2. 看 page1.png，标题应该是仿宋但显示成了黑体
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: tag（如 v0.9.0-zh.1）或 commit。如果是从源码构建的，写 commit。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 系统
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - BSD
+        - 浏览器 (WASM)
+        - 其他（在下面说明）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 大概是哪一块
+      multiple: true
+      options:
+        - 排版 / 渲染（和 Word 不一致）
+        - 字体（字体选错、回退、缺字）
+        - 中文相关（字数、简体中文界面、东亚字体 / 语言标记）
+        - 排版技能（gongwen / thesis / legal-docs / wordcraft）
+        - 预设（presets/）
+        - 文件读写（docx / doc / odt / rtf / pdf / md）
+        - 命令行 / 控制通道 / MCP
+        - 界面
+        - 不知道
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充
+      description: 日志、渲染出的图（脱敏后）、你排查过的方向。可选。
+    validations:
+      required: false

@@ -4,7 +4,7 @@ description: 排版中文法务文书——民事起诉状、律师函、法律�
 license: Apache-2.0
 compatibility: Needs the wordcraft-cli binary on PATH. No network access needed.
 metadata:
-  author: WordCraft Chinese edition
+  author: 蜻蜓文档 TTWriter
   version: "1.0"
   domain: legal-documents
 ---

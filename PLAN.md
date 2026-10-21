@@ -449,20 +449,21 @@ powershell -ExecutionPolicy Bypass -File build.ps1 build --release -p wordcraft-
 
 ```powershell
 cd D:\App\WordCraft
-powershell -File build.ps1 build --release -p wordcraft-cli   # 已验证可用
-powershell -File build.ps1 test --release --workspace
+powershell -ExecutionPolicy Bypass -File test-all.ps1     # 完整测试：编译 → 测试 → 质量门 → skill 校验 → 排版冒烟
+powershell -ExecutionPolicy Bypass -File build.ps1 build --release -p wordcraft-cli
 ```
 
 ### 建议顺序
 
 1. **提 PR #1：`w:lang/@w:eastAsia`**（已实现，commit `8c3be92`）
+   - 补丁与 PR 描述在 [`upstream-prs/`](upstream-prs/)
    - 上游 v0.9.0 仍未修，通用缺陷，不限中文
    - 附上复现步骤（`inspect` / `convert` 往返对比）和回归测试
 2. **提 PR #2：中文字数统计**（已实现，commit `f19dbf7`）
-3. **rebase 到 v0.9.0 / main**，跑全量测试
+3. **rebase 到上游最新**（v0.9.0 之后可能又有新版本）
 4. 然后才做 **G1 的纯样式部分**（东亚字体 + A4 + 首行缩进 2 字符）——
    注意 `editing_lang` 那部分**必须等 G3**（上游守卫测试只允许可校对语言）
-5. **G4 拼音排序**（无上游 issue，纯增量）
+5. **G4 拼音排序**、**简繁转换**（无上游 issue，纯增量）
 6. **G5 中文模板**
 
-> M1 全量门 `cargo xtask ci` 尚未跑完（wasm 部分未验证）——提 PR 前需补上。
+> M1 全量门 `cargo xtask ci` 的 **wasm 部分**尚未验证——提 PR 前需补（需装 trunk）。

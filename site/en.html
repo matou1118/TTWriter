@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>蜻蜓文档 TTWriter · a WordCraft distribution for writing in Chinese</title>
+<meta name="description" content="蜻蜓文档 TTWriter is a Chinese edition of WordCraft: the complete upstream Rust source plus national-standard layout for Chinese official documents (GB/T 9704), theses (GB/T 7713 / 7714) and legal papers, Chinese word counting, and East Asian font and language marking. Offline.">
+<meta name="author" content="码头哥">
+<meta name="theme-color" content="#f7f5f0">
+<link rel="canonical" href="https://matou1118.github.io/ttwriter/en.html">
+<link rel="alternate" hreflang="zh-CN" href="index.html">
+<link rel="alternate" hreflang="en" href="en.html">
+<link rel="icon" href="icon/icon.svg">
+<link rel="stylesheet" href="style.css">
+<meta property="og:type" content="website">
+<meta property="og:title" content="蜻蜓文档 TTWriter">
+<meta property="og:description" content="A Chinese edition of WordCraft: national-standard layout for Chinese official documents, theses and legal papers, Chinese word counting, East Asian font and language marking.">
+<meta property="og:image" content="images/zh/hero.png">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="icon/icon.png" alt="" width="28" height="28">
+      蜻蜓文档 <span class="sub">TTWriter</span>
+    </a>
+    <nav class="nav" aria-label="Page navigation">
+      <a href="#what" class="opt">What it is</a>
+      <a href="#cjk" class="opt">Chinese layout</a>
+      <a href="#changes" class="opt">What changed</a>
+      <a href="#shots" class="opt">Screenshots</a>
+      <a href="#upstream" class="opt">Upstream</a>
+      <a href="https://github.com/matou1118/ttwriter">GitHub</a>
+      <a href="index.html" title="切换到简体中文">中文</a>
+      <button class="icon-btn" id="theme" type="button" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <div class="hero" id="top">
+    <div class="wrap">
+      <p class="eyebrow">Based on WordCraft · Rust · Offline</p>
+      <h1>
+        <span class="zh">Chinese writing,<br>laid out the Chinese way</span>
+        <span class="en">蜻蜓文档 TTWriter</span>
+      </h1>
+      <p class="lede">
+        A <strong>Chinese edition of <a href="https://github.com/storytold/wordcraft">WordCraft</a></strong>:
+        the <strong>complete source</strong>, buildable and changeable, with the layer Chinese writing
+        actually needs added on top — national-standard layout for official documents, theses and legal
+        papers, how Chinese characters are counted, and how fonts are written into the file the right way.
+      </p>
+      <p class="note">
+        Upstream WordCraft is developed by the ArtCraft team (MIT OR Apache-2.0). This project is not
+        ArtCraft, does not represent ArtCraft, and uses no ArtCraft marks; it says in plain text that it
+        is based on WordCraft.
+      </p>
+
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/matou1118/ttwriter/releases">Download</a>
+        <a class="btn btn-ghost" href="https://github.com/matou1118/ttwriter">Source</a>
+        <a class="btn btn-ghost" href="https://www.ttread.cn">Other work by 码头哥 →</a>
+      </div>
+
+      <ul class="chips">
+        <li>Simplified Chinese UI</li>
+        <li>Chinese words counted by character</li>
+        <li>East Asian font and language marking</li>
+        <li>Four layout skills</li>
+        <li>Four Chinese presets</li>
+        <li>600+ commands</li>
+        <li>CLI · MCP · control channel</li>
+        <li>No network</li>
+      </ul>
+
+      <figure class="shot hero-shot reveal">
+        <img src="images/zh/hero.png" width="3200" height="2000" fetchpriority="high" alt="TTWriter with a Chinese official document open: Simplified Chinese interface, body text in FangSong, first-level headings in a sans face">
+        <figcaption>The Simplified Chinese interface with a 公文 laid out to GB/T 9704—2012: three-point 仿宋 body, three-point 黑体 first-level headings.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <section id="what">
+    <div class="wrap">
+      <h2><span class="num">01</span>What this is</h2>
+      <p class="section-lede">
+        Not a plugin, not a skin. One clone builds it; inside is WordCraft itself plus one Chinese layer.
+      </p>
+
+      <div class="grid">
+        <article class="card reveal">
+          <span class="mark">Full source</span>
+          <h3>Complete upstream source + patches</h3>
+          <p>Divergence from upstream is two small patches, both inside small functions. Merging upstream stays easy; everything else is upstream as-is.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">Counting</span>
+          <h3>Chinese words counted by character</h3>
+          <p>Chinese has no spaces to split on. A run of Chinese used to be tokenised on spaces and badly under-counted; it now follows Word's Chinese word count (G2).</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">Fonts &amp; language</span>
+          <h3>East Asian fonts and language marking</h3>
+          <p><code>w:rFonts/@w:eastAsia</code> and <code>w:lang/@w:eastAsia</code> round-trip correctly, so a Chinese document keeps its fonts and its language marking in Word.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">Layout layer</span>
+          <h3>National-standard skills and presets</h3>
+          <p>Official documents (GB/T 9704), theses (GB/T 7713 and GB/T 7714 references) and legal papers: four skills, four presets, applied in one step.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">Offline</span>
+          <h3>No network, no upload</h3>
+          <p>No account, no cloud sync, no telemetry. Your writing stays on your machine.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">Drivable</span>
+          <h3>CLI, MCP, control channel</h3>
+          <p>Every feature is a command. The ribbon, shortcuts, CLI and MCP dispatch through one registry, so an AI assistant can drive a document safely.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="cjk">
+    <div class="wrap">
+      <h2><span class="num">02</span>The Chinese layout layer</h2>
+      <p class="section-lede">
+        Skills are operating manuals for AI assistants: which command to run when, what the standard
+        requires, where the traps are. Each ships runnable scripts. They are
+        <strong>layout only</strong> — the content must be final, and a skill will never write, invent
+        or edit a word of it.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Skill</th><th>What it does</th><th>Standard</th></tr></thead>
+          <tbody>
+            <tr><td><code>gongwen</code></td><td>Official documents: notices, requests, reports, letters, minutes, replies</td><td>GB/T 9704—2012</td></tr>
+            <tr><td><code>thesis</code></td><td>Theses: title page, running head, contents, figure/table numbering, references</td><td>GB/T 7713.1, GB/T 7714—2015</td></tr>
+            <tr><td><code>legal-docs</code></td><td>Civil complaints, lawyer's letters, legal opinions, contract reviews, with an optional redacted version</td><td>legal-document convention</td></tr>
+            <tr><td><code>wordcraft</code></td><td>Every WordCraft command, how to verify availability, and an evidence ledger</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="section-lede" style="margin-top:32px">
+        Four sets of Chinese page setup and default styles live under <code>presets/</code>, each a runnable script:
+      </p>
+<pre><code>wordcraft-cli run --file draft.docx --script presets/zh-gongwen.json --save out.docx</code></pre>
+
+      <div class="gallery">
+        <figure class="shot reveal">
+          <img src="images/zh/page-gongwen.png" width="1191" height="1684" loading="lazy" alt="Page one of a Chinese official document: centred FangSong body text under a heavier title face">
+          <figcaption>Official document · A4, GB/T 9704—2012 type area</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/page-thesis.png" width="1191" height="1684" loading="lazy" alt="Page one of a Chinese thesis">
+          <figcaption>Thesis · title page, heading levels, body</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/page-legal.png" width="1191" height="1684" loading="lazy" alt="Page one of a Chinese civil complaint">
+          <figcaption>Civil complaint · parties, claims, facts and reasons</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="changes">
+    <div class="wrap">
+      <h2><span class="num">03</span>What changed relative to upstream</h2>
+      <p class="section-lede">The baseline is upstream WordCraft <strong>v0.9.0</strong>.</p>
+
+      <div class="grid">
+        <article class="card reveal">
+          <span class="mark">Offered upstream · 1</span>
+          <h3>Count Chinese characters as words</h3>
+          <p>A run of Chinese used to be split on spaces and counted, badly under-counting it. It now follows Word's Chinese word count (G2), with numbers and characters counted too.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">Offered upstream · 2</span>
+          <h3>Read and write <code>w:lang/@w:eastAsia</code></h3>
+          <p>Chinese paragraphs used to lose their East Asian language marking, so Word would run its spell check in English.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">This edition</span>
+          <h3>Fixed the official-document font names</h3>
+          <p><code>仿宋_GB2312</code> is not an installed family name on modern Windows, so asking for it made the renderer <strong>silently fall back to a sans face</strong> and lose the FangSong/Kai distinction. Names now resolve against what is actually installed.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">This edition</span>
+          <h3>Fixed the thesis script's command order</h3>
+          <p>Inserting a header moves the caret into the header story, after which main-text-only commands fail. The contents and bibliography now come before footer and header.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">This edition</span>
+          <h3>Our own app icon</h3>
+          <p>All ArtCraft art removed, replaced with a cinnabar rounded square and 文, generated as SVG / PNG / ICO / ICNS by one script.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">This edition</span>
+          <h3>A thin distribution</h3>
+          <p>Crate names, binary names, config directories and the bundle id are unchanged, so syncing with upstream stays cheap. The binary that runs is still WordCraft — because it is.</p>
+        </article>
+      </div>
+
+      <p class="section-lede" style="margin-top:34px">
+        Known limits, written down rather than hidden:
+      </p>
+      <ul class="list limits">
+        <li><strong>No Chinese spelling or grammar proofing.</strong> WordCraft proofs English, Russian, Polish, Portuguese and Italian only; this edition does not pretend otherwise.</li>
+        <li><strong>The GB/T 7714 entry template has no issue-number slot</strong>, so a journal issue must be added by hand.</li>
+        <li><strong>The bibliography heading defaults to the English <code>References</code></strong>; pass <code>title</code> to <code>references.bibliography</code> to get 参考文献.</li>
+        <li><strong>方正小标宋简体 is not bundled with Windows</strong>, so a 公文 title falls back to a sans face and says so.</li>
+        <li><strong>Traditional/Simplified conversion, pinyin sorting, and per-region default styles</strong> are not done yet.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="shots">
+    <div class="wrap">
+      <h2><span class="num">04</span>Try it</h2>
+      <p class="section-lede">Build from source, then use the CLI, MCP, or the window itself.</p>
+
+<pre><code>git clone https://github.com/matou1118/ttwriter
+cd ttwriter
+cargo build --release -p wordcraft        # needs Rust 1.95+
+
+wordcraft-cli convert draft.docx draft.pdf          # convert formats
+wordcraft-cli render draft.docx page1.png --page 1  # render to an image
+wordcraft-cli commands                              # list every command
+wordcraft-cli mcp                                   # run as an MCP server for AI agents</code></pre>
+
+      <div class="gallery">
+        <figure class="shot reveal">
+          <img src="images/zh/app-thesis.png" width="3200" height="2000" loading="lazy" alt="TTWriter with a Chinese thesis open">
+          <figcaption>Thesis: heading levels, running head, page number in the footer</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/app-legal.png" width="3200" height="2000" loading="lazy" alt="TTWriter with a Chinese civil complaint open">
+          <figcaption>Civil complaint: parties, claims</figcaption>
+        </figure>
+        <figure class="shot reveal">
+          <img src="images/zh/app-dark.png" width="3200" height="2000" loading="lazy" alt="TTWriter in dark mode">
+          <figcaption>Dark mode works too</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="upstream">
+    <div class="wrap">
+      <h2><span class="num">05</span>Relationship to upstream</h2>
+      <p class="section-lede">
+        This is a <strong>thin distribution</strong>: divergence is kept small and generic improvements go
+        upstream as PRs. Both routes are welcome — generic problems belong upstream, Chinese-layer
+        problems belong here.
+      </p>
+
+      <div class="grid">
+        <article class="card reveal">
+          <h3>Upstream licence unchanged</h3>
+          <p>WordCraft itself stays MIT OR Apache-2.0. What this repository adds (skills, presets, tooling, docs) is Apache-2.0.</p>
+        </article>
+        <article class="card reveal">
+          <h3>No upstream marks</h3>
+          <p>All ArtCraft art removed; provenance stated in plain text. Assets are credited file by file in ATTRIBUTION.md.</p>
+        </article>
+        <article class="card reveal">
+          <h3>Asset floor</h3>
+          <p>Nothing is copied, traced or screenshot-cropped from Microsoft, Adobe, Avid or Autodesk — no icons, templates, themes or font data. National-standard layout is implemented from the published standards.</p>
+        </article>
+        <article class="card reveal">
+          <h3>Credits</h3>
+          <p>The ground everything stands on is the Rust word processor the ArtCraft team and WordCraft's contributors wrote from scratch. The Simplified Chinese interface comes from upstream.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <h4>蜻蜓文档 TTWriter</h4>
+        <ul>
+          <li><a href="https://github.com/matou1118/ttwriter">GitHub repository</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/releases">Releases</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/CHANGELOG.md">Changelog</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/ATTRIBUTION.md">Asset attribution</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Contribute</h4>
+        <ul>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/CONTRIBUTING.md">Contributing</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/issues/new/choose">Open an issue</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/security/advisories/new">Report a vulnerability</a></li>
+          <li><a href="https://github.com/matou1118/ttwriter/blob/master/CODE_OF_CONDUCT.md">Code of conduct</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Upstream</h4>
+        <ul>
+          <li><a href="https://github.com/storytold/wordcraft">WordCraft (upstream)</a></li>
+          <li><a href="https://github.com/storytold/craftrules">craftrules (standards)</a></li>
+          <li><a href="https://www.ttread.cn">蜻蜓伴读 · 码头哥</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="fine">
+      Code MIT OR Apache-2.0; what this repository adds is Apache-2.0. Based on WordCraft by the ArtCraft
+      team; this project is not affiliated with ArtCraft. © 2026 蜻蜓文档 TTWriter contributors.
+    </p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

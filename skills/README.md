@@ -1,4 +1,4 @@
-# Agent Skills
+﻿# Agent Skills
 
 Skills for driving WordCraft from an AI agent, and for the Chinese document
 formats that WordCraft does not ship.
@@ -118,5 +118,6 @@ Two rules learned the hard way:
 - [`../ASSESSMENT.md`](../ASSESSMENT.md) — 优化与垂直拓展评估（P0–P3），含实测依据
 - [`../SKILLS-PLAN.md`](../SKILLS-PLAN.md) — 垂直行业 skill 体系：GitHub 调研、什么复用、什么不做
 - [`../OPEN-SOURCE-STRATEGY.md`](../OPEN-SOURCE-STRATEGY.md) — 与上游的关系：哪些推上游、哪些留本仓库、商标义务
+
 
 

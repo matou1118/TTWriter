@@ -1,0 +1,249 @@
+/* 蜻蜓文档 TTWriter · 官网页
+ * 设计令牌取自 www.ttread.cn（蜻蜓伴读）：朱砂强调色、暖白底、系统字体栈、1120px 版心。
+ * 字体全走系统栈，零网络请求；没有引入任何第三方 CSS/JS。 */
+
+:root {
+  --wrap: 1120px;
+  --pad: clamp(18px, 5vw, 44px);
+  --r: 14px;
+  --r-lg: 22px;
+  --ease: cubic-bezier(.22, .61, .36, 1);
+
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Source Han Sans SC",
+               "Noto Sans SC", "Microsoft YaHei", system-ui, -apple-system,
+               "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, Consolas,
+               "Liberation Mono", monospace;
+
+  --bg: #f7f5f0;
+  --bg-2: #fffdf8;
+  --panel: rgba(255, 253, 248, .72);
+  --panel-solid: #fff;
+  --line: rgba(24, 26, 32, .12);
+  --line-2: rgba(24, 26, 32, .18);
+  --ink: #16181e;
+  --ink-2: #4a5060;
+  --faint: #646a79;
+  --acc: #b33420;
+  --acc-2: #d4573c;
+  --on-acc: #fff;
+  --teal: #0d9488;
+  --shadow: 0 1px 2px rgba(24, 26, 32, .05), 0 10px 26px -18px rgba(24, 26, 32, .24);
+  --shadow-lift: 0 2px 6px rgba(24, 26, 32, .06), 0 22px 44px -24px rgba(24, 26, 32, .32);
+}
+
+[data-theme="dark"] {
+  --bg: #0d1017;
+  --bg-2: #141821;
+  --panel: rgba(20, 24, 33, .72);
+  --panel-solid: #141821;
+  --line: rgba(255, 255, 255, .12);
+  --line-2: rgba(255, 255, 255, .2);
+  --ink: #eef0f4;
+  --ink-2: #b6bcca;
+  --faint: #8b93a3;
+  --acc: #e2684a;
+  --acc-2: #f0836a;
+  --on-acc: #1a1d24;
+  --teal: #2dd4bf;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 26px -18px rgba(0, 0, 0, .7);
+  --shadow-lift: 0 2px 6px rgba(0, 0, 0, .45), 0 22px 44px -24px rgba(0, 0, 0, .85);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--acc); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+img { max-width: 100%; height: auto; display: block; }
+
+.wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 var(--pad); }
+
+.skip {
+  position: absolute; left: -9999px;
+  background: var(--acc); color: var(--on-acc);
+  padding: 10px 16px; border-radius: var(--r); z-index: 100;
+}
+.skip:focus { left: 16px; top: 16px; }
+
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; border-radius: 4px; }
+
+/* ── 顶部 ───────────────────────────────────────────────── */
+
+.top {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--panel);
+  backdrop-filter: saturate(1.6) blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.top .wrap { display: flex; align-items: center; gap: 14px; min-height: 62px; }
+
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 700; letter-spacing: .01em; }
+.brand:hover { text-decoration: none; }
+.brand img { width: 28px; height: 28px; border-radius: 8px; }
+.brand .sub { color: var(--faint); font-weight: 500; font-size: .82rem; }
+
+.nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.nav a {
+  color: var(--ink-2); padding: 7px 12px; border-radius: 9px; font-size: .92rem;
+  transition: background .2s var(--ease), color .2s var(--ease);
+}
+.nav a:hover { background: var(--line); color: var(--ink); text-decoration: none; }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border: 1px solid var(--line-2); border-radius: 10px;
+  background: transparent; color: var(--ink-2); cursor: pointer; font-size: 15px; line-height: 1;
+  transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
+}
+.icon-btn:hover { background: var(--line); color: var(--ink); }
+
+@media (max-width: 720px) {
+  .nav a.opt { display: none; }
+  .brand .sub { display: none; }
+}
+
+/* ── 首屏 ───────────────────────────────────────────────── */
+
+.hero { padding: clamp(48px, 9vw, 92px) 0 clamp(28px, 5vw, 48px); }
+
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .8rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--acc); font-weight: 600; margin: 0 0 18px;
+}
+.eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--acc); border-radius: 2px; }
+
+h1 {
+  font-size: clamp(2.1rem, 5.6vw, 3.6rem);
+  line-height: 1.14; margin: 0 0 20px; letter-spacing: -.02em; font-weight: 800;
+}
+h1 .zh { display: block; }
+h1 .en {
+  display: block; font-size: clamp(1rem, 2.2vw, 1.35rem);
+  color: var(--faint); font-weight: 600; letter-spacing: .06em; margin-top: 10px;
+}
+
+.lede { font-size: clamp(1.02rem, 1.7vw, 1.18rem); color: var(--ink-2); max-width: 46em; margin: 0 0 14px; }
+.lede strong { color: var(--ink); font-weight: 700; }
+
+.note {
+  border-left: 3px solid var(--acc); padding: 2px 0 2px 16px; margin: 22px 0 0;
+  color: var(--faint); font-size: .92rem; max-width: 46em;
+}
+
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin: 30px 0 0; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 12px 22px; border-radius: 999px; font-weight: 600; font-size: .95rem;
+  border: 1px solid transparent; cursor: pointer; font-family: inherit;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), background .2s var(--ease);
+}
+.btn:hover { text-decoration: none; transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+.btn-primary { background: var(--acc); color: var(--on-acc); }
+.btn-ghost { background: var(--panel-solid); color: var(--ink); border-color: var(--line-2); box-shadow: var(--shadow); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0 0; padding: 0; list-style: none; }
+.chips li {
+  font-size: .8rem; color: var(--ink-2); background: var(--panel-solid);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 13px;
+}
+
+/* ── 截图 ───────────────────────────────────────────────── */
+
+.shot {
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  overflow: hidden; box-shadow: var(--shadow-lift); background: var(--panel-solid);
+}
+.shot img { width: 100%; }
+.shot figcaption {
+  font-size: .82rem; color: var(--faint); padding: 10px 16px;
+  border-top: 1px solid var(--line); background: var(--bg-2);
+}
+.hero-shot { margin: clamp(32px, 6vw, 56px) 0 0; }
+
+/* ── 区块 ───────────────────────────────────────────────── */
+
+section { padding: clamp(46px, 8vw, 84px) 0; }
+section + section { border-top: 1px solid var(--line); }
+
+h2 {
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem); line-height: 1.25; margin: 0 0 12px;
+  letter-spacing: -.015em; font-weight: 750;
+}
+h2 .num { color: var(--acc); font-family: var(--font-mono); font-size: .62em; margin-right: 12px; font-weight: 600; }
+h3 { font-size: 1.05rem; margin: 0 0 6px; font-weight: 700; }
+
+.section-lede { color: var(--ink-2); max-width: 52em; margin: 0 0 32px; }
+
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); }
+
+.card {
+  background: var(--panel-solid); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 20px 22px; box-shadow: var(--shadow);
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease);
+}
+.card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+.card p { margin: 0; color: var(--ink-2); font-size: .93rem; }
+.card .mark { color: var(--acc); font-weight: 700; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 8px; }
+
+table { width: 100%; border-collapse: collapse; font-size: .93rem; margin: 0 0 8px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+td code { white-space: nowrap; }
+.table-wrap { overflow-x: auto; background: var(--panel-solid); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+.table-wrap table { margin: 0; }
+
+.gallery { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 24px; }
+
+/* ── 代码 ───────────────────────────────────────────────── */
+
+pre {
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 16px 18px; overflow-x: auto; margin: 0 0 16px;
+  font-family: var(--font-mono); font-size: .86rem; line-height: 1.7; color: var(--ink);
+}
+code { font-family: var(--font-mono); font-size: .88em; background: var(--line); padding: 1px 6px; border-radius: 6px; }
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ── 列表 ───────────────────────────────────────────────── */
+
+.list { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.list li { padding-left: 26px; position: relative; color: var(--ink-2); }
+.list li::before {
+  content: ""; position: absolute; left: 6px; top: .62em;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--acc);
+}
+.list li strong { color: var(--ink); }
+.list.limits li::before { background: var(--faint); border-radius: 50%; }
+
+/* ── 页脚 ───────────────────────────────────────────────── */
+
+footer { border-top: 1px solid var(--line); background: var(--bg-2); padding: 44px 0; margin-top: 20px; }
+footer .cols { display: grid; gap: 26px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+footer h4 { margin: 0 0 10px; font-size: .82rem; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: .92rem; }
+footer .fine { margin: 30px 0 0; padding-top: 20px; border-top: 1px solid var(--line); color: var(--faint); font-size: .84rem; }
+
+/* ── 入场 ───────────────────────────────────────────────── */
+
+/* 隐藏状态由脚本加上（.off），不写在 CSS 里：脚本被拦掉时页面照样可读，不会白屏。 */
+.reveal { transition: opacity .6s var(--ease), transform .6s var(--ease); }
+.reveal.off { opacity: 0; transform: translateY(16px); }
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal.off { opacity: 1; transform: none; transition: none; }
+}

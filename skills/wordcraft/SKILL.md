@@ -4,7 +4,7 @@ description: Create, read, edit, format, verify and export Word documents (.docx
 license: Apache-2.0
 compatibility: Needs the wordcraft-cli binary (or the WordCraft app for the screenshot tools). No network access needed; everything runs locally and offline.
 metadata:
-  author: WordCraft Chinese edition
+  author: 蜻蜓文档 TTWriter
   version: "1.0"
 ---
 

@@ -4,6 +4,25 @@
 
 ---
 
+## 〇、最终决定（已执行）
+
+**名字**：蜻蜓文档 TTWriter　**仓库**：`github.com/matou1118/ttwriter`　**官网**：www.ttread.cn
+
+**形态：完整源码发行版**——完整上游源码 + 我们的补丁 + 中文层（技能 / 预设 / 文档），
+一个仓库 clone 下来就能编译运行。下面第二节曾主张"只发中文层、不发源码"，**这一条被否掉了**：
+代价是本仓库要跟着上游 rebase，换来的是"打开仓库就是一个能跑的产品"。
+
+**所以规则变成两条，其余分析仍然成立：**
+
+1. **通用改动推回上游**，本仓库只保留必需的分叉。当前只有 **2 个补丁**（中文字数、`w:lang/@w:eastAsia`），
+   都在小函数里，`git apply --check` 在 v0.9.0 上干净。
+2. **程序内部标识不变**（crate 名、二进制名、配置目录、包名 `ai.storyteller.wordcraft`），
+   与上游同步时不会到处冲突；对外身份（README、官网、图标、发布说明）用我们自己的。
+
+已执行的品牌动作见文末清单。
+
+---
+
 ## 一、直接回答
 
 **要开源。但不是以"WordCraft 的一个分叉"的形式开源，而是以"中文层"的形式。**
@@ -171,13 +190,13 @@
 ## 六、发布前的检查清单
 
 ### 商标与品牌
-- [ ] 移除 `docs/brand/` 全部 ArtCraft 标识（logo / mark / wordmark）
-- [ ] 替换 `assets/wordcraft-1024.png`、`.icns`、`.ico`、`.svg` 等带标识的图标（**自己原创**，不能改色描摹）
-- [ ] 不用 "ArtCraft" 做名称、logo、域名、社交账号、应用商店条目的任何部分
-- [ ] 不用 "WordCraft" 做产品名 / 暗示是 ArtCraft 产品（可以平文本写"基于 WordCraft（ArtCraft 团队）"）
-- [ ] `docs/brand/LICENSE-brand.txt` 里关于"必须移除"的条款照做
-- [ ] 保留 `NOTICE`、`LICENSE-MIT`、`LICENSE-APACHE`（上游要求）
-- [ ] `ATTRIBUTION.md` 补齐自己新增的资产行（上游 `cargo xtask assets` 会校验）
+- [x] 移除 `docs/brand/` 全部 ArtCraft 标识（logo / mark / wordmark）—— 目录已删除
+- [x] 替换 `assets/app-icon/` 下全部图标（`wordcraft.svg` / `-1024.png` / `-macos-512.png` / `.ico` / `.icns` / hicolor 全套）—— 自己原创（朱砂圆角方块 + 文），`tools/make_icons.py` 一次生成，**没有改色描摹**
+- [x] 不用 "ArtCraft" 做名称、logo、域名、社交账号、应用商店条目的任何部分
+- [x] 不用 "WordCraft" 做产品名 / 暗示是 ArtCraft 产品（可以平文本写"基于 WordCraft（ArtCraft 团队）"）—— README 与官网都写了
+- [x] `docs/brand/LICENSE-brand.txt` 里关于"必须移除"的条款照做（文件随目录一并移除；条款原文仍存于上游仓库）
+- [x] 保留 `NOTICE`、`LICENSE-MIT`、`LICENSE-APACHE`（上游要求）
+- [x] `ATTRIBUTION.md` 补齐自己新增的资产行（图标 14 行、中文截图 7 行；`cargo xtask assets` 校验）
 
 ### 许可与来源
 - [ ] 每个新数据/资产记录：作者、来源、许可

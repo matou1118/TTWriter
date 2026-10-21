@@ -35,13 +35,23 @@ TITLE_SIZE = 22.0   # 2 号
 PAGE_SIZE = 14.0    # 4 号
 
 # 正文 3 号仿宋；标题 2 号小标宋；一级 3 号黑体；二级 3 号楷体。
-# 方正小标宋简体 is not installed by default — fall back to 黑体.
+#
+# 每个角色是一串候选「(family, files)」：取第一个字体文件真在机器上的。
+# 名字必须取**安装后的 family 名**——现代 Windows 上 `仿宋_GB2312` 这个名字
+# 并不存在（simfang.ttf 的 family 是 FangSong / 仿宋），写了会静默回退成黑体，
+# 公文的仿宋/楷体区分就没了。英文名在前因为它跨语言稳定，中文名作后备。
 FONTS = {
-    "body": "仿宋_GB2312",
-    "title": "方正小标宋简体",
-    "title_fallback": "黑体",
-    "h1": "黑体",
-    "h2": "楷体_GB2312",
+    "body": [("FangSong", ["simfang.ttf"]), ("仿宋", ["simfang.ttf"]), ("仿宋_GB2312", ["simfang.ttf"])],
+    "h1": [("SimHei", ["simhei.ttf"]), ("黑体", ["simhei.ttf"])],
+    "h2": [("KaiTi", ["simkai.ttf"]), ("楷体", ["simkai.ttf"]), ("楷体_GB2312", ["simkai.ttf"])],
+    # 方正小标宋简体不是 Windows 自带字体；华文中宋/宋体是可行的替身。
+    "title": [
+        ("方正小标宋简体", ["fxbsjw.ttf", "fzxbsjw.ttf", "方正小标宋简体.ttf"]),
+        ("FZXiaoBiaoSong-B05S", ["fzxbsjw.ttf"]),
+        ("华文中宋", ["STZHONGS.TTF"]),
+        ("STZhongsong", ["STZHONGS.TTF"]),
+    ],
+    "title_fallback": [("SimHei", ["simhei.ttf"]), ("黑体", ["simhei.ttf"])],
     "latin": "Times New Roman",
 }
 
@@ -60,46 +70,50 @@ def run(exe: str, args: list[str]) -> str:
     return proc.stdout
 
 
-def installed(family: str) -> bool:
+def installed(family: str, files: list[str]) -> bool:
     """Whether a Chinese font face is present on this machine.
 
     The layout can only ask for a face that is installed; a missing one falls back
-    silently. Windows keeps the files in C:\\Windows\\Fonts, so check the file names.
+    silently, so it is checked here rather than discovered in the render.
     """
-    files = {
-        "仿宋_GB2312": ["simfang.ttf"],
-        "仿宋": ["simfang.ttf"],
-        "黑体": ["simhei.ttf"],
-        "楷体_GB2312": ["simkai.ttf"],
-        "楷体": ["simkai.ttf"],
-        "宋体": ["simsun.ttc"],
-        "方正小标宋简体": ["fxbsjw.ttf", "fzxbsjw.ttf", "方正小标宋简体.ttf"],
-    }.get(family)
-    if files is None:
-        return True  # unknown family: assume it is there and let the renderer decide
     fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
     return any((fonts / f).exists() for f in files)
 
 
+def pick_face(role: str) -> tuple[str, str | None]:
+    """The installed family to ask for in `role`, and a note if it had to fall back."""
+    for family, files in FONTS[role]:
+        if installed(family, files):
+            return family, None
+    family = FONTS[role][0][0] if role != "title" else FONTS["title_fallback"][0][0]
+    return family, f"未找到 {role} 字体，原样写入 {family}，渲染可能回退。"
+
+
 def pick_title_face(preferred: str | None) -> tuple[str, str | None]:
     """The title face to ask for, and a note if it had to fall back."""
-    for face in [preferred, FONTS["title"], FONTS["title_fallback"]]:
-        if face and installed(face):
-            return face, None
-    return FONTS["title_fallback"], (
-        f"未找到标题字体，回退为 {FONTS['title_fallback']}。"
+    if preferred:
+        return preferred, None
+    for family, files in FONTS["title"]:
+        if installed(family, files):
+            return family, None
+    family = FONTS["title_fallback"][0][0]
+    return family, (
+        f"未找到标题字体，回退为 {family}。"
         f"（GB/T 9704 要求 2 号小标宋；本机没有方正小标宋简体时用 --title-font 指定）"
     )
 
 
 def build_commands(wenzhong: str | None, title_face: str) -> list[dict]:
+    body = pick_face("body")[0]
+    h1 = pick_face("h1")[0]
+    h2 = pick_face("h2")[0]
     cmds: list[dict] = [
         # 版心：靠边距实现，纸仍是 A4。
         {"command": "layout.margins", "params": MARGINS},
         # 正文：3 号仿宋，固定行距 28 磅，首行缩进 2 字符。公文是黑白的。
         {"command": "styles.modify", "params": {
             "style": "Normal",
-            "chr": {"font": FONTS["latin"], "fontEa": FONTS["body"], "size": BODY_SIZE, "color": "000000"},
+            "chr": {"font": FONTS["latin"], "fontEa": body, "size": BODY_SIZE, "color": "000000"},
             "para": {"lineSpacing": LINE_SPACING, "indentFirstChars": 2},
         }},
         # 标题：2 号小标宋，居中，顶格，回行不断尾由内容控制。
@@ -111,20 +125,20 @@ def build_commands(wenzhong: str | None, title_face: str) -> list[dict]:
         # 一级标题 一、：3 号黑体，顶格。
         {"command": "styles.modify", "params": {
             "style": "Heading1",
-            "chr": {"font": FONTS["latin"], "fontEa": FONTS["h1"], "size": BODY_SIZE, "bold": False, "color": "000000"},
+            "chr": {"font": FONTS["latin"], "fontEa": h1, "size": BODY_SIZE, "bold": False, "color": "000000"},
             "para": {"lineSpacing": LINE_SPACING, "indentFirstChars": 0},
         }},
         # 二级标题 （一）：3 号楷体，顶格。
         {"command": "styles.modify", "params": {
             "style": "Heading2",
-            "chr": {"font": FONTS["latin"], "fontEa": FONTS["h2"], "size": BODY_SIZE, "bold": False, "color": "000000"},
+            "chr": {"font": FONTS["latin"], "fontEa": h2, "size": BODY_SIZE, "bold": False, "color": "000000"},
             "para": {"lineSpacing": LINE_SPACING, "indentFirstChars": 0},
         }},
     ]
     if wenzhong:
         cmds.append({"command": "styles.modify", "params": {
             "style": "Subtitle",
-            "chr": {"font": FONTS["latin"], "fontEa": FONTS["body"], "size": BODY_SIZE, "color": "000000"},
+            "chr": {"font": FONTS["latin"], "fontEa": body, "size": BODY_SIZE, "color": "000000"},
             "para": {"align": "center", "lineSpacing": LINE_SPACING, "indentFirstChars": 0},
         }})
     return cmds

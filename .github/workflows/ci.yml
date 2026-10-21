@@ -1,0 +1,51 @@
+# 快速门禁：格式、素材台账、分层，以及本仓库特有的技能校验。
+#
+# 完整的门禁是 `cargo xtask ci`（fmt、clippy -D warnings、全量测试、wasm），它要在本地跑：
+# 全量测试与 wasm 构建在 GitHub 免费 runner 上太慢，红了也没人看。见 CONTRIBUTING.md。
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: fmt · assets · layers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: every asset has an ATTRIBUTION.md row
+        run: cargo xtask assets
+      - name: layering (nothing below L6 depends on the UI)
+        run: cargo xtask layers
+
+  skills:
+    name: skills
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: validate every SKILL.md
+        run: |
+          for s in skills/*/SKILL.md; do
+            echo "::group::$s"
+            python3 tools/validate_skill.py "$s"
+            echo "::endgroup::"
+          done
+      - name: scripts are syntactically valid Python
+        run: python3 -m compileall -q skills/
