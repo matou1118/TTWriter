@@ -14,10 +14,10 @@ fn main() {
     }
     let mut res = winresource::WindowsResource::new();
     res.set_icon("../../assets/app-icon/wordcraft.ico")
-        .set("ProductName", "WordCraft")
-        .set("FileDescription", "WordCraft word processor")
-        .set("CompanyName", "Learning Machines LLC")
-        .set("LegalCopyright", "Copyright (c) the WordCraft authors. MIT OR Apache-2.0.")
+        .set("ProductName", "蜻蜓文档 TTWriter")
+        .set("FileDescription", "蜻蜓文档 TTWriter — a WordCraft distribution for writing in Chinese")
+        .set("CompanyName", "蜻蜓文档 TTWriter contributors")
+        .set("LegalCopyright", "Copyright (c) 2026 蜻蜓文档 TTWriter contributors. Based on WordCraft by the ArtCraft team. MIT OR Apache-2.0.")
         .set("OriginalFilename", "wordcraft.exe")
         .set("InternalName", "wordcraft");
     if let Err(e) = res.compile() {

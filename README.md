@@ -176,9 +176,10 @@ upstream as PRs.
 - The repository holds the **complete upstream source** plus our patches. Merging upstream is easy:
   there are only two patches, both inside small functions, and both `git apply --check` clean against
   v0.9.0.
-- **Internal identifiers are unchanged** — crate names, binary names, config directories, the bundle
-  id `ai.storyteller.wordcraft`. That keeps syncing with upstream cheap. The binary that runs is
-  still called WordCraft, because it is WordCraft.
+- **Internal identifiers are unchanged** — crate and binary names, config directories, the bundle id
+  `ai.storyteller.wordcraft`. Only the *displayed* name differs: the window title, the About box, the
+  `.exe`'s properties, the installer entries — about twenty-five lines in all. That keeps syncing
+  with upstream cheap; the generic patches are offered upstream as PRs.
 - We **use no ArtCraft marks** and do not represent ArtCraft. Under upstream's trademark terms this
   repository says, in plain text, that it is based on WordCraft by the ArtCraft team. All brand art
   has been replaced with our own ([`ATTRIBUTION.md`](ATTRIBUTION.md)).

@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=WordCraft
+Name=蜻蜓文档 TTWriter
 GenericName=Word Processor
-Comment=Write and design documents; open and save Word files
+Comment=Write and design documents; open and save Word files (a WordCraft distribution for writing in Chinese)
 Exec=wordcraft %F
 TryExec=wordcraft
 Icon=ai.storyteller.wordcraft

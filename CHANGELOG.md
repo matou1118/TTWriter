@@ -28,7 +28,8 @@
 ### 变更：相对上游
 
 - **品牌**：移除全部 ArtCraft 标识与图案，换成自己的应用图标（朱砂圆角方块 + 文，脚本 [`tools/make_icons.py`](tools/make_icons.py) 一次生成 SVG / PNG / ICO / ICNS）。本仓库不代表 ArtCraft，只在文档中以平文本说明「基于 WordCraft（ArtCraft 团队）」。
-- **程序内部标识保持不变**：crate 名、二进制名、配置目录、包名 `ai.storyteller.wordcraft` 都照旧，以便与上游同步时减少冲突。
+- **显示名改为「蜻蜓文档 TTWriter」**：窗口标题、关于对话框、exe 的版本信息、开始菜单与安装包条目。关于对话框里的上游链接与「Part of the Crafting Apps from the ArtCraft team」一句已移除，换成本站、本仓库与上游仓库三个链接。
+- **程序内部标识保持不变**：crate 名、二进制名 `wordcraft.exe`、配置目录、包名 `ai.storyteller.wordcraft` 都照旧，以便与上游同步时减少冲突。与上游的分叉只有二十几行显示文案。
 - **许可**：上游代码仍为 MIT OR Apache-2.0；本仓库新增内容（技能、预设、工具、文档）为 Apache-2.0。
 
 ### 已知限制

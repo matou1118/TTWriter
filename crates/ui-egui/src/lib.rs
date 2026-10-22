@@ -20,6 +20,12 @@ macro_rules! tl {
     };
 }
 
+/// The name this edition shows in window titles and the About dialog.
+///
+/// A proper noun, so it is not translated. Everything internal (crate and binary names, config
+/// directories, `ai.storyteller.wordcraft`) is upstream's and stays that way, to keep syncing cheap.
+pub const APP_NAME: &str = "蜻蜓文档 TTWriter";
+
 pub mod a11y;
 pub mod a11y_pane;
 pub mod async_saves;
@@ -2245,9 +2251,9 @@ impl WordApp {
             ctx.open_url(egui::OpenUrl::new_tab(url));
         }
         let title = if self.has_document() {
-            format!("{}{} - WordCraft", self.title_stem(), if self.session.dirty { " •" } else { "" })
+            format!("{}{} - {APP_NAME}", self.title_stem(), if self.session.dirty { " •" } else { "" })
         } else {
-            "WordCraft".to_string()
+            APP_NAME.to_string()
         };
         if title != self.sent_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -2970,7 +2976,7 @@ mod tests {
         let a = h.state_mut();
         assert!(!a.ui.backstage, "Esc leaves the Start screen");
         assert!(!a.has_document(), "for an empty window, not a blank document");
-        assert_eq!(a.sent_title, "WordCraft", "the window is titled with the app alone");
+        assert_eq!(a.sent_title, crate::APP_NAME, "the window is titled with the app alone");
         // The ribbon's commands are off, but Help, the File tab and the settings work.
         for id in ["format.bold", "text.insert", "file.save", "file.saveAs", "file.print", "edit.paste", "insert.table", "ui.print"] {
             assert!(!widgets::enabled(a, id), "{id} is off with no document");

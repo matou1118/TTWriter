@@ -40,7 +40,7 @@ pub fn submit() -> Submit {
                 }),
                 grayscale: settings.grayscale,
                 scaling: craft_print::Scaling::ShrinkToFit,
-                title: "WordCraft document".into(),
+                title: format!("{} document", wordcraft_ui_egui::APP_NAME),
                 options,
             };
             let _ = sender.send(craft_print::submit(&bytes, &job).map_err(|error| error.to_string()));

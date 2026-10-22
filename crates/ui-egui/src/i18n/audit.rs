@@ -170,9 +170,12 @@ impl Exempt {
             || self.body.contains(plain)
             || self.names.contains(plain)
             || plain.starts_with('@') // contributor handles
+            || plain.starts_with("https://") // a URL reads the same in every language
             || plain.starts_with("Style") || plain.starts_with("Table Style ") // a new style's default name
             || plain.contains('┬') || plain.contains('\u{2061}') // equation input (UnicodeMath), drawn as math
             || matches!(plain, "WordCraft" | "WordCraft User" | "Discord" | "https://" | "auto" | "I. II. III." | "i. ii. iii.")
+            // This edition's product name: a proper noun, the same in every interface language.
+            || plain == crate::APP_NAME
             || plain == "CONFIDENTIAL" // the watermark dialog's text: document content, kept as typed
             || plain == "Figure 1" // the caption dialog's sample: the label goes into the document as is
     }
@@ -348,28 +351,30 @@ fn complete_catalogs_have_every_string_the_interface_looked_up(mut keys: std::co
         }
     }
     let numbered = |s: &str| ["Heading ", "TOC "].iter().any(|p| s.strip_prefix(p).is_some_and(|n| n.chars().all(|c| c.is_ascii_digit())));
-    // Names that read the same in these languages (citation style names included).
+    // Names that read the same in these languages (citation style names included), and the
+    // product's own name, which is a proper noun.
     let same = |s: &str| {
-        matches!(
-            s,
-            "LaTeX"
-                | "LaTeX (*.tex)"
-                | "Unicode"
-                | "I. II. III."
-                | "i. ii. iii."
-                | "APA"
-                | "Chicago"
-                | "GB/T 7714"
-                | "GOST (name sort)"
-                | "GOST (title sort)"
-                | "Harvard (Anglia)"
-                | "IEEE"
-                | "ISO 690 (author-date)"
-                | "ISO 690 (numerical)"
-                | "MLA"
-                | "SIST02"
-                | "Turabian"
-        )
+        s.contains(crate::APP_NAME)
+            || matches!(
+                s,
+                "LaTeX"
+                    | "LaTeX (*.tex)"
+                    | "Unicode"
+                    | "I. II. III."
+                    | "i. ii. iii."
+                    | "APA"
+                    | "Chicago"
+                    | "GB/T 7714"
+                    | "GOST (name sort)"
+                    | "GOST (title sort)"
+                    | "Harvard (Anglia)"
+                    | "IEEE"
+                    | "ISO 690 (author-date)"
+                    | "ISO 690 (numerical)"
+                    | "MLA"
+                    | "SIST02"
+                    | "Turabian"
+            )
     };
     // A command called with parameters it can't use (`bad parameters: \`path\` (string) is
     // required`): the message names JSON parameters for scripts and MCP, so it stays English like

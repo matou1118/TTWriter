@@ -147,7 +147,7 @@ wordcraft-cli run --file 稿子.docx --script presets/zh-gongwen.json --save out
 这是一个**薄发行版**：与上游的分歧尽量少，通用改进往上游提 PR。
 
 - 仓库里是**完整上游源码**加我们的补丁。合并上游很容易：补丁只有两处，都在小函数里，`git apply --check` 在 v0.9.0 上是干净的。
-- 程序内部标识（crate 名、二进制名、配置目录、包名 `ai.storyteller.wordcraft`）**保持不变**，这样和上游同步时不会到处冲突。所以运行起来的程序仍然叫 WordCraft——它本来就是。
+- 程序内部标识（crate 名、二进制名 `wordcraft.exe`、配置目录、包名 `ai.storyteller.wordcraft`）**保持不变**，这样和上游同步时不会到处冲突。**不同的只有显示名**：窗口标题、关于对话框、exe 属性、安装包条目，一共二十几行。
 - 我们**不使用任何 ArtCraft 标识**，也不代表 ArtCraft 或向 ArtCraft 提交的代码。按上游商标条款，本仓库只在正文里以平文本说明「基于 WordCraft（ArtCraft 团队）」。品牌图案也全部换成了自己的（见 [`ATTRIBUTION.md`](ATTRIBUTION.md)）。
 - 上游代码许可是 MIT OR Apache-2.0，这个许可不变。本仓库自己新增的内容（技能、预设、构建与文档）是 Apache-2.0。
 
