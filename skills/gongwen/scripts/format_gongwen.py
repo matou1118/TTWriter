@@ -17,6 +17,7 @@ borrows it with cuts):
     company   企业：版心稍松（上下 3.0cm）、版记从简、无份号密级
     school    学校：同 company 版心，字号放大到小四/四号（阅读友好）
     hospital  医院事业单位：同 gb 版心，版记从简
+    community 社区/街道：简化红头、四号正文、行距 26 磅（居民可读优先）
 
 It drives wordcraft-cli; it never touches the document text. Requires the
 wordcraft-cli binary on PATH.
@@ -56,6 +57,8 @@ PRESETS = {
     "company": (MARGINS_LOOSE, 14.0, LINE_SPACING, True, "企业：小四（12pt→14 半步放宽）正文更紧凑商务"),
     "school": (MARGINS_LOOSE, 16.0, LINE_SPACING_LOOSE, True, "学校：三号正文、行距 26 磅，阅读友好"),
     "hospital": (MARGINS_GB, 16.0, LINE_SPACING, True, "医院/事业单位：国标版心、版记从简"),
+    # 社区/街道：红头简化（无份号密级）、四号字——居民通知优先可读性
+    "community": (MARGINS_LOOSE, 14.0, LINE_SPACING_LOOSE, True, "社区/街道：四号正文、行距 26 磅，居民可读优先"),
 }
 BODY_SIZE_GB = 16.0    # 3 号
 TITLE_SIZE = 22.0      # 2 号
