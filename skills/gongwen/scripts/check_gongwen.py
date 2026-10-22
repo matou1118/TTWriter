@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""体检一份 .docx 的 GB/T 9704 版式合规性（自动核对，不用人眼盯 PNG）。
+"""体检一份 .docx 的公文合规性：版式层（GB/T 9704）+ 文本规范层（GB/T 15834/15835 与行文惯例）。
 
-检查项（每项都是可程序化断言的国标数值）：
+版式层（可程序化断言的国标数值）：
   版心       上 37mm±1 / 下 35mm±1 / 左 28mm±1 / 右 26mm±1 → 104.9 / 99.2 / 79.4 / 73.7 磅
   行距       正文行距固定值 28 磅（±2 容差）
   字号       正文 3 号（16pt）
@@ -9,14 +9,25 @@
   标题       2 号（22pt）居中
   页码       页脚存在
 
+文本规范层（退文高频项，规则表驱动、零 LLM）：
+  发文字号   〔2026〕15 号：六角括号〔〕不是【】；年份四位；序号不编虚位（15 不写 015）
+  成文日期   用阿拉伯数字（2026 年 10 月 22 日）；汉字日期（二〇二六年）是 2012 版之前的写法
+  层次序数   一、→（一）→ 1. →（1）：只能逐级深入，不能跳级（一、下面直接 1.）
+  概数       二三个/三四天：相邻数字概数中间不加顿号；公文量词前「2」作概数宜作「两」
+  高频错词   其它→其他；截止/截至混用；制订/制定混用；权力/权利混用（词表可扩）
+  标点       句内括号后直接接句号；书名号嵌套用〈〉；「：」后再用「：」
+
 用法：
   python check_gongwen.py 公文.docx              # 人类可读报告
   python check_gongwen.py 公文.docx --json       # 机器可读（供 CI / agent）
 
-退出码：0 = 全过；1 = 有 FAIL；2 = 文件打不开。它只读不改。
+退出码：0 = 无 fail；1 = 有 fail；2 = 文件打不开。只读不改。
 """
 import argparse
 import json
+import os
+import re
+import shutil
 import subprocess
 import sys
 
@@ -33,15 +44,8 @@ TOL = 3.0  # 磅；国标 ±1mm ≈ 2.8pt，取整为 3
 
 FANGSONG = ("仿宋", "仿宋_GB2312", "朱雀仿宋", "FangSong", "Fangsong_GB2312")
 
-import os
-import shutil
-
-# wordcraft-cli on PATH, or the repo's own release build, or beside this script's install.
-CLI = (
-    shutil.which("wordcraft-cli")
-    or os.environ.get("WORDCRAFT_CLI")
-    or ""
-)
+# wordcraft-cli on PATH, or the WORDCRAFT_CLI environment variable.
+CLI = shutil.which("wordcraft-cli") or os.environ.get("WORDCRAFT_CLI") or ""
 
 
 def run_cli(args: list) -> str:
@@ -59,8 +63,127 @@ def inspect(path: str) -> dict:
     return json.loads(run_cli(["inspect", path]))
 
 
+def text_of(path: str) -> str:
+    return run_cli(["text", path])
+
+
+# ------------------------------------------------------------------
+# 文本规范层（GB/T 15834 / 15835 / 行文惯例）
+
+# 发文字号：机关代字 + 〔年份〕 + 序号。错的括号、虚位序号都报。
+RE_WENHAO = re.compile(r"[【〔\[（(]\s*(\d{4})\s*[】〕\]）)]\s*[\s〔【\[]?(\d{1,4})\s*号")
+RE_WENHAO_SQUARE = re.compile(r"【\s*(\d{4})\s*】\s*(\d{1,4})\s*号")
+RE_WENHAO_PADDED = re.compile(r"[〔【[]\s*(\d{4})\s*[〕】\]]\s*0*(\d{3})\s*号")
+
+# 成文日期：汉字年份（二〇二六）是 2012 前旧式；阿拉伯日期为正。
+RE_HAN_DATE = re.compile(r"[〇一二三四五六七八九]{4}\s*年")
+RE_ARAB_DATE = re.compile(r"\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日")
+
+# 层次序数：汉字序数段（一、）、带括序数段（（一））、数字序数段（1.）。
+RE_LEVEL1 = re.compile(r"^([一二三四五六七八九十]+)\s*、")
+RE_LEVEL2 = re.compile(r"^（([一二三四五六七八九十]+)）")
+RE_LEVEL3 = re.compile(r"^(\d+)\s*[.、]")
+
+# 概数：相邻汉字数字 + 顿号 + 相邻汉字数字（二、三个 → 二三个）。
+RE_GAISHU = re.compile(r"[一二三四五六七八九]\s*、\s*[一二三四五六七八九十]")
+
+# 高频错词（误 → 正）。词表可扩；报 warn 级（语境依赖，人工确认）。
+WORD_PAIRS = [
+    ("其它", "其他"),
+    ("做 出决定", "作出决定"),
+]
+CONFUSABLE = {
+    "截止": "截至（截至 + 时间点；截止 + 时间段/日期）",
+    "制订": "制定（制定=定成不得更动的；制订=创制拟订的）",
+    "权力": "权利（权力=职权；权利=法律赋予的利益）",
+    "附件∶": "附件：（公文里冒号用全角）",
+}
+
+
+def check_text(text: str) -> list:
+    """文本规范检查（每个 issue 一条，带位置线索）。"""
+    issues = []
+
+    def hit(level, name, where, fix):
+        issues.append({"level": level, "name": name, "detail": f"{where} —— {fix}"})
+
+    lines = text.splitlines()
+
+    # 发文字号
+    for m in RE_WENHAO_SQUARE.finditer(text):
+        hit("fail", "发文字号括号",
+            f"【{m.group(1)}】{m.group(2)}号",
+            "用六角括号〔〕，不是方头括号【】（GB/T 9704 4.4.2 发文字号）")
+    for m in RE_WENHAO_PADDED.finditer(text):
+        hit("fail", "发文字号虚位",
+            f"〔{m.group(1)}〕{m.group(2)}号",
+            "序号不编虚位：15 号不写 015 号")
+    has_wenhao = bool(RE_WENHAO.search(text))
+
+    # 成文日期
+    han = RE_HAN_DATE.search(text)
+    if han and not RE_ARAB_DATE.search(text):
+        hit("fail", "成文日期数字",
+            han.group(0),
+            "2012 版国标改用阿拉伯数字：写 2026 年 10 月 22 日，不写二〇二六年十月二十二日")
+    elif han:
+        hit("warn", "成文日期数字",
+            han.group(0),
+            "发现汉字年份；若它是成文日期应改阿拉伯数字（古文引用则保留）")
+
+    # 层次序数跳级：一、下面直接（1. 或（1）），跳过（一）
+    last_level = 0  # 0=无, 1=一、, 2=（一）, 3=1.
+    for i, ln in enumerate(lines, 1):
+        ln = ln.strip()
+        if RE_LEVEL1.match(ln):
+            last_level = 1
+        elif RE_LEVEL2.match(ln):
+            if last_level not in (0, 1, 2):
+                hit("fail", "层次序数跳级", f"第{i}行「{ln[:12]}」",
+                    "（一）出现在 1. 之后：层次序数应逐级一、→（一）→ 1. →（1）")
+            last_level = 2
+        elif RE_LEVEL3.match(ln):
+            if last_level == 0:
+                hit("warn", "层次序数", f"第{i}行「{ln[:12]}」",
+                    "顶层直接用 1.——顶层应用一、（1. 是第三层）")
+            elif last_level == 1:
+                hit("fail", "层次序数跳级", f"第{i}行「{ln[:12]}」",
+                    "一、下面直接 1.：应先（一）再 1.")
+            last_level = 3
+
+    # 概数顿号
+    for m in RE_GAISHU.finditer(text):
+        hit("fail", "概数顿号", m.group(0).replace(" ", ""),
+            "相邻数字概数中间不加顿号：写「二三个」，不写「二、三个」（GB/T 15835）")
+
+    # 高频错词
+    for wrong, right in WORD_PAIRS:
+        if wrong in text:
+            hit("fail", "高频错词", wrong, f"应为「{right}」")
+    for w, note in CONFUSABLE.items():
+        if w in text:
+            hit("warn", "易混词", w, note + "——语境自检")
+
+    # 标点：句内括号后句号
+    for m in re.finditer(r"）\s*。\s*[\u4e00-\u9fff]", text):
+        hit("warn", "括号后句号", f"…{m.group(0)}…",
+            "句内括号（…）后接正文时不再加句号；只有括号收束全句时才句号")
+    # 书名号嵌套
+    for m in re.finditer(r"《[^《》]*《", text):
+        hit("warn", "书名号嵌套", m.group(0)[:20],
+            "书名号里再套书名号用单书名号〈〉：《条例》→《〈…〉》")
+
+    if not issues and has_wenhao:
+        issues.append({"level": "ok", "name": "文本规范", "detail": "未发现发文字号/日期/序数/错词问题"})
+    return issues
+
+
+# ------------------------------------------------------------------
+# 版式层（GB/T 9704 数值）
+
+
 def check(doc: dict) -> list:
-    """每项检查返回 (level, name, ok, detail)：level ∈ ok|warn|fail。"""
+    """每项检查返回 dict（level/name/detail）：level ∈ ok|warn|fail。"""
     results = []
 
     def add(level, name, ok, detail):
@@ -131,15 +254,20 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("file")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--layout-only", action="store_true", help="只跑版式层，不跑文本规范层")
     args = ap.parse_args()
 
     try:
         doc = inspect(args.file)
+        text = "" if args.layout_only else text_of(args.file)
     except Exception as e:  # noqa: BLE001 - 报告给用户，不炸
         print(json.dumps({"error": str(e)}) if args.json else f"打不开：{e}", file=sys.stderr)
         return 2
 
     results = check(doc)
+    if not args.layout_only:
+        results += check_text(text)
+
     fails = [r for r in results if r["level"] == "fail"]
     warns = [r for r in results if r["level"] == "warn"]
 
