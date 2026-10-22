@@ -71,17 +71,20 @@ MinGW) is `build.ps1`; `test-all.ps1` runs build, tests, formatting, skill valid
 end-to-end layout smoke test in one command.
 
 **Chinese fonts are not committed** (font binaries never are). The official Chinese edition embeds
-阿里巴巴普惠体 (Alibaba PuHuiTi) as an optional build input, so its binary still shows Chinese on
-a machine with no Chinese fonts installed:
+four faces as an optional build input, so its binary still shows Chinese — in the right styles — on a
+machine with no Chinese fonts installed:
 
 ```text
-craft-fonts/fonts/manifest.txt   # plus the .otf files; both gitignored
+craft-fonts/fonts/manifest.txt   # plus the font files; all gitignored
 ./build.ps1                      # picks them up automatically
 ```
 
-A plain `cargo build` gives upstream behaviour: Chinese comes from the system (仿宋/宋体/楷体/黑体
-on Windows, Noto CJK on Linux). PuHuiTi is a sans face used only as a fallback, so 公文 正文 still
-wants 仿宋 from the system.
+What is embedded: 阿里巴巴普惠体 (Alibaba PuHuiTi, a sans face), **朱雀仿宋** (Zhuque Fangsong) and
+**霞鹜文楷 GB** (LXGW WenKai GB), the last two under the SIL Open Font License. All three are
+**fallbacks only**: a machine that has the font the document asks for uses that font, exactly as
+before (see `substitutes()` in `crates/fonts/src/word.rs`; 仿宋_GB2312 and 方正小标宋体 resolve here
+too). 宋体 is not bundled at all — Windows, macOS and Linux all ship one — which keeps 28 MB out of
+the binary. A plain `cargo build` gives upstream behaviour: Chinese comes from the system.
 
 ### Command line and automation
 

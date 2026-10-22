@@ -51,7 +51,8 @@ FONTS = {
         ("华文中宋", ["STZHONGS.TTF"]),
         ("STZhongsong", ["STZHONGS.TTF"]),
     ],
-    "title_fallback": [("SimHei", ["simhei.ttf"]), ("黑体", ["simhei.ttf"])],
+    # 兜底是宋体不是黑体：GB/T 9704 的标题是小标宋（宋体一类），黑体是一级标题的字体。
+    "title_fallback": [("SimSun", ["simsun.ttc"]), ("宋体", ["simsun.ttc"])],
     "latin": "Times New Roman",
 }
 

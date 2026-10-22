@@ -402,7 +402,9 @@ fn chinese_fonts_are_listed_by_their_chinese_names_in_a_chinese_interface() {
     let hans = db.families_in("zh-hans");
     assert!(has(&hans, "测试宋体") && !has(&hans, "Songti Test") && has(&hans, FAMILY), "{hans:?}");
     assert!(has(&db.families_in("zh-hant"), "測試宋體"));
-    assert_eq!(db.localized_names("zh-hans"), [("Songti Test".to_string(), "测试宋体".to_string())]);
+    // 中文界面里这两个名字对调（英文列表里只有英文名）。嵌入的中文字体也有 zh-hans 名字，
+    // 它们同样在这个映射里，所以这里只认自己那一条。
+    assert!(db.localized_names("zh-hans").contains(&("Songti Test".to_string(), "测试宋体".to_string())), "{:?}", db.localized_names("zh-hans"));
     // Either name finds the font, before and after it loads.
     assert!(db.has_family("测试宋体") && db.has_family("測試宋體"));
     assert_eq!(db.styles("测试宋体"), ["Regular"]);

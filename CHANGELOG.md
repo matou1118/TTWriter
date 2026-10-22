@@ -34,6 +34,8 @@
 - **程序内部标识保持不变**：crate 名、二进制名 `wordcraft.exe`、配置目录、包名 `ai.storyteller.wordcraft` 都照旧，以便与上游同步时减少冲突。与上游的分叉只有二十几行显示文案。
 - **发布出去的程序名是 `ttwriter.exe`**：打包脚本（`packaging/windows/`）在打包时把 cargo 的产物 `wordcraft.exe` 改名，安装包、开始菜单、文件关联都用 `ttwriter.exe`。cargo 的目标名保持上游的 `wordcraft`，所以与上游同步时不会在二进制名上冲突；命令行工具仍叫 `wordcraft-cli.exe`（技能脚本、文档、`test-all.ps1` 都按这个名字调用）。
 - **内置中文字体兜底**：中文版的官方二进制通过 `CRAFT_FONTS_DIR` 构建输入嵌入阿里巴巴普惠体（`./build.ps1` 自动带上），所以没装中文字体的机器上也有中文可看，不会满屏方块。字体文件**不进仓库**（`craft-fonts/` 已 gitignore）。普惠体是黑体、且是免费商用授权而非开源协议（见 `ATTRIBUTION.md` 里唯一的例外说明），它只做兜底，不覆盖文档指定的字体——公文正文仍然用系统里的仿宋。
+- **开源的仿宋与楷体也打进去了**（OFL-1.1，可商用可嵌入）：**朱雀仿宋**（TrionesType，12,882 字）和**霞鹜文楷 GB**（lxgw，GB 源字形、46,926 字）。这两款和普惠体一样只做兜底——系统装了真的仿宋/楷体就用真的（`crates/fonts/src/word.rs` 的 `substitutes()`，`仿宋_GB2312`、`方正小标宋简体` 这类名字也会走到这里），系统没有才轮到它们。**宋体不打包**：Windows/macOS/Linux 都自带，替换表里列了各自的名字，省下 28 MB。许可文本随携带包一起发（`craft-fonts/fonts/{zhuque,lxgw}/OFL.txt`）。
+- **公文标题的小标宋兜底从黑体改成宋体**：`skills/gongwen/scripts/format_gongwen.py` 本机没有方正小标宋简体时，以前写黑体，现在写宋体——GB/T 9704 的标题是小标宋（宋体一类），黑体是一级标题的字体，本来就不是替身。
 - **许可**：上游代码仍为 MIT OR Apache-2.0；本仓库新增内容（技能、预设、工具、文档）为 Apache-2.0。
 
 ### 已知限制

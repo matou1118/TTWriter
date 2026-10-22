@@ -86,6 +86,15 @@ fn substitutes(family: &str) -> &'static [&'static str] {
         "DejaVu Serif",
         "Source Serif 4",
     ];
+    // 中文「宋黑仿楷」里的三样：文档指定这些字体、而这台机器没有时的开源兜底。
+    // craft-fonts 嵌入的两款排在最前（没嵌的构建会自动跳过、落到各平台自带的同名字体）；
+    // 系统真装了同名字体时走不到这里——resolve 先问 has_family，装了就直接用真的。
+    // 仿宋是真缺口：Windows 不装 Office 就没有，macOS 只有华文仿宋，Linux 常常三样都缺。
+    const FANGSONG: &[&str] =
+        &["Zhuque Fangsong (technical preview)", "朱雀仿宋（预览测试版）", "FangSong", "FangSong_GB2312", "STFangsong", "华文仿宋", "FandolFang"];
+    const KAITI: &[&str] = &["LXGW WenKai GB", "霞鹜文楷 GB", "LXGW WenKai", "KaiTi", "KaiTi_GB2312", "STKaiti", "华文楷体"];
+    // 宋体三平台都自带，一个都不用打包（打包思源宋体要多 28 MB，而它总能从系统拿到）。
+    const SONG: &[&str] = &["SimSun", "宋体", "Songti SC", "STSong", "华文宋体", "Noto Serif CJK SC", "Noto Serif SC", "FandolSong"];
     let f = family.to_ascii_lowercase();
     if is_thai_serif(&f) {
         return THAI_SERIF;
@@ -121,6 +130,12 @@ fn substitutes(family: &str) -> &'static [&'static str] {
         | "sitka text"
         | "sitka"
         | "aptos serif" => SERIF,
+        // 中文的宋黑仿楷：请求的字体名按小写比对（中文字符不受影响）。
+        "仿宋" | "仿宋_gb2312" | "fangsong" | "fangsong_gb2312" | "stfangsong" | "华文仿宋" | "fandolfang" => FANGSONG,
+        "楷体" | "楷体_gb2312" | "kaiti" | "kaiti_gb2312" | "stkaiti" | "华文楷体" => KAITI,
+        "宋体" | "songti" | "simsun" | "songti sc" | "stsong" | "华文宋体" | "小标宋体" | "方正小标宋" | "方正小标宋体" | "方正小标宋简体" => {
+            SONG
+        }
         _ if f.contains("mono") || f.contains("code") => MONO,
         _ if f.contains("serif") && !f.contains("sans") => SERIF,
         _ => SANS,
@@ -448,6 +463,24 @@ mod tests {
         assert_eq!(charset_base_family("Cyr"), "Cyr");
         assert_eq!(charset_base_family("Calibri"), "Calibri");
         assert_eq!(substitutes(charset_base_family("Times New Roman Cyr")), substitutes("Times New Roman"));
+    }
+
+    #[test]
+    fn chinese_document_fonts_substitute_to_the_open_faces() {
+        // 系统装了真仿宋/楷体时走不到 substitutes()（resolve 先问 has_family，装了直接用真的），
+        // 所以候选首位就是 craft-fonts 嵌的开源款——只有缺字的机器才轮到它们。
+        assert_eq!(substitutes("仿宋").first(), Some(&"Zhuque Fangsong (technical preview)"));
+        assert_eq!(substitutes("仿宋_GB2312").first(), Some(&"Zhuque Fangsong (technical preview)"));
+        assert_eq!(substitutes("楷体").first(), Some(&"LXGW WenKai GB"));
+        assert_eq!(substitutes("楷体_GB2312").first(), Some(&"LXGW WenKai GB"));
+        // 别的机器带来的同名字体（macOS 的华文仿宋、Linux 的 Fandol 仿宋）也落到这两款。
+        assert_eq!(substitutes("华文仿宋").first(), Some(&"Zhuque Fangsong (technical preview)"));
+        assert_eq!(substitutes("FandolFang").first(), Some(&"Zhuque Fangsong (technical preview)"));
+        // 宋体不打包：候选里是各平台自带的名字（Windows simsun、macOS Songti SC）。
+        let song = substitutes("宋体");
+        assert!(song.contains(&"SimSun") && song.contains(&"Songti SC"), "{song:?}");
+        // 方正小标宋是商业字体，公文标题的兜底是系统宋体。
+        assert_eq!(substitutes("方正小标宋体").first(), Some(&"SimSun"));
     }
 
     #[test]

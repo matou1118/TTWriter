@@ -353,7 +353,10 @@ mod tests {
             return;
         }
         let fonts = japanese_document_fonts();
-        assert!(!fonts.is_empty(), "craft-fonts has Japanese fonts");
+        if fonts.is_empty() {
+            eprintln!("skipped: no Japanese face in this craft-fonts checkout (the Chinese edition's)");
+            return;
+        }
         assert!(fonts[0].family.contains("Mincho"), "documents fall back to a Mincho first");
         assert_eq!(japanese_ui_fonts(false)[0].family, "BIZ UDPGothic");
         assert_eq!(japanese_ui_fonts(true)[0].style, "Bold");
@@ -379,6 +382,33 @@ mod tests {
     }
 
     #[test]
+    fn craft_fonts_chinese_faces_match_the_manifest_and_cover_the_four_basics() {
+        if CRAFT_FONTS.is_empty() {
+            eprintln!("skipped: built without craft-fonts (set CRAFT_FONTS_DIR to a checkout)");
+            return;
+        }
+        // manifest 写的 family 必须和字体文件 name table 里的一致：substitutes() 只问 has_family，
+        // 名字对不上就等于没嵌——构建不报错，只是替换链路永远轮不到它。
+        let db = FontDb::with_font_dirs(Vec::new());
+        db.set_system_fallback(false);
+        let fams: Vec<&str> = chinese_fonts().map(|f| f.family).collect();
+        for family in ["Zhuque Fangsong (technical preview)", "LXGW WenKai GB"] {
+            assert!(db.has_family(family), "清单与替换表里的家族名在库里找不着：{family}");
+            assert_eq!(db.face(family, "Regular").family, family, "face() 没拿到 {family}");
+        }
+        // 开源的仿宋与楷体在位：缺了它们，没装 Office 的机器上公文会掉回黑体。
+        assert!(fams.iter().any(|f| f.starts_with("Zhuque Fangsong")), "{fams:?}");
+        assert!(fams.contains(&"LXGW WenKai GB"), "{fams:?}");
+        // 宋黑仿楷的常用字每款中文兜底字体都要有（缺字＝逐字换字体，一行里混两种字形）。
+        for cf in chinese_fonts() {
+            let font = skrifa::FontRef::new(cf.bytes).unwrap();
+            for ch in "公文仿宋楷体通知一二三".chars() {
+                assert_ne!(font.charmap().map(ch).unwrap_or_default(), skrifa::GlyphId::NOTDEF, "{} 缺 {ch}", cf.family);
+            }
+        }
+    }
+
+    #[test]
     fn east_asian_run_uses_one_face_covering_the_whole_run() {
         let db = FontDb::with_font_dirs(Vec::new());
         db.set_system_fallback(false);
@@ -396,10 +426,13 @@ mod tests {
         for c in &run {
             assert!(f.covers(*c), "{f:?} covers {c}");
         }
-        // Pure Japanese still gets the document serif (Mincho first).
-        let jp: Vec<char> = "日本語".chars().collect();
-        let f2 = db.fallback_for_run(&jp, latin.id(), false, false).expect("a CJK face");
-        assert!(f2.family.contains("Mincho"), "{f2:?}");
+        // Pure Japanese still gets the document serif (Mincho first) — when this checkout ships a
+        // Japanese face (the Chinese edition's craft-fonts carries none).
+        if !japanese_document_fonts().is_empty() {
+            let jp: Vec<char> = "日本語".chars().collect();
+            let f2 = db.fallback_for_run(&jp, latin.id(), false, false).expect("a CJK face");
+            assert!(f2.family.contains("Mincho"), "{f2:?}");
+        }
     }
 
     #[test]

@@ -60,14 +60,14 @@ cargo build --release -p wordcraft
 
 需要 Rust 1.95+（`Cargo.toml` 的 `rust-version`）。Windows 上的完整构建配方（GNU 工具链 + MinGW）见 `build.ps1`；一条命令跑完构建、测试、格式检查、技能校验见 `test-all.ps1`。
 
-**中文字体不进仓库**（字体文件一概不进）。中文版官方构建把阿里巴巴普惠体当作**可选构建输入**嵌进二进制，所以没装中文字体的机器上也能正常显示中文：
+**中文字体不进仓库**（字体文件一概不进）。中文版官方构建把四款字体当作**可选构建输入**嵌进二进制，所以没装中文字体的机器上也能正常显示中文：
 
 ```text
-craft-fonts/fonts/manifest.txt   # 连同 .otf 文件，都被 gitignore
+craft-fonts/fonts/manifest.txt   # 连同字体文件，都被 gitignore
 ./build.ps1                      # 自动带上
 ```
 
-直接 `cargo build` 得到的是上游行为：中文靠系统字体（Windows 的 仿宋/宋体/楷体/黑体，Linux 的 Noto CJK）。普惠体是黑体，只做兜底，所以公文正文仍然需要系统里的仿宋。
+嵌进去的是：**阿里巴巴普惠体**（黑体，免费商用授权）、**朱雀仿宋**（OFL）、**霞鹜文楷 GB**（OFL）——前三款只在**这台机器没有对应字体时**才顶上，文档指定的字体永远优先。宋体不嵌，Windows/macOS/Linux 都自带。直接 `cargo build` 得到的是上游行为：中文全靠系统字体（Linux 上没有中文字体就靠 Noto CJK / 黑体兜底）。
 
 ### 命令行与自动化
 
@@ -148,7 +148,7 @@ wordcraft-cli run --file 稿子.docx --script presets/zh-gongwen.json --save out
 - **没有中文拼写/语法校对**。WordCraft 的校对只有英、俄、波、葡、意几种语言，中文校对尚未实现，本发行版也没有假装有。
 - **GB/T 7714 的条目模板缺 `{issue}`（期号）槽位**，期刊论文的期号需要手工补。
 - **参考文献默认标题是英文 `References`**，用 `references.bibliography` 的 `title` 参数改成「参考文献」。
-- **方正小标宋简体**（公文标题规定的 2 号小标宋）不是 Windows 自带字体，机器上没有时脚本会回退为黑体并提示。
+- **方正小标宋简体**（公文标题规定的 2 号小标宋）不是 Windows 自带字体，机器上没有时回退为**宋体**并提示（程序内置的替换表也把方正小标宋简体指向宋体——标题是宋体一类，不是黑体）。
 
 ---
 
