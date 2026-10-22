@@ -215,7 +215,18 @@ metadata:
 
 ## 版面检查
 
-先自动体检（结构层规则，零 LLM），再人眼看 PNG：
+**借条/欠条/收条用生成器，别手写**——参数进、合规文书出（九要素内置、大写金额自动算、超 LPR 四倍利率直接拒绝生成）：
+
+```bash
+python scripts/jietiao.py --kind jietiao -o 借条.docx \
+    --lender 张三 --lender-id 110101198805052345 \
+    --borrower 李四 --borrower-id 110101199001011234 \
+    --amount 50000 --rate 8 --months 6 --purpose 经营周转
+```
+
+`--kind qiantiao`（欠条，加 `--reason 货款`）/ `--kind shoutiao`（收条，加 `--for 房租`）。
+
+其余文书先自动体检（结构层规则，零 LLM），再人眼看 PNG：
 
 ```bash
 python scripts/check_legal.py 借条.docx          # 文书类型识别 + 借条九要素 + 此致格式 + 落款
