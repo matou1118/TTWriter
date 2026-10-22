@@ -17,6 +17,10 @@
 # To remove your names, delete your entry (or set fields empty) in a PR. The next
 # contributors.py run, and the next build, drop them.
 
+# 先到先得：中文版的主人（本仓库 maintainer）。
+[people.matou1118]
+sync_github_name = true
+
 [people.divyanshu2074]
 real_name = "Divyanshu Gupta"
 sync_github_name = true
