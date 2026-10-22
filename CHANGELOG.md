@@ -31,6 +31,7 @@
 - **品牌**：移除全部 ArtCraft 标识与图案，换成自己的应用图标（朱砂圆角方块 + 文，脚本 [`tools/make_icons.py`](tools/make_icons.py) 一次生成 SVG / PNG / ICO / ICNS）。本仓库不代表 ArtCraft，只在文档中以平文本说明「基于 WordCraft（ArtCraft 团队）」。
 - **显示名改为「蜻蜓文档 TTWriter」**：窗口标题、关于对话框、exe 的版本信息、开始菜单与安装包条目。关于对话框里的上游链接与「Part of the Crafting Apps from the ArtCraft team」一句已移除，换成本站、本仓库与上游仓库三个链接。
 - **程序内部标识保持不变**：crate 名、二进制名 `wordcraft.exe`、配置目录、包名 `ai.storyteller.wordcraft` 都照旧，以便与上游同步时减少冲突。与上游的分叉只有二十几行显示文案。
+- **发布出去的程序名是 `ttwriter.exe`**：打包脚本（`packaging/windows/`）在打包时把 cargo 的产物 `wordcraft.exe` 改名，安装包、开始菜单、文件关联都用 `ttwriter.exe`。cargo 的目标名保持上游的 `wordcraft`，所以与上游同步时不会在二进制名上冲突；命令行工具仍叫 `wordcraft-cli.exe`（技能脚本、文档、`test-all.ps1` 都按这个名字调用）。
 - **内置中文字体兜底**：中文版的官方二进制通过 `CRAFT_FONTS_DIR` 构建输入嵌入阿里巴巴普惠体（`./build.ps1` 自动带上），所以没装中文字体的机器上也有中文可看，不会满屏方块。字体文件**不进仓库**（`craft-fonts/` 已 gitignore）。普惠体是黑体、且是免费商用授权而非开源协议（见 `ATTRIBUTION.md` 里唯一的例外说明），它只做兜底，不覆盖文档指定的字体——公文正文仍然用系统里的仿宋。
 - **许可**：上游代码仍为 MIT OR Apache-2.0；本仓库新增内容（技能、预设、工具、文档）为 Apache-2.0。
 
