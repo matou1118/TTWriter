@@ -20,8 +20,11 @@
 用法：
   python check_gongwen.py 公文.docx              # 人类可读报告
   python check_gongwen.py 公文.docx --json       # 机器可读（供 CI / agent）
+  python check_gongwen.py 公文.docx --fix -o 修.docx
+                                                 # 修复确定性错误（括号/虚位/其它/概数顿号），
+                                                 # 版式与其余问题仍报告
 
-退出码：0 = 无 fail；1 = 有 fail；2 = 文件打不开。只读不改。
+退出码：0 = 无 fail；1 = 有 fail（或 --fix 后仍有 fail）；2 = 文件打不开。--fix 只改文本层确定性错误，从不动版式、不动需要语境判断的项（日期、跳级、易混词）。
 """
 import argparse
 import json
@@ -30,6 +33,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 MM_TO_PT = 72.0 / 25.4
 
@@ -65,6 +69,52 @@ def inspect(path: str) -> dict:
 
 def text_of(path: str) -> str:
     return run_cli(["text", path])
+
+
+def fix_commands(text: str) -> list:
+    """确定性文本修复的 wordcraft 命令（edit.replaceAll）。
+
+    只收无歧义替换：括号形状、虚位序号、其它→其他、概数顿号。
+    日期/跳级/易混词需要语境或结构调整，不属于「确定性」，不自动改。
+    """
+    cmds = []
+    if RE_WENHAO_SQUARE.search(text):
+        # 【2026】15 号 → 〔2026〕15 号：对每个出现的方头括号年份单独替换。
+        for m in RE_WENHAO_SQUARE.finditer(text):
+            cmds.append({"command": "edit.replaceAll", "params": {
+                "text": f"【{m.group(1)}】", "with": f"〔{m.group(1)}〕", "matchCase": True}})
+    for m in RE_WENHAO_PADDED.finditer(text):
+        num = m.group(2).lstrip("0") or "0"
+        cmds.append({"command": "edit.replaceAll", "params": {
+            "text": f"〔{m.group(1)}〕{m.group(2)}号", "with": f"〔{m.group(1)}〕{num}号", "matchCase": True}})
+    if "其它" in text:
+        cmds.append({"command": "edit.replaceAll", "params": {"text": "其它", "with": "其他", "matchCase": True}})
+    for m in RE_GAISHU.finditer(text):
+        cmds.append({"command": "edit.replaceAll", "params": {
+            "text": m.group(0).replace(" ", ""), "with": m.group(0).replace("、", "").replace(" ", ""), "matchCase": True}})
+    return cmds
+
+
+def apply_fix(src: str, out: str, text: str) -> int:
+    """把 fix_commands 写成脚本跑掉，返回修复条数。"""
+    cmds = fix_commands(text)
+    if not cmds:
+        return 0
+    # run 脚本的 file/save 都按脚本所在目录（temp）解析——必须传绝对路径。
+    script = {"file": os.path.abspath(src), "commands": cmds, "save": [os.path.abspath(out)]}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+        json.dump(script, f, ensure_ascii=False, indent=1)
+        path = f.name
+    try:
+        exe = CLI or "wordcraft-cli"
+        r = subprocess.run([exe, "run", "--script", path], capture_output=True)
+        if r.returncode != 0:
+            msg = r.stderr.decode("utf-8", "replace")
+            print(f"修复执行失败：{msg}", file=sys.stderr)
+            return 0
+    finally:
+        os.unlink(path)
+    return len(cmds)
 
 
 # ------------------------------------------------------------------
@@ -255,6 +305,8 @@ def main() -> int:
     ap.add_argument("file")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--layout-only", action="store_true", help="只跑版式层，不跑文本规范层")
+    ap.add_argument("--fix", action="store_true", help="修复确定性文本错误（需 -o 输出路径）")
+    ap.add_argument("-o", "--out", default=None, help="--fix 的输出文件（缺省在原名后加 -fixed）")
     args = ap.parse_args()
 
     try:
@@ -263,6 +315,20 @@ def main() -> int:
     except Exception as e:  # noqa: BLE001 - 报告给用户，不炸
         print(json.dumps({"error": str(e)}) if args.json else f"打不开：{e}", file=sys.stderr)
         return 2
+
+    if args.fix:
+        out = args.out or re.sub(r"(\.\w+)?$", r"-fixed\1", args.file, count=1)
+        n = apply_fix(args.file, out, text)
+        if n:
+            print(f"[fix] {n} 处确定性错误已修复 → {out}")
+            # 修复后重查：剩余问题（版式层 + 需语境判断项）仍报告
+            try:
+                doc = inspect(out)
+                text = "" if args.layout_only else text_of(out)
+            except Exception as e:  # noqa: BLE001
+                print(f"[fix] 复查失败：{e}", file=sys.stderr)
+        else:
+            print("[fix] 没有可自动修复的确定性错误")
 
     results = check(doc)
     if not args.layout_only:

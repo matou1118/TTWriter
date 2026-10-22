@@ -7,6 +7,16 @@ spacing and the page numbers. Run it on a document whose text is already final.
     python format_gongwen.py content.docx -o gongwen.docx
     python format_gongwen.py content.docx -o gongwen.docx --pdf
     python format_gongwen.py content.docx -o gongwen.docx --wenzhong gongwen
+    python format_gongwen.py content.docx -o q.docx --preset company   # 企业版
+
+Presets adapt the national standard to how an organisation actually files
+documents (GB/T 9704 is written for party/government organs; everyone else
+borrows it with cuts):
+
+    gb        党政机关全要素（默认）：国标版心、份号密级位、红头全套
+    company   企业：版心稍松（上下 3.0cm）、版记从简、无份号密级
+    school    学校：同 company 版心，字号放大到小四/四号（阅读友好）
+    hospital  医院事业单位：同 gb 版心，版记从简
 
 It drives wordcraft-cli; it never touches the document text. Requires the
 wordcraft-cli binary on PATH.
@@ -20,19 +30,36 @@ import sys
 import tempfile
 from pathlib import Path
 
-# GB/T 9704-2012: the text block is 156 x 225 mm on A4.
-# Margins in points (1 mm = 72 / 25.4 pt).
 MM = 72 / 25.4
-MARGINS = {
+
+# GB/T 9704-2012: the text block is 156 x 225 mm on A4 (margins in points).
+MARGINS_GB = {
     "top": round(37 * MM, 1),      # 上白边 37mm
     "bottom": round(35 * MM, 1),   # 下白边 35mm
     "left": round(28 * MM, 1),     # 左白边（订口）28mm
     "right": round(26 * MM, 1),    # 右白边 26mm
 }
+# 企业/学校：装订边保留（30mm 近国标 28mm），其余放松到常规商务文档习惯。
+MARGINS_LOOSE = {
+    "top": round(30 * MM, 1),
+    "bottom": round(30 * MM, 1),
+    "left": round(28 * MM, 1),
+    "right": round(26 * MM, 1),
+}
+
 LINE_SPACING = {"rule": "exactly", "value": 28}   # 固定值 28 磅 → 每面 22 行
-BODY_SIZE = 16.0    # 3 号
-TITLE_SIZE = 22.0   # 2 号
-PAGE_SIZE = 14.0    # 4 号
+LINE_SPACING_LOOSE = {"rule": "exactly", "value": 26}  # 学校：行距稍松阅读友好
+
+PRESETS = {
+    # name: (margins, body pt, line spacing, 版记从简, notes)
+    "gb": (MARGINS_GB, 16.0, LINE_SPACING, False, "党政机关全要素"),
+    "company": (MARGINS_LOOSE, 14.0, LINE_SPACING, True, "企业：小四（12pt→14 半步放宽）正文更紧凑商务"),
+    "school": (MARGINS_LOOSE, 16.0, LINE_SPACING_LOOSE, True, "学校：三号正文、行距 26 磅，阅读友好"),
+    "hospital": (MARGINS_GB, 16.0, LINE_SPACING, True, "医院/事业单位：国标版心、版记从简"),
+}
+BODY_SIZE_GB = 16.0    # 3 号
+TITLE_SIZE = 22.0      # 2 号
+PAGE_SIZE = 14.0       # 4 号
 
 # 正文 3 号仿宋；标题 2 号小标宋；一级 3 号黑体；二级 3 号楷体。
 #
@@ -58,9 +85,9 @@ FONTS = {
 
 
 def cli() -> str:
-    exe = shutil.which("wordcraft-cli")
+    exe = shutil.which("wordcraft-cli") or os.environ.get("WORDCRAFT_CLI")
     if not exe:
-        sys.exit("wordcraft-cli not found on PATH")
+        sys.exit("wordcraft-cli not found on PATH (or set WORDCRAFT_CLI)")
     return exe
 
 
@@ -104,43 +131,44 @@ def pick_title_face(preferred: str | None) -> tuple[str, str | None]:
     )
 
 
-def build_commands(wenzhong: str | None, title_face: str) -> list[dict]:
+def build_commands(wenzhong: str | None, title_face: str, preset: str = "gb") -> list[dict]:
+    margins, body_size, line_spacing, _, _ = PRESETS[preset]
     body = pick_face("body")[0]
     h1 = pick_face("h1")[0]
     h2 = pick_face("h2")[0]
     cmds: list[dict] = [
-        # 版心：靠边距实现，纸仍是 A4。
-        {"command": "layout.margins", "params": MARGINS},
-        # 正文：3 号仿宋，固定行距 28 磅，首行缩进 2 字符。公文是黑白的。
+        # 版心：靠边距实现，纸仍是 A4。preset 决定松紧。
+        {"command": "layout.margins", "params": margins},
+        # 正文：preset 定字号与行距，首行缩进 2 字符。公文是黑白的。
         {"command": "styles.modify", "params": {
             "style": "Normal",
-            "chr": {"font": FONTS["latin"], "fontEa": body, "size": BODY_SIZE, "color": "000000"},
-            "para": {"lineSpacing": LINE_SPACING, "indentFirstChars": 2},
+            "chr": {"font": FONTS["latin"], "fontEa": body, "size": body_size, "color": "000000"},
+            "para": {"lineSpacing": line_spacing, "indentFirstChars": 2},
         }},
         # 标题：2 号小标宋，居中，顶格，回行不断尾由内容控制。
         {"command": "styles.modify", "params": {
             "style": "Title",
             "chr": {"font": FONTS["latin"], "fontEa": title_face, "size": TITLE_SIZE, "bold": False, "color": "000000"},
-            "para": {"align": "center", "lineSpacing": LINE_SPACING, "indentFirstChars": 0},
+            "para": {"align": "center", "lineSpacing": line_spacing, "indentFirstChars": 0},
         }},
         # 一级标题 一、：3 号黑体，顶格。
         {"command": "styles.modify", "params": {
             "style": "Heading1",
-            "chr": {"font": FONTS["latin"], "fontEa": h1, "size": BODY_SIZE, "bold": False, "color": "000000"},
-            "para": {"lineSpacing": LINE_SPACING, "indentFirstChars": 0},
+            "chr": {"font": FONTS["latin"], "fontEa": h1, "size": body_size, "bold": False, "color": "000000"},
+            "para": {"lineSpacing": line_spacing, "indentFirstChars": 0},
         }},
         # 二级标题 （一）：3 号楷体，顶格。
         {"command": "styles.modify", "params": {
             "style": "Heading2",
-            "chr": {"font": FONTS["latin"], "fontEa": h2, "size": BODY_SIZE, "bold": False, "color": "000000"},
-            "para": {"lineSpacing": LINE_SPACING, "indentFirstChars": 0},
+            "chr": {"font": FONTS["latin"], "fontEa": h2, "size": body_size, "bold": False, "color": "000000"},
+            "para": {"lineSpacing": line_spacing, "indentFirstChars": 0},
         }},
     ]
     if wenzhong:
         cmds.append({"command": "styles.modify", "params": {
             "style": "Subtitle",
-            "chr": {"font": FONTS["latin"], "fontEa": body, "size": BODY_SIZE, "color": "000000"},
-            "para": {"align": "center", "lineSpacing": LINE_SPACING, "indentFirstChars": 0},
+            "chr": {"font": FONTS["latin"], "fontEa": body, "size": body_size, "color": "000000"},
+            "para": {"align": "center", "lineSpacing": line_spacing, "indentFirstChars": 0},
         }})
     return cmds
 
@@ -152,6 +180,7 @@ def main() -> int:
     ap.add_argument("--pdf", action="store_true", help="also export a PDF")
     ap.add_argument("--wenzhong", metavar="NAME", help="the document type, e.g. 通知 (recorded in the title style)")
     ap.add_argument("--title-font", default=None, help="override the title face (e.g. 方正小标宋简体)")
+    ap.add_argument("--preset", default="gb", choices=sorted(PRESETS), help="scene preset: gb (default) / company / school / hospital")
     args = ap.parse_args()
 
     if not args.source.exists():
@@ -161,7 +190,7 @@ def main() -> int:
     title_face, note = pick_title_face(args.title_font)
     if note:
         print(f"[注意] {note}", file=sys.stderr)
-    print(f"[版式] 标题字体 = {title_face}", file=sys.stderr)
+    print(f"[版式] preset = {args.preset}（{PRESETS[args.preset][4]}），标题字体 = {title_face}", file=sys.stderr)
 
     saves = [str(args.out.resolve())]
     if args.pdf:
@@ -171,7 +200,7 @@ def main() -> int:
     # and this script lives in a temp directory — so both must be absolute.
     script = {
         "file": str(args.source.resolve()),
-        "commands": build_commands(args.wenzhong, title_face),
+        "commands": build_commands(args.wenzhong, title_face, args.preset),
         "save": saves,
     }
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:

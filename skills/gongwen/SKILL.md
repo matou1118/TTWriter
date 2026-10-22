@@ -28,6 +28,27 @@ metadata:
 ① 确认内容已定稿  →  ② 设版心  →  ③ 套样式  →  ④ 加页码/版记  →  ⑤ 版面检查
 ```
 
+### 0. 一键套版（scripts/）
+
+内容定稿后先跑套版脚本，比手工逐条发命令稳：
+
+```bash
+python scripts/format_gongwen.py content.docx -o gongwen.docx            # 党政机关全要素
+python scripts/format_gongwen.py content.docx -o q.docx --preset company # 企业版
+python scripts/format_gongwen.py content.docx -o q.docx --preset school  # 学校版
+python scripts/format_gongwen.py content.docx -o q.docx --pdf            # 同时出 PDF
+```
+
+preset：`gb`（默认，国标全要素）/ `company`（版心稍松、14pt 紧凑商务）/ `school`（三号字、26 磅行距阅读友好）/ `hospital`（国标版心、版记从简）。
+
+批量发文（一份定稿 + 收文单位名单 → 每单位一份版记）：
+
+```bash
+python scripts/batch_issue.py 公文.docx 名单.xlsx -o out/ [--field 单位] [--pdf]
+```
+
+版记抄送行留 `抄送：______` 占位；正文一字不动。
+
 ### ① 确认内容已定稿
 
 先问清楚（或从用户材料里读出）这几项，缺了就标 `[待补充]`：
@@ -166,8 +187,12 @@ metadata:
 先自动体检（快、免人眼），再人眼看 PNG（终审）：
 
 ```bash
-python scripts/check_gongwen.py gongwen.docx        # 版心/行距/字号/字体/标题/页码 自动核对
+python scripts/check_gongwen.py gongwen.docx        # 版式 + 文本规范双层核对
+python scripts/check_gongwen.py gongwen.docx --fix -o 修.docx   # 修掉确定性错误再复查
+python scripts/check_gongwen.py gongwen.docx --layout-only      # 只查版式
 ```
+
+`--fix` 只修无歧义项（【】→〔〕、015→15、其它→其他、二、三个→二三个）；日期、层次跳级、易混词需要语境判断，仍报告人工定。
 
 ```bash
 wordcraft-cli render gongwen.docx page1.png --page 1
