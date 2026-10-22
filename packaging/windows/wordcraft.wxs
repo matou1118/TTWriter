@@ -23,7 +23,8 @@
       UpgradeCode="075497F9-E861-45D0-9C7F-A74F8C34E6BA"
       Scope="perMachine"
       Compressed="yes"
-      Language="1033">
+      Language="1033"
+      Codepage="65001">
     <SummaryInformation Description="蜻蜓文档 TTWriter — a WordCraft distribution for writing in Chinese" Manufacturer="蜻蜓文档 TTWriter contributors" />
     <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
          (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
@@ -33,9 +34,10 @@
 
     <Icon Id="WordcraftIcon.ico" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="WordcraftIcon.ico" />
-    <Property Id="ARPURLINFOABOUT" Value="https://getartcraft.com/apps/wordcraft" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://getartcraft.com/apps/wordcraft" />
-    <Property Id="ARPHELPLINK" Value="https://discord.gg/artcraft" />
+    <!-- 控制面板「支持链接」指向本仓库（上游残留 getartcraft/Discord 已换掉） -->
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/matou1118/ttwriter" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/matou1118/ttwriter/releases" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/matou1118/ttwriter" />
 
     <!-- Installer UI (#198): WixUI_Minimal is welcome + license, progress, then a finish page so
          people can see the install worked. Its dialogs and bitmaps are WiX's own

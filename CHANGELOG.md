@@ -6,6 +6,21 @@
 
 ---
 
+## [0.9.0-zh.2] — 2026-10-22
+
+zh.1 之后的打包完善版：附带 Windows 安装包与便携包。
+
+### 新增
+
+- **Windows 安装包**：`wordcraft-0.9.0-windows-x64.msi`——装进 Program Files，带开始菜单快捷方式与 `.docx` 等十种格式的文件关联，控制面板里的「支持链接」指向本仓库。
+- **便携包**：`wordcraft-0.9.0-windows-x64-portable.zip`——解压即用的 `ttwriter.exe` 与 `wordcraft-cli.exe`，附 README、MIT / Apache 许可文本和两款字体的 OFL 文本。
+- **开源的仿宋与楷体打包**（OFL-1.1，可商用可嵌入）：朱雀仿宋（TrionesType，12,882 字）和霞鹜文楷 GB（lxgw，GB 源字形、46,926 字）随二进制内置，只在系统没有对应字体时兜底；宋体走系统自带。
+
+### 修复
+
+- **安装包「支持链接」残留上游地址**（getartcraft.com 与 Discord）——改为本仓库与发布页。
+- **MSI 代码页改为 UTF-8**——中文产品名「蜻蜓文档 TTWriter」在任何语言的 Windows 上都能正确显示与安装。
+
 ## [0.9.0-zh.1] — 2026-10-21
 
 第一个公开发行版。基线：上游 [WordCraft v0.9.0](https://github.com/storytold/wordcraft)。
@@ -69,4 +84,5 @@
 - 开放字体与词表的作者：Inter（Rasmus Andersson / The Inter Project Authors）、JetBrains Mono、Source Sans 与 Source Serif（Adobe，OFL）、Moby 断字词表（Grady Ward）、各语言 TeX 断字模式（Hanna Kołodziejska 等）。逐条列在 [`ATTRIBUTION.md`](ATTRIBUTION.md)。
 - 国标《党政机关公文格式》GB/T 9704—2012、《学位论文编写规则》GB/T 7713、《信息与文献 参考文献著录规则》GB/T 7714—2015，本项目的排版规则以公开标准文本为依据自行实现，未复制任何商业软件的字模、模板或代码。
 
+[0.9.0-zh.2]: https://github.com/matou1118/ttwriter/releases/tag/v0.9.0-zh.2
 [0.9.0-zh.1]: https://github.com/matou1118/ttwriter/releases/tag/v0.9.0-zh.1
