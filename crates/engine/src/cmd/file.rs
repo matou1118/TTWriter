@@ -1,6 +1,7 @@
 //! File tab (Backstage): new, open, save, export, print, properties; document inspection.
 
 use serde_json::{Value, json};
+use wordcraft_doc::props::LineSpacing;
 use wordcraft_doc::{Block, Document, StoryRef};
 
 use super::{pos_json, sel_result};
@@ -196,13 +197,28 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// A blank document on the Normal template: the region's paper (#838), written in the editing
-/// language (the templates' text is English).
+/// language (the templates' text is English). A Chinese editing language (`zh-*`) gets a Chinese
+/// preset: SimSun body / SimHei headings, a 2-character first-line indent and 1.5× line spacing.
 fn normal_document(s: &Session) -> Document {
     let mut d = s.blank_document();
     if let Some(lang) = &s.editing_lang {
         d.styles.default_chr.lang = Some(lang.clone());
+        if lang.starts_with("zh") {
+            apply_chinese_preset(&mut d);
+        }
     }
     d
+}
+
+/// Apply Chinese typographic defaults to a new document: East Asian fonts (SimSun body, SimHei
+/// headings), a 2-character first-line indent and 1.5× line spacing. Pure preset — only fills
+/// fields that already exist, adds no model. Does not touch the language tag (already set).
+fn apply_chinese_preset(d: &mut Document) {
+    d.styles.default_chr.font_ea = Some("SimSun".into());
+    d.styles.default_para.indent_first_chars = Some(2.0);
+    d.styles.default_para.line_spacing = Some(LineSpacing::Multiple(1.5));
+    d.settings.minor_font = "SimSun".into();
+    d.settings.major_font = "SimHei".into();
 }
 
 fn open(s: &mut Session, v: &Value) -> CmdResult {

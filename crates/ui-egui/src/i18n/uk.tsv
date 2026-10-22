@@ -17,6 +17,18 @@
 	A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team.	Безкоштовний текстовий процесор із відкритим кодом, написаний з нуля мовою Rust.\nЧастина Crafting Apps від команди ArtCraft.
 	About	Про програму
 	About WordCraft	Про WordCraft
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (сортування за ім'ям)
+	GOST (title sort)	GOST (сортування за назвою)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (автор-дата)
+	ISO 690 (numerical)	ISO 690 (числовий)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	Прийняти
 	Accept All Changes	Прийняти всі зміни
 	Accept This Change	Прийняти цю зміну

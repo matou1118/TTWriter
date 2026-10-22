@@ -6717,6 +6717,30 @@ fn new_documents_follow_the_editing_language() {
     assert_eq!(s.editing_lang, None);
 }
 
+/// A Chinese editing language gives new blank documents a Chinese preset: SimSun body / SimHei
+/// headings, a 2-character first-line indent and 1.5× line spacing. Templates and non-Chinese
+/// languages are unaffected.
+#[test]
+fn new_documents_get_a_chinese_preset() {
+    let mut s = s();
+    s.set_editing_language(Some("zh-CN"));
+    run(&mut s, "file.new", json!({}));
+    assert_eq!(s.doc.styles.default_chr.lang.as_deref(), Some("zh-CN"));
+    assert_eq!(s.doc.styles.default_chr.font_ea.as_deref(), Some("SimSun"), "East Asian body font");
+    assert_eq!(s.doc.styles.default_para.indent_first_chars, Some(2.0), "2-character first-line indent");
+    assert_eq!(s.doc.styles.default_para.line_spacing, Some(wordcraft_doc::props::LineSpacing::Multiple(1.5)), "1.5× line spacing");
+    assert_eq!(s.doc.settings.minor_font, "SimSun", "theme body font");
+    assert_eq!(s.doc.settings.major_font, "SimHei", "theme heading font");
+    // Templates stay English (no Chinese preset).
+    run(&mut s, "file.new", json!({"template": "letter"}));
+    assert_eq!(s.doc.styles.default_chr.font_ea, None, "templates are not Chinese-preset");
+    // Non-Chinese languages are not affected.
+    s.set_editing_language(Some("pl-PL"));
+    run(&mut s, "file.new", json!({}));
+    assert_eq!(s.doc.styles.default_chr.font_ea, None, "Polish is not Chinese-preset");
+    assert_eq!(s.doc.styles.default_para.indent_first_chars, None, "Polish keeps default indent");
+}
+
 /// A Polish document keeps its languages through .docx: the default (`w:docDefaults`) and an
 /// English run (`w:lang`) come back, and so does the proofing.
 #[test]
@@ -7254,6 +7278,19 @@ fn bibliography_sorts_polish_authors() {
     let t = all.split_once("References").map_or(all.as_str(), |(_, list)| list);
     let at = |name: &str| t.find(&format!("{name}, ")).unwrap_or_else(|| panic!("{name} in {all}"));
     assert!(at("Lis") < at("Łukasiewicz") && at("Łukasiewicz") < at("Mazur"), "{t}");
+}
+
+/// Bibliography title is localised: Chinese documents get "参考文献" (or "引用文献" for MLA).
+#[test]
+fn bibliography_title_localised_chinese() {
+    let mut s = s();
+    run(&mut s, "review.language", json!({"lang": "zh-CN", "default": true}));
+    run(&mut s, "references.citation", json!({"source": {"author": "张三", "title": "测试书", "year": "2024"}}));
+    run(&mut s, "text.insert", json!({"text": " "}));
+    run(&mut s, "text.newParagraph", json!({}));
+    run(&mut s, "references.bibliography", json!({}));
+    assert!(text(&s).contains("参考文献"), "{}", text(&s));
+    assert!(!text(&s).contains("References"), "{}", text(&s));
 }
 
 /// A new blank document takes its paper from the region, and lengths are shown in the region's

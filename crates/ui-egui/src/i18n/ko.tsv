@@ -6,6 +6,18 @@
 	A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team.	Rust로 처음부터 새로 만든 무료 오픈 소스 워드 프로세서입니다.\nArtCraft 팀의 Crafting Apps 제품군에 속합니다.
 	About	정보
 	About WordCraft	WordCraft 정보
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (이름순 정렬)
+	GOST (title sort)	GOST (제목순 정렬)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (저자-연도)
+	ISO 690 (numerical)	ISO 690 (숫자)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	수락
 	Accept All Changes	모든 변경 내용 수락
 	Accept This Change	이 변경 내용 수락

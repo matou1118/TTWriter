@@ -391,6 +391,16 @@ pub struct SortKey {
 /// The sort key of `s` for language `lang` (a BCP 47 tag such as `pl-PL`; `None` sorts like
 /// English).
 pub fn sort_key(s: &str, lang: Option<&str>) -> SortKey {
+    // Chinese: sort by pinyin. Each CJK character maps to its pinyin syllable; the syllable
+    // bytes become the primary weights. Unknown characters fall back to their code point, so
+    // they sort after all known pinyin syllables (ASCII < CJK in the weight function).
+    if language(lang) == "zh" {
+        let py = crate::pinyin::pinyin_sort_key(s);
+        let mut key = SortKey::default();
+        key.primary = py.bytes().map(|b| b as u32).collect();
+        key.text = lower_composed(s);
+        return key;
+    }
     let text = lower_composed(s);
     let rules = tailoring(lang);
     let mut key = SortKey::default();
@@ -515,6 +525,18 @@ mod tests {
                 let _ = sort_key(s, l);
                 let _ = heading_letter(s, l);
             }
+        }
+    }
+
+    #[test]
+    fn chinese_sorts_by_pinyin() {
+        assert_eq!(sorted(&["上海", "北京", "广州", "深圳"], "zh-CN"), ["北京", "广州", "上海", "深圳"]);
+        assert_eq!(sorted(&["苹果", "香蕉", "西瓜"], "zh"), ["苹果", "西瓜", "香蕉"]);
+        // Unknown CJK characters keep a deterministic order after all known syllables.
+        let _ = sort_key("\u{9fff}", Some("zh"));
+        // Hostile input with zh never panics.
+        for s in ["", "\u{301}", "a\u{301}", "\u{10FFFF}"] {
+            let _ = sort_key(s, Some("zh"));
         }
     }
 }

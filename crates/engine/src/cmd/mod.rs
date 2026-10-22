@@ -8,6 +8,7 @@ pub mod citations;
 pub mod column;
 pub mod connectors;
 pub mod controls;
+pub mod convert;
 pub mod design;
 pub mod draw;
 pub mod edit;
@@ -36,6 +37,7 @@ pub mod protect;
 pub mod references;
 pub mod review;
 pub mod smart_art;
+pub mod sort;
 pub mod speech;
 pub mod table;
 pub mod table_draw;
@@ -87,6 +89,7 @@ pub fn registry() -> Registry {
     v.extend(fields::specs());
     v.extend(mailings::specs());
     v.extend(citations::specs());
+    v.extend(convert::specs());
     v.extend(index::specs());
     v.extend(objects::specs());
     v.extend(smart_art::specs());
@@ -99,6 +102,7 @@ pub fn registry() -> Registry {
     v.extend(templates::specs());
     v.extend(protect::specs());
     v.extend(speech::specs());
+    v.extend(sort::specs());
     v.extend(controls::specs());
     Registry::new(v)
 }

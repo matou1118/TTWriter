@@ -287,6 +287,16 @@ pub fn style(name: &str) -> &'static CiteStyle {
     find_style(name).unwrap_or(&STYLES[0])
 }
 
+/// The bibliography title in the document's language: Chinese documents get "参考文献"
+/// (or "引用文献" for MLA's "Works Cited"), other languages keep the style's English title.
+/// The user's explicit `title` parameter (if any) always wins; this only supplies the default.
+fn bib_title_localized(st: &CiteStyle, lang: Option<&str>) -> &'static str {
+    if lang.is_some_and(|l| l.starts_with("zh")) {
+        return if st.bib_title == "Works Cited" { "引用文献" } else { "参考文献" };
+    }
+    st.bib_title
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("references.sources", "Manage Sources", "References › Citations & Bibliography", sources)
@@ -307,7 +317,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"style": "APA|Chicago|GB/T 7714|GOST (name sort)|GOST (title sort)|Harvard (Anglia)|IEEE|ISO 690 (author-date)|ISO 690 (numerical)|MLA|SIST02|Turabian" (Word's style names work too)}"#,
         ),
         CommandSpec::new("references.bibliography", "Bibliography", "References › Citations & Bibliography", |s, v| {
-            let title = p::str(v, "title").unwrap_or(style(&s.bib_style).bib_title).to_string();
+            let title = p::str(v, "title").unwrap_or(bib_title_localized(style(&s.bib_style), s.doc.styles.default_chr.lang.as_deref())).to_string();
             generated_list(s, "BIBLIOGRAPHY", &title)?;
             sel_result(s)
         })

@@ -1862,7 +1862,7 @@ fn references(app: &mut WordApp, ui: &mut Ui) {
             let label = crate::i18n::fmt(tl!("Style: {style}"), &[("style", &current)]);
             menu_button(ui, app, "styles", Some(&label), "Citation Style", false, "references.citationStyle", |ui, app| {
                 for st in &wordcraft_engine::cmd::citations::STYLES {
-                    mi_check(ui, app, st.name, st.name == current, "references.citationStyle", json!({"style": st.name}));
+                    mi_check(ui, app, tl!(st.name), st.name == current, "references.citationStyle", json!({"style": st.name}));
                 }
             });
             small(ui, app, "bibliography", Some("Bibliography"), "Bibliography", "references.bibliography", json!({}), false);

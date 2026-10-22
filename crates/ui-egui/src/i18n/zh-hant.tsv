@@ -7,6 +7,18 @@
 	A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team.	一款以 Rust 從零開始撰寫的免費開源文書處理軟體。\n屬於 ArtCraft 團隊的 Crafting Apps 系列。
 	About	關於
 	About WordCraft	關於 WordCraft
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (按名稱排序)
+	GOST (title sort)	GOST (按標題排序)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (作者-日期)
+	ISO 690 (numerical)	ISO 690 (數字)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	接受
 	Accept All Changes	接受所有修訂
 	Accept This Change	接受此修訂

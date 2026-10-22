@@ -14,6 +14,18 @@
 	A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team.	Tasuta avatud lähtekoodiga tekstitöötlusprogramm, mis on kirjutatud Rustis.\nArtCrafti meeskonna Crafting Appsi osa.
 	About	Teave
 	About WordCraft	WordCrafti teave
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (sorteerimine nime järgi)
+	GOST (title sort)	GOST (sorteerimine pealkirja järgi)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (autor-kuupäev)
+	ISO 690 (numerical)	ISO 690 (numbriline)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	Nõustu
 	Accept All Changes	Nõustu kõigi muudatustega
 	Accept This Change	Nõustu selle muudatusega

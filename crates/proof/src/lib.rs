@@ -58,6 +58,7 @@ pub mod pt;
 pub mod ru;
 pub mod tr;
 pub mod vi;
+pub mod zh;
 
 use std::collections::HashSet;
 use std::ops::Range;
@@ -665,7 +666,8 @@ pub fn is_correct_in_with(word: &str, lang: ProofLang, opts: &Options) -> bool {
         ProofLang::Ru => accepted_by_options(word, opts) || ru::is_correct(word),
         ProofLang::Cs => accepted_by_options(word, opts) || cs::is_correct(word),
         ProofLang::Id => accepted_by_options(word, opts) || id::is_correct(word),
-        ProofLang::Bg | ProofLang::Other => true,
+        // Chinese doesn't spell-check word-by-word; characters are always "correct".
+        ProofLang::Zh | ProofLang::Bg | ProofLang::Other => true,
     }
 }
 
@@ -681,7 +683,7 @@ pub fn suggest_in(word: &str, max: usize, lang: ProofLang) -> Vec<String> {
         ProofLang::Ru => ru::suggest(word, max),
         ProofLang::Cs => cs::suggest(word, max),
         ProofLang::Id => id::suggest(word, max),
-        ProofLang::Bg | ProofLang::Other => Vec::new(),
+        ProofLang::Zh | ProofLang::Bg | ProofLang::Other => Vec::new(),
     }
 }
 
@@ -706,6 +708,7 @@ fn grammar_in(text: &str, lang: ProofLang, capital_first: bool) -> Vec<Issue> {
         // Czech has no sentence-capital rule, so a list item needs no exception.
         ProofLang::Cs => cs::grammar::check(text),
         ProofLang::Id => id::grammar::check(text),
+        ProofLang::Zh => zh::grammar::check(text),
         ProofLang::Bg | ProofLang::Other => Vec::new(),
     }
 }

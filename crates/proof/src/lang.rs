@@ -39,6 +39,10 @@ pub enum ProofLang {
     /// `id_ID` dictionary, dictionary-driven suggestions and generic checks with Indonesian
     /// messages. Hyphenation keeps the fallback English patterns.
     Id,
+    /// Chinese (`zh`, `zh-CN`, `zh-Hans`, `zh-Hant`…): no spelling dictionary (Chinese doesn't
+    /// spell-check word-by-word), but grammar rules catch repeated characters and spacing issues
+    /// around CJK punctuation. Hyphenation keeps the fallback English patterns.
+    Zh,
     /// A language without proofing tools here (`fr-FR`, `ja-JP`, `x-none`…). Like Word without
     /// the language's proofing tools: no spelling or grammar marks, so its words are never
     /// flagged as English misspellings. Hyphenation keeps using the English patterns, as before
@@ -76,6 +80,8 @@ impl ProofLang {
             ProofLang::Cs
         } else if primary.eq_ignore_ascii_case("id") || primary.eq_ignore_ascii_case("ind") || primary.eq_ignore_ascii_case("in") {
             ProofLang::Id
+        } else if primary.eq_ignore_ascii_case("zh") || primary.eq_ignore_ascii_case("zho") || primary.eq_ignore_ascii_case("chi") {
+            ProofLang::Zh
         } else {
             ProofLang::Other
         }
@@ -94,6 +100,7 @@ impl ProofLang {
             ProofLang::Ru => "ru",
             ProofLang::Cs => "cs",
             ProofLang::Id => "id",
+            ProofLang::Zh => "zh",
             ProofLang::Other => "",
         }
     }
