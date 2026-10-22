@@ -92,27 +92,46 @@ fn fetch(url: &str, timeout: u64) -> Option<String> {
 }
 
 /// The release manifest (`site/latest.json`, committed to the repository): the version, the
-/// download URL per channel and the SHA-256 of every asset. The China host is direct and
-/// fast; GitHub is the fallback. Both are plain files, so there is no API rate limit.
+/// download URL per channel and the SHA-256 of every asset. AtomGit's contents API reads a
+/// file from the repository (China, direct); GitHub's raw host is the fallback. Both are
+/// plain files, so there is no API rate limit.
 fn manifest_hosts() -> [&'static str; 2] {
     [
-        "https://raw.atomgit.com/matou118/ttwriter/master/site/latest.json",
+        "https://atomgit.com/api/v5/repos/matou118/ttwriter/contents/site/latest.json",
         "https://raw.githubusercontent.com/matou1118/ttwriter/master/site/latest.json",
     ]
 }
 
-/// The manifest's SHA-256 for an asset, when the manifest is reachable and lists it.
-fn manifest_hash(asset: &str) -> Option<String> {
+/// The manifest as JSON: AtomGit's contents API wraps the file in a base64 envelope, GitHub's
+/// raw host serves the JSON itself.
+fn manifest_json() -> Option<Value> {
+    use base64::Engine as _;
     for host in manifest_hosts() {
         let Some(text) = fetch(host, 10) else { continue };
         let Ok(v) = serde_json::from_str::<Value>(&text) else { continue };
-        let Some(assets) = v.get("assets").and_then(|a| a.as_array()) else { continue };
-        let found = assets.iter().find(|a| a.get("name").and_then(|n| n.as_str()) == Some(asset));
-        if let Some(hash) = found.and_then(|a| a.get("sha256")).and_then(|s| s.as_str()) {
-            return Some(hash.to_string());
+        if v.get("assets").is_some() {
+            return Some(v);
+        }
+        if let Some(b64) = v.get("content").and_then(|c| c.as_str())
+            && let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64)
+            && let Ok(inner) = serde_json::from_str::<Value>(&String::from_utf8_lossy(&decoded))
+            && inner.get("assets").is_some()
+        {
+            return Some(inner);
         }
     }
     None
+}
+
+/// The manifest's SHA-256 for an asset, when the manifest is reachable and lists it.
+fn manifest_hash(asset: &str) -> Option<String> {
+    let v = manifest_json()?;
+    v.get("assets")?
+        .as_array()?
+        .iter()
+        .find(|a| a.get("name").and_then(|n| n.as_str()) == Some(asset))
+        .and_then(|a| a.get("sha256").and_then(|s| s.as_str()))
+        .map(String::from)
 }
 
 /// A file's SHA-256, lowercase hex.
