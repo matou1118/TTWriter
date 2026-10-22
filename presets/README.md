@@ -3,6 +3,9 @@
 中文文档的默认设置。**每一个预设都是一段 WordCraft 命令序列**，
 用 `wordcraft-cli run --script` 应用，或作为 `styles.modify` 的参数。
 
+界面里也有同一个入口：**开始 → 中文版式**，四个按钮跑的就是这里的四份 JSON
+（`crates/ui-egui/src/zh_presets.rs` 用 `include_str!` 带上，改预设不用改代码）。
+
 这些预设对应**中文版专属**的部分——上游没有、也不该有（见
 [`../OPEN-SOURCE-STRATEGY.md`](../OPEN-SOURCE-STRATEGY.md)）。
 
@@ -50,10 +53,10 @@ GB/T 9704—2012。完整说明见 [`../skills/gongwen/`](../skills/gongwen/)。
 |---|---|
 | 版心 | 156 × 225 mm（A4） |
 | 边距 | 上 37 / 下 35 / 左 28 / 右 26 mm |
-| 正文 | 仿宋_GB2312 3 号，固定行距 28 磅，首行缩进 2 字符 |
+| 正文 | 仿宋 3 号，固定行距 28 磅，首行缩进 2 字符 |
 | 标题 | 方正小标宋简体 2 号居中（无此字体则黑体） |
 | 一级「一、」 | 黑体 3 号顶格 |
-| 二级「（一）」 | 楷体_GB2312 3 号顶格 |
+| 二级「（一）」 | 楷体 3 号顶格 |
 | 颜色 | 全黑（公文不用彩色标题） |
 
 套版式：`python skills/gongwen/scripts/format_gongwen.py content.docx -o gongwen.docx --pdf`

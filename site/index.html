@@ -69,7 +69,7 @@
         <li>中文字数按字计</li>
         <li>东亚字体与语言标记</li>
         <li>四个排版技能</li>
-        <li>四套中文预设</li>
+        <li>四套中文预设（界面一键套用）</li>
         <li>600+ 条命令</li>
         <li>CLI · MCP · 控制通道</li>
         <li>不联网</li>
@@ -108,7 +108,12 @@
         <article class="card reveal">
           <span class="mark">排版层</span>
           <h3>国标排版技能与预设</h3>
-          <p>公文 GB/T 9704、学位论文 GB/T 7713 与参考文献 GB/T 7714、法务文书，四套技能配四套预设，一次应用。</p>
+          <p>公文 GB/T 9704、学位论文 GB/T 7713 与参考文献 GB/T 7714、法务文书，四套技能配四套预设，一次应用。界面「开始 → 中文版式」里四个按钮，点一下就套好。</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">字体</span>
+          <h3>自带中文字体兜底</h3>
+          <p>官方二进制嵌入了阿里巴巴普惠体，没装中文字体的机器上也不会满屏方块。它只做兜底，不覆盖文档指定的字体。</p>
         </article>
         <article class="card reveal">
           <span class="mark">离线</span>
@@ -211,7 +216,7 @@
         <li><strong>没有中文拼写 / 语法校对。</strong>WordCraft 的校对只覆盖英、俄、波、葡、意几种语言，本发行版也没有假装有。</li>
         <li><strong>GB/T 7714 条目模板缺期号槽位</strong>，期刊论文的期号需要手工补。</li>
         <li><strong>参考文献默认标题是英文 <code>References</code></strong>，用 <code>references.bibliography</code> 的 <code>title</code> 参数改成「参考文献」。</li>
-        <li><strong>方正小标宋简体不是 Windows 自带字体</strong>，机器上没有时公文标题会回退为黑体并给出提示。</li>
+        <li><strong>方正小标宋简体不是 Windows 自带字体</strong>，机器上没有时公文标题会回退为黑体并给出提示。内置的普惠体是黑体，也替不了仿宋、宋体、楷体这三样——它们仍然来自系统。</li>
         <li><strong>简繁转换、拼音排序、按地区自动选默认样式</strong>还没做。</li>
       </ul>
     </div>

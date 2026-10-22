@@ -60,6 +60,15 @@ cargo build --release -p wordcraft
 
 需要 Rust 1.95+（`Cargo.toml` 的 `rust-version`）。Windows 上的完整构建配方（GNU 工具链 + MinGW）见 `build.ps1`；一条命令跑完构建、测试、格式检查、技能校验见 `test-all.ps1`。
 
+**中文字体不进仓库**（字体文件一概不进）。中文版官方构建把阿里巴巴普惠体当作**可选构建输入**嵌进二进制，所以没装中文字体的机器上也能正常显示中文：
+
+```text
+craft-fonts/fonts/manifest.txt   # 连同 .otf 文件，都被 gitignore
+./build.ps1                      # 自动带上
+```
+
+直接 `cargo build` 得到的是上游行为：中文靠系统字体（Windows 的 仿宋/宋体/楷体/黑体，Linux 的 Noto CJK）。普惠体是黑体，只做兜底，所以公文正文仍然需要系统里的仿宋。
+
 ### 命令行与自动化
 
 每个功能都是命令，界面、快捷键、命令行、控制通道和 MCP 走的是同一套命令。

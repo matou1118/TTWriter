@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use crate::colors::{Remember, Target};
 use crate::options::MeasureExt;
 use crate::theme::{Tokens, medium, regular, semibold};
-use crate::widgets::{CONTENT_H, LABEL_H, big, big_toggle, group, menu_button, small, split};
+use crate::widgets::{CONTENT_H, LABEL_H, big, big_toggle, group, group_titled, menu_button, small, split};
 use crate::{WordApp, icons};
 
 pub const TABS: [&str; 13] = wordcraft_engine::ribbon::TABS;
@@ -1188,6 +1188,17 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
             });
         });
     });
+    // 中文版式：标签是纯中文，不走 i18n 目录（22 份目录必须键位一致）。
+    group_titled(ui, "中文版式", "中文版式", None, app, |ui, app| {
+        menu_button(ui, app, "styles", Some("中文版式"), "中文版式", true, "", |ui, app| {
+            for p in crate::zh_presets::PRESETS {
+                if ui.add(egui::Button::new(p.label).min_size(vec2(200.0, 0.0))).clicked() {
+                    crate::zh_presets::apply(app, p);
+                    ui.close();
+                }
+            }
+        });
+    });
     group(ui, "Styles", Some("styles.pane"), app, |ui, app| {
         crate::previews::style_gallery(app, ui, &st);
     });
@@ -2232,7 +2243,6 @@ fn outlining(app: &mut WordApp, ui: &mut Ui) {
 fn help(app: &mut WordApp, ui: &mut Ui) {
     group(ui, "Help", None, app, |ui, app| {
         big(ui, app, "help", "Help", "ui.dialog", json!({"name": "about"}), false);
-        big(ui, app, "discord", "Community\nDiscord", "ui.discord", json!({}), false);
     });
     group(ui, "Agents", None, app, |ui, app| {
         big(ui, app, "macros", "Commands", "ui.dialog", json!({"name": "commands"}), false);

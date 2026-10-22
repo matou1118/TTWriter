@@ -70,6 +70,19 @@ Needs Rust 1.95+ (`rust-version` in `Cargo.toml`). The full recipe for Windows (
 MinGW) is `build.ps1`; `test-all.ps1` runs build, tests, formatting, skill validation and an
 end-to-end layout smoke test in one command.
 
+**Chinese fonts are not committed** (font binaries never are). The official Chinese edition embeds
+阿里巴巴普惠体 (Alibaba PuHuiTi) as an optional build input, so its binary still shows Chinese on
+a machine with no Chinese fonts installed:
+
+```text
+craft-fonts/fonts/manifest.txt   # plus the .otf files; both gitignored
+./build.ps1                      # picks them up automatically
+```
+
+A plain `cargo build` gives upstream behaviour: Chinese comes from the system (仿宋/宋体/楷体/黑体
+on Windows, Noto CJK on Linux). PuHuiTi is a sans face used only as a fallback, so 公文 正文 still
+wants 仿宋 from the system.
+
 ### Command line and automation
 
 Everything is a command. The ribbon, keyboard shortcuts, the CLI, the control channel and MCP all

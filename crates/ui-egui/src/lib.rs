@@ -90,6 +90,7 @@ pub mod widgets;
 pub mod window_close;
 pub mod window_geometry;
 pub mod wordart_menus;
+pub mod zh_presets;
 pub mod zotero;
 
 use serde::{Deserialize, Serialize};
@@ -277,7 +278,6 @@ pub struct UiState {
     /// View › Navigation Pane: open or closed as the person left it, kept between runs (#2526).
     /// The session owns it while running (see [`WordApp::prefs`]).
     pub nav_pane: bool,
-    pub show_discord: bool,
     /// User name (File › Options) for comments and tracked changes; empty keeps the default.
     pub author: String,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -379,7 +379,6 @@ impl Default for UiState {
             legacy_dark: None,
             nav_tab: "headings".into(),
             nav_pane: false,
-            show_discord: true,
             author: String::new(),
             window: None,
             language: i18n::AUTO.into(),
@@ -1686,10 +1685,6 @@ impl WordApp {
                         .into(),
                 ));
             }
-            "ui.discord" => {
-                self.canvas.open_url = Some("https://discord.gg/artcraft".into());
-                json!({})
-            }
             "ui.caretAnimation" => {
                 // File › Options › Advanced › Animation: `value` true or false turns the caret's
                 // glide and fading blink on or off; no value reads it.
@@ -2621,7 +2616,6 @@ pub(crate) fn works_without_document(id: &str) -> bool {
             | "ui.openFileDialog"
             | "ui.fileBrowser"
             | "ui.makeDefaultApp"
-            | "ui.discord"
             | "ui.caretAnimation"
             | "ui.startScreen"
     ) || id.starts_with("help.")
@@ -2981,7 +2975,7 @@ mod tests {
         for id in ["format.bold", "text.insert", "file.save", "file.saveAs", "file.print", "edit.paste", "insert.table", "ui.print"] {
             assert!(!widgets::enabled(a, id), "{id} is off with no document");
         }
-        for id in ["file.new", "file.open", "ui.backstage", "ui.tab", "ui.discord", "file.options", "ui.theme"] {
+        for id in ["file.new", "file.open", "ui.backstage", "ui.tab", "file.options", "ui.theme"] {
             assert!(widgets::enabled(a, id), "{id} works with no document");
         }
         assert!(!chrome::qat_enabled(a, "file.save"));
@@ -5349,7 +5343,7 @@ mod tests {
                 a,
             );
             h.run_steps(4);
-            assert!(h.query_by_label("Show the community button in the title bar").is_some(), "hook {hook}: the Options page rendered");
+            assert!(h.query_by_label("Dark page (white text on black)").is_some(), "hook {hook}: the Options page rendered");
             assert_eq!(h.query_by_label(LABEL).is_some(), hook, "hook {hook}: the button");
             if hook {
                 h.get_by_label(LABEL).click();

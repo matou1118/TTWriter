@@ -69,13 +69,13 @@ metadata:
 
 | 要素 | 字体 | 字号 | 行距 | 其他 |
 |---|---|---|---|---|
-| 正文 | 仿宋_GB2312 | 3 号（16pt） | 固定值 28-30 磅 | 每自然段左空二字 |
+| 正文 | 仿宋 | 3 号（16pt） | 固定值 28-30 磅 | 每自然段左空二字 |
 | 标题 | 方正小标宋简体 | 2 号（22pt） | — | 居中，回行不断尾 |
 | 一级标题「一、」 | 黑体 | 3 号（16pt） | 同正文 | 顶格 |
-| 二级标题「（一）」 | 楷体_GB2312 | 3 号（16pt） | 同正文 | 顶格 |
-| 三级标题「1.」 | 仿宋_GB2312 加粗 | 3 号（16pt） | 同正文 | 顶格 |
-| 四级标题「（1）」 | 仿宋_GB2312 | 3 号（16pt） | 同正文 | 顶格 |
-| 主送机关 | 仿宋_GB2312 | 3 号（16pt） | 同正文 | 顶格，标题下空一行 |
+| 二级标题「（一）」 | 楷体 | 3 号（16pt） | 同正文 | 顶格 |
+| 三级标题「1.」 | 仿宋 加粗 | 3 号（16pt） | 同正文 | 顶格 |
+| 四级标题「（1）」 | 仿宋 | 3 号（16pt） | 同正文 | 顶格 |
+| 主送机关 | 仿宋 | 3 号（16pt） | 同正文 | 顶格，标题下空一行 |
 | 页码 | 宋体 | 4 号（14pt） | — | 单页右空一字，双页左空一字，用一字线「—」 |
 
 **行距固定值 28 磅 → 每面 22 行**。这是国标里"每面 22 行每行 28 字"的来源：
@@ -91,12 +91,12 @@ metadata:
 
 ```json
 { "command": "styles.modify", "params": { "style": "Normal",
-  "chr": { "fontEa": "仿宋_GB2312", "size": 16 },
+  "chr": { "fontEa": "仿宋", "size": 16 },
   "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 2 } } }
 ```
 
 > ⚠️ **字体名要装得上**：`fontEa` 设的是字体名，机器上没装就回退。
-> 仿宋_GB2312 / 黑体 / 楷体_GB2312 是 Windows 自带；**方正小标宋简体不是**，
+> 仿宋 / 黑体 / 楷体 是 Windows 自带；**方正小标宋简体不是**，
 > 需自行安装或改用黑体。`font` 设拉丁字体、`fontEa` 设中文字体，两个都要设。
 
 ### ④ 页码、版记
@@ -168,7 +168,7 @@ wordcraft-cli info gongwen.docx
   "commands": [
     { "command": "layout.margins", "params": { "top": 104.9, "bottom": 99.2, "left": 79.4, "right": 73.7 } },
     { "command": "styles.modify", "params": { "style": "Normal",
-      "chr": { "font": "Times New Roman", "fontEa": "仿宋_GB2312", "size": 16 },
+      "chr": { "font": "Times New Roman", "fontEa": "仿宋", "size": 16 },
       "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 2 } } },
     { "command": "styles.modify", "params": { "style": "Title",
       "chr": { "fontEa": "黑体", "size": 22, "bold": false },
@@ -177,7 +177,7 @@ wordcraft-cli info gongwen.docx
       "chr": { "fontEa": "黑体", "size": 16 },
       "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 0 } } },
     { "command": "styles.modify", "params": { "style": "Heading2",
-      "chr": { "fontEa": "楷体_GB2312", "size": 16 },
+      "chr": { "fontEa": "楷体", "size": 16 },
       "para": { "lineSpacing": { "rule": "exactly", "value": 28 }, "indentFirstChars": 0 } } }
   ],
   "save": ["gongwen.docx", "gongwen.pdf"]

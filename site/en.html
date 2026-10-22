@@ -110,7 +110,12 @@
         <article class="card reveal">
           <span class="mark">Layout layer</span>
           <h3>National-standard skills and presets</h3>
-          <p>Official documents (GB/T 9704), theses (GB/T 7713 and GB/T 7714 references) and legal papers: four skills, four presets, applied in one step.</p>
+          <p>Official documents (GB/T 9704), theses (GB/T 7713 and GB/T 7714 references) and legal papers: four skills, four presets, applied in one step. In the app: Home › 中文版式.</p>
+        </article>
+        <article class="card reveal">
+          <span class="mark">Fonts</span>
+          <h3>A Chinese font, built in</h3>
+          <p>The official binary embeds 阿里巴巴普惠体 (Alibaba PuHuiTi) as a fallback, so a machine with no Chinese fonts still shows Chinese instead of boxes. It never overrides a font the document asks for.</p>
         </article>
         <article class="card reveal">
           <span class="mark">Offline</span>
@@ -215,7 +220,7 @@
         <li><strong>No Chinese spelling or grammar proofing.</strong> WordCraft proofs English, Russian, Polish, Portuguese and Italian only; this edition does not pretend otherwise.</li>
         <li><strong>The GB/T 7714 entry template has no issue-number slot</strong>, so a journal issue must be added by hand.</li>
         <li><strong>The bibliography heading defaults to the English <code>References</code></strong>; pass <code>title</code> to <code>references.bibliography</code> to get 参考文献.</li>
-        <li><strong>方正小标宋简体 is not bundled with Windows</strong>, so a 公文 title falls back to a sans face and says so.</li>
+        <li><strong>方正小标宋简体 is not bundled with Windows</strong>, so a 公文 title falls back to a sans face and says so. The built-in PuHuiTi is a sans face too: it cannot replace 仿宋, 宋体 or 楷体, which still come from the system.</li>
         <li><strong>Traditional/Simplified conversion, pinyin sorting, and per-region default styles</strong> are not done yet.</li>
       </ul>
     </div>
@@ -272,7 +277,7 @@ wordcraft-cli mcp                                   # run as an MCP server for A
         </article>
         <article class="card reveal">
           <h3>Asset floor</h3>
-          <p>Nothing is copied, traced or screenshot-cropped from Microsoft, Adobe, Avid or Autodesk — no icons, templates, themes or font data. National-standard layout is implemented from the published standards.</p>
+          <p>Nothing is copied, traced or screenshot-cropped from Microsoft, Adobe, Avid or Autodesk — no icons, templates, themes or font data. National-standard layout is implemented from the published standards. The one font the official binary carries, 阿里巴巴普惠体 (Alibaba PuHuiTi), is Alibaba's own and is used as a fallback under its free-for-commercial-use licence; its files are not in this repository.</p>
         </article>
         <article class="card reveal">
           <h3>Credits</h3>
