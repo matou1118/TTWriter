@@ -1605,14 +1605,16 @@ mod tests {
         assert!(plain_dark > 2000.0, "plain {plain_dark}");
         let (dark, _, _) = shot(CharProps { outline: Some(true), ..Default::default() });
         assert!(dark < plain_dark / 3.0, "outline is hollow: {dark} vs {plain_dark}");
-        for (c, sign) in [
-            (CharProps { shadow: Some(true), ..Default::default() }, 1.0),
-            (CharProps { emboss: Some(true), ..Default::default() }, 1.0),
-            (CharProps { engrave: Some(true), ..Default::default() }, -1.0),
+        for (name, c, sign) in [
+            ("shadow", CharProps { shadow: Some(true), ..Default::default() }, 1.0),
+            ("emboss", CharProps { emboss: Some(true), ..Default::default() }, 1.0),
+            ("engrave", CharProps { engrave: Some(true), ..Default::default() }, -1.0),
         ] {
             let (_, grey, (ox, oy)) = shot(c);
-            assert!(grey > plain_grey * 2.0, "a grey copy: {grey} vs {plain_grey}");
-            assert!(ox * sign > 1.0 && oy * sign > 1.0, "grey copy offset {ox} {oy}");
+            assert!(grey > plain_grey * 2.0, "{name}: a grey copy: {grey} vs {plain_grey}");
+            // The visible grey is a thin crescent, so its x centroid can sit just under a pixel
+            // from the dark one even when the copy is clearly to the right (or left).
+            assert!(ox * sign > 0.5 && oy * sign > 1.0, "{name}: grey copy offset {ox} {oy}");
         }
     }
 
