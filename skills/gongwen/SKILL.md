@@ -120,6 +120,12 @@ metadata:
 
 ### ⑤ 版面检查（必做）
 
+先自动体检（快、免人眼），再人眼看 PNG（终审）：
+
+```bash
+python scripts/check_gongwen.py gongwen.docx        # 版心/行距/字号/字体/标题/页码 自动核对
+```
+
 ```bash
 wordcraft-cli render gongwen.docx page1.png --page 1
 ```

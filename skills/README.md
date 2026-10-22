@@ -6,9 +6,13 @@ formats that WordCraft does not ship.
 | Skill | What it is | License |
 |---|---|---|
 | [`wordcraft/`](wordcraft/SKILL.md) | The core skill: build, edit, format, verify and export `.docx` with WordCraft. Includes Chinese-document conventions. | Apache-2.0 |
-| [`gongwen/`](gongwen/SKILL.md) | 公文排版 per GB/T 9704—2012: 版心, 仿宋/黑体/楷体 styles, fixed 28pt line spacing, page numbers, and a script that applies the whole layout to a finished document. | Apache-2.0 |
-| [`thesis/`](thesis/SKILL.md) | 论文排版 per GB/T 7713 / 7714: 封面, 页眉, 目录, 图表编号, 参考文献悬挂缩进. | Apache-2.0 |
+| [`gongwen/`](gongwen/SKILL.md) | 公文排版 per GB/T 9704—2012: 版心, 仿宋/黑体/楷体 styles, fixed 28pt line spacing, page numbers, and a script that applies the whole layout to a finished document. `scripts/check_gongwen.py` audits the numbers automatically. | Apache-2.0 |
+| [`thesis/`](thesis/SKILL.md) | 论文排版 per GB/T 7713 / 7714: 封面, 页眉, 目录, 图表编号, 参考文献悬挂缩进. `scripts/check_thesis.py` audits figure/table numbering and citation↔bibliography correspondence. | Apache-2.0 |
 | [`legal-docs/`](legal-docs/SKILL.md) | 法务文书排版: 起诉状, 律师函, 法律意见书, 合同审查报告; 脱敏版标注. Bridges to WorkMind's legal content layer. | Apache-2.0 |
+| [`review/`](review/SKILL.md) | 审阅协作: 批注, 修订跟踪, 接受/拒绝, 两版对比 (`review.compare`), 限制编辑 — the document lifecycle after it exists. | Apache-2.0 |
+| [`mailmerge/`](mailmerge/SKILL.md) | 批量套打: Excel/CSV 名单 + 模板 → N 份文书 (工资条, 录取通知, 证书, 信封, 标签). | Apache-2.0 |
+| [`exam/`](exam/SKILL.md) | 试卷排版: A3 双栏, 密封线, 答题留白, 数学公式 (`equation.set` LaTeX), 题号选项排列. | Apache-2.0 |
+| [`accessibility/`](accessibility/SKILL.md) | 无障碍发布检查 per GB/T 37668 / WCAG: alt text, heading structure, table headers, language, contrast — every issue has a fix command. | Apache-2.0 |
 
 ## The architecture: content layer vs layout layer
 
