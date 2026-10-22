@@ -56,13 +56,13 @@ counted, and how fonts are written into the file.
 ### Prebuilt binaries
 
 Download the build for your platform from
-[Releases](https://github.com/matou1118/ttwriter/releases) and run `wordcraft`.
+[Releases](https://github.com/matou1118/TTWriter/releases) and run `wordcraft`.
 
 ### Build from source
 
 ```bash
-git clone https://github.com/matou1118/ttwriter
-cd ttwriter
+git clone https://github.com/matou1118/TTWriter
+cd TTWriter
 cargo build --release -p wordcraft
 ```
 

@@ -48,13 +48,13 @@ WordCraft 是一个 Rust 从零写的开源文字处理器，目标是对齐 Mic
 
 ### 用预编译版本
 
-从 [Releases](https://github.com/matou1118/ttwriter/releases) 下载对应平台的可执行文件，直接运行 `wordcraft`。
+从 [Releases](https://github.com/matou1118/TTWriter/releases) 下载对应平台的可执行文件，直接运行 `wordcraft`。
 
 ### 从源码构建
 
 ```bash
-git clone https://github.com/matou1118/ttwriter
-cd ttwriter
+git clone https://github.com/matou1118/TTWriter
+cd TTWriter
 cargo build --release -p wordcraft
 ```
 

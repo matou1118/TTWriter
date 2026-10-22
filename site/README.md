@@ -1,7 +1,7 @@
 # 官网
 
 中英文两页：`index.html`（简体中文，`/`）与 `en.html`（English，`/en.html`），页头互相切换。
-发布地址 `https://matou1118.github.io/ttwriter/`。
+发布地址 `https://matou1118.github.io/TTWriter/`。
 设计令牌取自 [www.ttread.cn](https://www.ttread.cn)（蜻蜓伴读）：朱砂强调色、暖白底、系统字体栈、1120px 版心。没有引入任何第三方 CSS / JS，字体全走系统栈，零网络请求。
 
 ## 本地预览
