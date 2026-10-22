@@ -4,6 +4,7 @@
 mod automation_args;
 mod pdfcmd;
 mod script;
+mod update;
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -61,6 +62,10 @@ USAGE:
                                               running): addEditCitation, addEditBibliography,
                                               addNote, refresh, removeCodes, setDocPrefs
                                               (--cmd runs first, e.g. --cmd caret.docEnd)
+  wordcraft-cli update [--check|--force] [--download <dir>] [--json]
+                                              check for a newer release (AtomGit first, GitHub as
+                                              fallback; cached for 24 hours, --force re-checks),
+                                              and with --download fetch the installer into a folder
   wordcraft-cli [<command>] -h | --help       this help
   wordcraft-cli --version
 
@@ -76,7 +81,7 @@ same output on every machine.
 ";
 
 /// The subcommands, in `USAGE` order; `--help` or `-h` after any of them prints `USAGE` (#968).
-const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "pdf", "run", "commands", "parity", "mcp", "zotero"];
+const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "pdf", "run", "commands", "parity", "mcp", "zotero", "update"];
 
 fn wants_help(cmd: &str, rest: &[String]) -> bool {
     SUBCOMMANDS.contains(&cmd) && rest.iter().any(|a| a == "--help" || a == "-h")
@@ -400,6 +405,7 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
     }
     match cmd {
         "pdf" => crate::pdfcmd::run(&rest),
+        "update" => crate::update::run(&rest),
         "convert" => {
             validate_options("convert", &rest, CONVERT_OPTIONS)?;
             // `--format wordml2003` (or `flatopc`) picks the kind of `.xml` file; its value isn't a path.

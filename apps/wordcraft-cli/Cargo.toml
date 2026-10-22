@@ -21,4 +21,6 @@ wordcraft-mcp = { workspace = true }
 wordcraft-zotero = { workspace = true }
 wordcraft-pdfedit = { workspace = true }
 serde_json = { workspace = true }
+# The update check's cache lives in the settings folder (shared with the control key).
+wordcraft-control-key = { workspace = true }
 sys-locale = "0.3"
