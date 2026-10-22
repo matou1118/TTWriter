@@ -1580,7 +1580,8 @@ mod tests {
         // Dark and grey pixel counts, and the grey pixels' mean offset from the dark ones.
         let shot = |c: CharProps| {
             let mut d = Document::from_text("x");
-            let cp = CharProps { size: Some(40.0), bold: Some(true), ..c };
+            // Pin the bundled font: Aptos resolves to different system faces on CI hosts.
+            let cp = CharProps { size: Some(40.0), bold: Some(true), font: Some("Source Sans 3".into()), ..c };
             d.body = vec![wordcraft_doc::para_block(wordcraft_doc::Paragraph::with_text("HHHH", cp))];
             let l = layout(&d, &mut LayoutCache::new(), &LayoutOptions::default());
             let img = render_page(&d, &l.pages[0], 2.0, &RenderOptions::default());
