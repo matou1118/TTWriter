@@ -9,3 +9,5 @@ plan/
 /.claude/
 /target-*/
 /craft-fonts/
+
+skills/*/scripts/__pycache__/
