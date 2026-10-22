@@ -2062,6 +2062,7 @@ preview	Title	Ukázka
 	Omit	Vynechat
 	One label per recipient	Jeden štítek na příjemce
 	Polish	Polština
+	Chinese	Chinese
 	Portuguese (Brazil)	Portugalština (Brazílie)
 	Portuguese (Portugal)	Portugalština (Portugalsko)
 	Return address labels	Štítky se zpáteční adresou
@@ -2703,3 +2704,11 @@ preview	Title	Ukázka
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Zadejte velikost v libovolné jednotce, například 5 cm nebo 300 px. Druhá strana se přizpůsobí, takže obrázek zachová své proporce.
 
 	Import…	Importovat…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image

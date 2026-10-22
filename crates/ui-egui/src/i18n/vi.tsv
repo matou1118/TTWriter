@@ -1738,6 +1738,7 @@
 	Omit	Bỏ qua
 	One label per recipient	Một nhãn cho mỗi người nhận
 	Polish	Tiếng Ba Lan
+	Chinese	Chinese
 	Portuguese (Brazil)	Tiếng Bồ Đào Nha (Brazil)
 	Portuguese (Portugal)	Tiếng Bồ Đào Nha (Bồ Đào Nha)
 	Return address labels	Nhãn địa chỉ người gửi
@@ -2739,3 +2740,11 @@ template	Letter	Thư
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Nhập kích thước theo đơn vị bất kỳ, ví dụ 5 cm hoặc 300 px. Cạnh còn lại thay đổi theo, nên ảnh giữ nguyên tỷ lệ.
 
 	Import…	Nhập…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image

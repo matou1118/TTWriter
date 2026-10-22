@@ -1803,6 +1803,7 @@
 	Reading Text Size	Tamaño del texto de lectura
 	English (United Kingdom)	Inglés (Reino Unido)
 	Polish	Polaco
+	Chinese	Chinese
 	Do Not Check Spelling or Grammar	No revisar la ortografía ni la gramática
 
 # Built-in file browser when the system file dialog is unavailable (#576)
@@ -2666,3 +2667,11 @@ preview	Title	Título
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Escribe un tamaño en cualquier unidad, como 5 cm o 300 px. El otro lado se ajusta, así que la imagen conserva sus proporciones.
 
 	Import…	Importar…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image

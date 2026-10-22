@@ -2229,6 +2229,7 @@
 	Omit	Elhagyás
 	One label per recipient	Címzettenként egy címke
 	Polish	Lengyel
+	Chinese	Chinese
 	Portuguese (Brazil)	Portugál (Brazília)
 	Portuguese (Portugal)	Portugál (Portugália)
 	Return address labels	Feladócímkék
@@ -2695,3 +2696,11 @@
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Írj be egy méretet bármilyen mértékegységben, például 5 cm vagy 300 px. A másik oldal követi, így a kép megtartja az arányait.
 
 	Import…	Importálás…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image

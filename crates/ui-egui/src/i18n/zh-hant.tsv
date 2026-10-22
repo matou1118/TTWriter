@@ -1764,6 +1764,7 @@
 	Reading Text Size	閱讀字級
 	English (United Kingdom)	英文（英國）
 	Polish	波蘭文
+	Chinese	中文
 	Do Not Check Spelling or Grammar	不檢查拼字及文法
 
 # Built-in file browser when the system file dialog is unavailable (#576)
@@ -2301,3 +2302,11 @@
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	可用任何單位輸入大小，例如 5 cm 或 300 px。另一邊隨之調整，圖片保持原有比例。
 
 	Import…	匯入…
+	Simplify Chinese	转为简体
+	Traditional Chinese	转为繁体
+	Sort by Pinyin	按拼音排序
+	Erase Area	擦除区域
+	Enhance	一键增强
+	ID Photo	证件照
+	Slim Document	文档瘦身
+	Export as Long Image	导出为长图

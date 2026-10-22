@@ -1751,6 +1751,7 @@
 	Omit	Пропускане
 	One label per recipient	По един етикет за получател
 	Polish	Полски
+	Chinese	Chinese
 	Portuguese (Brazil)	Португалски (Бразилия)
 	Portuguese (Portugal)	Португалски (Португалия)
 	Return address labels	Етикети с адрес на подателя
@@ -2688,3 +2689,11 @@
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Въведете размер в произволна единица, например 5 cm или 300 px. Другата страна се променя съответно, така че картината запазва пропорциите си.
 
 	Import…	Импортиране…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image

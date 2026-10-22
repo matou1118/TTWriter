@@ -2197,6 +2197,7 @@ preview	Title	Пример
 	Do Not Check Spelling or Grammar	Не проверять орфографию и грамматику
 	English (United Kingdom)	Английский (Великобритания)
 	Polish	Польский
+	Chinese	Chinese
 
 # Built-in file browser (#576).
 	Documents	Документы
@@ -2709,3 +2710,11 @@ preview	Title	Пример
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Введите размер в любых единицах, например 5 cm или 300 px. Другая сторона изменится вместе с ней, и рисунок сохранит пропорции.
 
 	Import…	Импорт…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image

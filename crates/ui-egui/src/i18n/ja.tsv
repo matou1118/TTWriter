@@ -1763,6 +1763,7 @@
 	Reading Text Size	閲覧時の文字サイズ
 	English (United Kingdom)	英語（英国）
 	Polish	ポーランド語
+	Chinese	中国語
 	Do Not Check Spelling or Grammar	スペル チェックと文章校正を行わない
 
 # Built-in file browser when the system file dialog is unavailable (#576)
@@ -2300,3 +2301,11 @@
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	5 cm や 300 px など、任意の単位でサイズを入力します。もう一方の辺も合わせて変わるため、図の縦横比は保たれます。
 
 	Import…	インポート…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image
