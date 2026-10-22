@@ -20,6 +20,7 @@
 - **四套中文预设**（`presets/`）：`zh-general`、`zh-gongwen`、`zh-thesis`、`zh-legal`，一次应用页面与默认样式。
 - **界面里的中文版式入口**：开始 → 「中文版式」，公文 / 论文 / 法律文书 / 通用中文 四个预设一键套用。菜单里跑的就是 `presets/` 里的同一份命令脚本，界面和命令行不会各改各的。
 - **一份验证台账**（`skills/wordcraft/evidence.md`）：每条结论对应的命令、文件与渲染结果，可复核。
+- **PDF 页操作**（`wordcraft-cli pdf …`）：`info` 看页数与每页尺寸、`rotate` 转页、`delete` 删页、`extract` 抽几页、`merge` 合并多份，`--pages 1-3,5` 选页。底层是新增的 `wordcraft-pdfedit`（lopdf，纯 Rust），只改 PDF 本身，不碰文档模型、不重排文字。这是 PDF 编辑的第一片，批注（高亮、便签、签名）在下一片。
 
 ### 修复：中文相关
 

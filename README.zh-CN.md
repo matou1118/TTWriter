@@ -76,6 +76,7 @@ craft-fonts/fonts/manifest.txt   # 连同 .otf 文件，都被 gitignore
 ```bash
 wordcraft-cli convert 稿子.docx 稿子.pdf            # 转格式
 wordcraft-cli render 稿子.docx page1.png --page 1   # 渲染成图
+wordcraft-cli pdf merge 合并.pdf 甲.pdf 乙.pdf       # 合并 PDF；还有 info / rotate / delete / extract
 wordcraft-cli commands                              # 列出全部命令
 wordcraft-cli mcp                                   # 以 MCP 服务器方式跑，交给 AI 用
 ```

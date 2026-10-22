@@ -21,6 +21,7 @@ wordcraft-docbin = { path = "crates/docbin" }
 wordcraft-formats = { path = "crates/formats" }
 wordcraft-render = { path = "crates/render" }
 wordcraft-pdf = { path = "crates/pdf" }
+wordcraft-pdfedit = { path = "crates/pdfedit" }
 wordcraft-proof = { path = "crates/proof" }
 wordcraft-engine = { path = "crates/engine" }
 wordcraft-mcp = { path = "crates/mcp" }
@@ -53,6 +54,8 @@ wuff = "0.2.9"
 vello_cpu = "0.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "tiff"] }
 craft-pdf = { git = "https://github.com/storytold/craft-libs", rev = "c3487320b2d1de657b860b3c8abb44e1f2b32bd8", version = "=0.1.0", default-features = false, features = ["write"] }
+# PDF reading and page operations for PDF editing (page ops, watermarks, annotations): pure Rust.
+lopdf = "0.46"
 quick-xml = "0.41"
 zip = { version = "3", default-features = false, features = ["deflate"] }
 # zlib streams (compressed metafile pictures in `.doc` drawings); already in the lock as a dependency of other crates.

@@ -2,6 +2,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod automation_args;
+mod pdfcmd;
 mod script;
 
 use std::ffi::{OsStr, OsString};
@@ -28,6 +29,14 @@ USAGE:
   wordcraft-cli text <file>                   plain text
   wordcraft-cli inspect <file>                document structure (JSON)
   wordcraft-cli render <file> <out.png> [--page N] [--scale S]
+  wordcraft-cli pdf <info|rotate|delete|extract|merge> <in> <out> [--pages 1-3,5]
+                                              PDF page operations: see, turn, drop, keep or
+                                              concatenate pages of the file itself (--pages takes
+                                              1-based numbers, ranges and commas; left out it means
+                                              every page, rotate also takes --degrees 90|180|270).
+                                              No document model and no reflow: turning the pages of
+                                              a PDF is not the same as editing what is on them;
+                                              `wordcraft-cli pdf` alone prints the details
   wordcraft-cli run [--file F | --template T] [--script FILE|-] --cmd 'id={json}' [--cmd …]
                     [--save OUT] [--print] [--author NAME]
                                               run commands headlessly, then save (--author names
@@ -67,7 +76,7 @@ same output on every machine.
 ";
 
 /// The subcommands, in `USAGE` order; `--help` or `-h` after any of them prints `USAGE` (#968).
-const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "run", "commands", "parity", "mcp", "zotero"];
+const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "pdf", "run", "commands", "parity", "mcp", "zotero"];
 
 fn wants_help(cmd: &str, rest: &[String]) -> bool {
     SUBCOMMANDS.contains(&cmd) && rest.iter().any(|a| a == "--help" || a == "-h")
@@ -390,6 +399,7 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
         return write_stdout(|o| write!(o, "{USAGE}"));
     }
     match cmd {
+        "pdf" => crate::pdfcmd::run(&rest),
         "convert" => {
             validate_options("convert", &rest, CONVERT_OPTIONS)?;
             // `--format wordml2003` (or `flatopc`) picks the kind of `.xml` file; its value isn't a path.

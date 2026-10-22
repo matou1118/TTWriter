@@ -91,6 +91,7 @@ dispatch through the same command registry.
 ```bash
 wordcraft-cli convert draft.docx draft.pdf          # convert formats
 wordcraft-cli render draft.docx page1.png --page 1  # render to an image
+wordcraft-cli pdf merge all.pdf in1.pdf in2.pdf     # merge PDFs; also info / rotate / delete / extract
 wordcraft-cli commands                              # list every command
 wordcraft-cli mcp                                   # run as an MCP server for AI agents
 ```
