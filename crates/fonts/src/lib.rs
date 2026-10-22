@@ -392,13 +392,17 @@ mod tests {
         let db = FontDb::with_font_dirs(Vec::new());
         db.set_system_fallback(false);
         let fams: Vec<&str> = chinese_fonts().map(|f| f.family).collect();
-        for family in ["Zhuque Fangsong (technical preview)", "LXGW WenKai GB"] {
-            assert!(db.has_family(family), "清单与替换表里的家族名在库里找不着：{family}");
-            assert_eq!(db.face(family, "Regular").family, family, "face() 没拿到 {family}");
+        // 朱雀仿宋与霞鹜文楷是中文版自带的两款开放字体，上游通用 craft-fonts 里没有；
+        // 这种 checkout 只校验实际嵌进来的字体（和下面的日文断言一样按可选输入跳过）。
+        let has_zhuque = fams.iter().any(|f| f.starts_with("Zhuque Fangsong"));
+        let has_lxgw = fams.contains(&"LXGW WenKai GB");
+        if has_zhuque || has_lxgw {
+            assert!(has_zhuque && has_lxgw, "中文包只嵌了一半：{fams:?}");
+            for family in ["Zhuque Fangsong (technical preview)", "LXGW WenKai GB"] {
+                assert!(db.has_family(family), "清单与替换表里的家族名在库里找不着：{family}");
+                assert_eq!(db.face(family, "Regular").family, family, "face() 没拿到 {family}");
+            }
         }
-        // 开源的仿宋与楷体在位：缺了它们，没装 Office 的机器上公文会掉回黑体。
-        assert!(fams.iter().any(|f| f.starts_with("Zhuque Fangsong")), "{fams:?}");
-        assert!(fams.contains(&"LXGW WenKai GB"), "{fams:?}");
         // 宋黑仿楷的常用字每款中文兜底字体都要有（缺字＝逐字换字体，一行里混两种字形）。
         for cf in chinese_fonts() {
             let font = skrifa::FontRef::new(cf.bytes).unwrap();
