@@ -396,8 +396,7 @@ pub fn sort_key(s: &str, lang: Option<&str>) -> SortKey {
     // they sort after all known pinyin syllables (ASCII < CJK in the weight function).
     if language(lang) == "zh" {
         let py = crate::pinyin::pinyin_sort_key(s);
-        let mut key = SortKey::default();
-        key.primary = py.bytes().map(|b| b as u32).collect();
+        let mut key = SortKey { primary: py.bytes().map(|b| b as u32).collect(), ..Default::default() };
         key.text = lower_composed(s);
         return key;
     }

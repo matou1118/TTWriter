@@ -8528,3 +8528,44 @@ fn rtf_list_round_trip_keeps_text() {
         assert_eq!(d.plain_text(StoryRef::Body), "first\nsecond", "{cmd}");
     }
 }
+
+#[test]
+fn a_presentation_opens_as_a_handout() {
+    // A minimal PresentationML package: one slide, a title, one bullet, a picture, notes.
+    let pres = br#"<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldSz cx="12192000" cy="6858000"/><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>"#;
+    let pres_rels = br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>"#;
+    let root_rels = br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>"#;
+    let slide = br#"<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr/><p:nvPr><p:ph type="ctrTitle"/></p:nvPr></p:nvSpPr><p:txBody><a:bodyPr/><a:p><a:r><a:t>Launch Plan</a:t></a:r></a:p></p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Body"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:txBody><a:bodyPr/><a:p><a:r><a:t>Three milestones</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>"#;
+    let png = {
+        let img = image::RgbaImage::from_fn(8, 4, |x, _| image::Rgba([(x * 30) as u8, 80, 160, 255]));
+        let mut b = Vec::new();
+        image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut b), image::ImageFormat::Png).unwrap();
+        b
+    };
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (n, d) in [
+        ("_rels/.rels", root_rels.as_slice()),
+        ("ppt/presentation.xml", pres.as_slice()),
+        ("ppt/_rels/presentation.xml.rels", pres_rels.as_slice()),
+        ("ppt/slides/slide1.xml", slide.as_slice()),
+    ] {
+        z.start_file(n, zip::write::SimpleFileOptions::default()).unwrap();
+        std::io::Write::write_all(&mut z, d).unwrap();
+    }
+    z.start_file("ppt/media/image1.png", zip::write::SimpleFileOptions::default()).unwrap();
+    std::io::Write::write_all(&mut z, &png).unwrap();
+    let bytes = z.finish().unwrap().into_inner();
+
+    // Open by extension and by content (a .pptx renamed .zip still opens as a deck).
+    let doc = crate::io::open_bytes("deck.pptx", &bytes).unwrap();
+    let text = doc.plain_text(StoryRef::Body);
+    assert!(text.contains("Launch Plan"), "the title: {text}");
+    assert!(text.contains("Three milestones"), "a bullet");
+    let renamed = crate::io::open_bytes("deck.zip", &bytes).unwrap();
+    assert_eq!(renamed.plain_text(StoryRef::Body), text);
+
+    // The deck saves back out as a document copy.
+    let docx = crate::io::save_bytes("handout.docx", &doc).unwrap();
+    let back = crate::io::open_bytes("handout.docx", &docx).unwrap();
+    assert!(back.plain_text(StoryRef::Body).contains("Launch Plan"));
+}

@@ -16,6 +16,7 @@ pub mod markdown;
 pub mod mathml;
 pub mod model;
 pub mod odt;
+pub mod pptx;
 pub mod rtf;
 pub mod sheet;
 pub mod txt;
@@ -23,7 +24,8 @@ pub mod txt;
 use wordcraft_doc::Document;
 
 /// Extensions this crate handles.
-pub const EXTENSIONS: &[&str] = &["txt", "text", "md", "markdown", "html", "htm", "xhtml", "rtf", "odt", "tex", "latex", "ltx"];
+pub const EXTENSIONS: &[&str] =
+    &["txt", "text", "md", "markdown", "html", "htm", "xhtml", "rtf", "odt", "tex", "latex", "ltx", "pptx", "ppsx", "potx", "pptm"];
 
 /// Import `bytes` in the format named by `ext` (no dot, any case). `None` = not our format.
 pub fn import(ext: &str, bytes: &[u8]) -> Option<Result<Document, String>> {
@@ -35,6 +37,8 @@ pub fn import(ext: &str, bytes: &[u8]) -> Option<Result<Document, String>> {
         "rtf" => rtf::import(bytes),
         "odt" => odt::import(bytes),
         "tex" | "latex" | "ltx" => Ok(latex::import(bytes)),
+        // Presentations: a read-only handout of the deck (text, pictures, notes).
+        "pptx" | "ppsx" | "potx" | "pptm" => pptx::import(bytes).map(|flow| model::to_doc(&flow)),
         _ => return None,
     };
     Some(r.map(|mut d| {

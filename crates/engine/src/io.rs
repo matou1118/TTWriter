@@ -26,6 +26,10 @@ pub const OPEN_EXTS: &[&str] = &[
     "xml",
     "wcraft.json",
     "json",
+    "pptx",
+    "ppsx",
+    "potx",
+    "pptm",
 ];
 /// Formats WordCraft saves (Save As).
 pub const SAVE_EXTS: &[&str] = &["docx", "docm", "dotx", "dotm", "pdf", "txt", "md", "html", "rtf", "odt", "tex", "png", "json", "xml"];
@@ -331,7 +335,16 @@ fn open_by_content(
     let (mut doc, encrypted) = if bytes.starts_with(OLE_SIG) && wordcraft_docx::is_encrypted(bytes) {
         (wordcraft_docx::read_with_password(bytes, password).map_err(|e| e.to_string())?, true)
     } else if bytes.starts_with(ZIP_SIG) {
-        (wordcraft_docx::read(bytes).map_err(|e| format!("{name}: not a document WordCraft can open ({e})"))?, false)
+        // A presentation package opens as a read-only handout; anything else zip-shaped is
+        // read as a document, and a package that is neither fails there with Word's message.
+        if wordcraft_formats::pptx::is_presentation(bytes) {
+            let mut doc =
+                wordcraft_formats::pptx::import(bytes).map(|flow| wordcraft_formats::model::to_doc(&flow)).map_err(|e| format!("{name}: {e}"))?;
+            fit_pictures(&mut doc);
+            (doc, false)
+        } else {
+            (wordcraft_docx::read(bytes).map_err(|e| format!("{name}: not a document WordCraft can open ({e})"))?, false)
+        }
     } else if bytes.starts_with(OLE_SIG) {
         open_binary_doc(bytes, password)
             .map_err(|e| if needs_password(&e) || wrong_password(&e) { e } else { format!("{name}: not a document WordCraft can open ({e})") })?

@@ -173,23 +173,23 @@ fn resolve(names: &[String], pick: Pick<'_>) -> Result<usize, String> {
 // ---------------------------------------------------------------------------------------------
 // Package
 
-struct Package<'a> {
+pub(crate) struct Package<'a> {
     zip: zip::ZipArchive<Cursor<&'a [u8]>>,
     total: u64,
 }
 
 impl<'a> Package<'a> {
-    fn open(bytes: &'a [u8]) -> Result<Self, String> {
+    pub(crate) fn open(bytes: &'a [u8]) -> Result<Self, String> {
         let zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("not a valid spreadsheet package ({e})"))?;
         Ok(Package { zip, total: 0 })
     }
 
-    fn has(&self, name: &str) -> bool {
+    pub(crate) fn has(&self, name: &str) -> bool {
         self.zip.index_for_name(name).is_some()
     }
 
     /// Inflate an entry, refusing ones (or a workbook) larger than the caps.
-    fn read(&mut self, name: &str) -> Result<Vec<u8>, String> {
+    pub(crate) fn read(&mut self, name: &str) -> Result<Vec<u8>, String> {
         let f = self.zip.by_name(name).map_err(|_| format!("{name} is missing"))?;
         if f.size() > MAX_ENTRY {
             return Err(format!("{name} is too large"));
@@ -240,13 +240,13 @@ impl<'a> Package<'a> {
 
 /// A streamed XML event with namespace prefixes dropped; elements deeper than
 /// [`MAX_XML_DEPTH`] (and their text) are skipped.
-enum Ev<'e> {
+pub(crate) enum Ev<'e> {
     Start(&'e BytesStart<'e>),
     End(Vec<u8>),
     Text(String),
 }
 
-fn walk(xml: &[u8], mut f: impl FnMut(Ev<'_>)) {
+pub(crate) fn walk(xml: &[u8], mut f: impl FnMut(Ev<'_>)) {
     let mut r = quick_xml::Reader::from_reader(xml);
     let cfg = r.config_mut();
     cfg.trim_text(false);
@@ -295,7 +295,7 @@ fn walk(xml: &[u8], mut f: impl FnMut(Ev<'_>)) {
 }
 
 /// An attribute's value by local name.
-fn attr(e: &BytesStart<'_>, name: &[u8]) -> Option<String> {
+pub(crate) fn attr(e: &BytesStart<'_>, name: &[u8]) -> Option<String> {
     e.attributes().with_checks(false).flatten().take(64).find(|a| a.key.local_name().as_ref() == name).map(|a| {
         a.normalized_value(XmlVersion::Explicit1_0).map(|c| c.into_owned()).unwrap_or_else(|_| String::from_utf8_lossy(&a.value).into_owned())
     })
@@ -366,14 +366,14 @@ impl Grid {
 // ---------------------------------------------------------------------------------------------
 // SpreadsheetML
 
-struct Rel {
-    id: String,
-    kind: String,
-    target: String,
+pub(crate) struct Rel {
+    pub(crate) id: String,
+    pub(crate) kind: String,
+    pub(crate) target: String,
 }
 
 /// The relationships of a part in `dir` (targets resolved to package paths).
-fn relationships(xml: &[u8], dir: &str) -> Vec<Rel> {
+pub(crate) fn relationships(xml: &[u8], dir: &str) -> Vec<Rel> {
     let mut v = Vec::new();
     walk(xml, |ev| {
         if let Ev::Start(e) = ev
@@ -391,7 +391,7 @@ fn relationships(xml: &[u8], dir: &str) -> Vec<Rel> {
 }
 
 /// A relative part name resolved against `dir` (`/` = package root).
-fn join(dir: &str, target: &str) -> String {
+pub(crate) fn join(dir: &str, target: &str) -> String {
     let mut parts: Vec<&str> = if target.starts_with('/') { Vec::new() } else { dir.split('/').filter(|p| !p.is_empty()).collect() };
     for seg in target.split('/') {
         match seg {
@@ -405,11 +405,11 @@ fn join(dir: &str, target: &str) -> String {
     parts.join("/")
 }
 
-fn dir_of(path: &str) -> &str {
+pub(crate) fn dir_of(path: &str) -> &str {
     path.rsplit_once('/').map_or("", |(d, _)| d)
 }
 
-fn rels_of(path: &str) -> String {
+pub(crate) fn rels_of(path: &str) -> String {
     match path.rsplit_once('/') {
         Some((d, f)) => format!("{d}/_rels/{f}.rels"),
         None => format!("_rels/{path}.rels"),

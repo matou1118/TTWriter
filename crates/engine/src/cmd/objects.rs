@@ -168,7 +168,7 @@ pub fn specs() -> Vec<CommandSpec> {
             let e = p::str(v, "effect").unwrap_or("blur").to_string();
             relook(s, move |l| l.effect = (e != "none").then_some(e))
         })
-        .params(r#"{"effect": "blur|sharpen|invert|posterize|pixelate|none"} (replaces the picture's effect)"#)
+        .params(r#"{"effect": "blur|sharpen|invert|posterize|pixelate|sepia|duotone|emboss|edges|filmGrain|photocopy|oil|glow|none"} (replaces the picture's effect)"#)
         .when(has_picture),
         CommandSpec::new("picture.transparency", "Transparency", "Picture Format › Adjust", |s, v| {
             let t = p::f32(v, "percent").unwrap_or(50.0).clamp(0.0, 100.0);
@@ -1241,6 +1241,145 @@ fn artistic_effect(img: image::DynamicImage, effect: &str) -> image::DynamicImag
                 image::imageops::FilterType::Nearest,
             )
         }
+        // Word's Artistic Effects set, drawn from the image itself: no asset, no template.
+        "sepia" => recolor(img, "sepia", 100.0),
+        "duotone" => {
+            let mut rgba = img.to_rgba8();
+            for px in rgba.pixels_mut() {
+                let l = ((0.299 * px.0[0] as f32 + 0.587 * px.0[1] as f32 + 0.114 * px.0[2] as f32) * 0.6
+                    + 0.4 * ((px.0[0] as f32 + px.0[1] as f32 + px.0[2] as f32) / 3.0)) as u8;
+                // Ink (0x1F3A5F navy) to paper (0xE8D5A3 warm cream) ramp.
+                let t = l as f32 / 255.0;
+                for (i, (lo, hi)) in [(0x1f, 0xe8), (0x3a, 0xd5), (0x5f, 0xa3)].into_iter().enumerate() {
+                    px.0[i] = (lo as f32 + t * (hi as f32 - lo as f32)).round().clamp(0.0, 255.0) as u8;
+                }
+            }
+            image::DynamicImage::ImageRgba8(rgba)
+        }
+        "emboss" => {
+            let mut rgba = img.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            let src = rgba.clone();
+            for y in 1..h {
+                for x in 1..w {
+                    let p = src.get_pixel(x - 1, y - 1).0;
+                    let c = src.get_pixel(x, y).0;
+                    for i in 0..3 {
+                        // Difference of the up-left neighbour, centred on mid-grey.
+                        let d = (c[i] as i16).saturating_sub(p[i] as i16).saturating_add(128).clamp(0, 255);
+                        rgba.get_pixel_mut(x, y).0[i] = d as u8;
+                    }
+                }
+            }
+            image::DynamicImage::ImageRgba8(rgba)
+        }
+        "edges" => {
+            let mut rgba = img.grayscale().to_rgba8();
+            let (w, h) = rgba.dimensions();
+            let src = rgba.clone();
+            for y in 1..h.saturating_sub(1) {
+                for x in 1..w.saturating_sub(1) {
+                    // Sobel-lite: horizontal and vertical neighbours, squared then square-rooted.
+                    let gx = i32::from(src.get_pixel(x + 1, y).0[0]) - i32::from(src.get_pixel(x - 1, y).0[0]);
+                    let gy = i32::from(src.get_pixel(x, y + 1).0[0]) - i32::from(src.get_pixel(x, y - 1).0[0]);
+                    let m = ((gx * gx + gy * gy) as f32).sqrt().clamp(0.0, 255.0) as u8;
+                    let px = rgba.get_pixel_mut(x, y);
+                    px.0[0] = m;
+                    px.0[1] = m;
+                    px.0[2] = m;
+                }
+            }
+            image::DynamicImage::ImageRgba8(rgba)
+        }
+        "filmGrain" => {
+            let mut rgba = img.to_rgba8();
+            // A fixed LCG, so the same picture always gets the same grain (undo stays honest).
+            let mut seed = rgba.iter().fold(0x2545u32, |a, b| a.wrapping_add(*b as u32).rotate_left(3));
+            for px in rgba.pixels_mut() {
+                for c in px.0.iter_mut().take(3) {
+                    seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+                    let n = ((seed >> 16) & 0x1f) as i16 - 16; // -16..15
+                    *c = (*c as i16).saturating_add(n).clamp(0, 255) as u8;
+                }
+            }
+            image::DynamicImage::ImageRgba8(rgba)
+        }
+        "photocopy" => {
+            let mut rgba = img.grayscale().to_rgba8();
+            let mut hist = [0usize; 256];
+            for px in rgba.pixels() {
+                hist[px.0[0] as usize] += 1;
+            }
+            // Otsu threshold: split the histogram where the between-class variance peaks.
+            let total = (rgba.width() as usize).saturating_mul(rgba.height() as usize);
+            let (mut best, mut split) = (f64::MIN, 128usize);
+            let (mut sum, mut count) = (0usize, 0usize);
+            let sum_all: usize = hist.iter().enumerate().map(|(i, n)| i * n).sum();
+            for (t, n) in hist.iter().enumerate() {
+                count += *n;
+                if count == 0 || count >= total {
+                    continue;
+                }
+                sum += t * n;
+                let (mean_a, mean_b) = (sum as f64 / count as f64, (sum_all - sum) as f64 / (total - count) as f64);
+                let var = count as f64 * (total - count) as f64 * (mean_a - mean_b) * (mean_a - mean_b);
+                if var > best {
+                    best = var;
+                    split = t;
+                }
+            }
+            for px in rgba.pixels_mut() {
+                let v = if px.0[0] as usize > split { 255 } else { 32 };
+                px.0[0] = v;
+                px.0[1] = v;
+                px.0[2] = v;
+            }
+            image::DynamicImage::ImageRgba8(rgba)
+        }
+        "oil" => {
+            // Oil paint: quantise each channel to few levels, then take the mode of each 4×4 patch.
+            let rgba = img.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            let mut out = image::RgbaImage::new(w, h);
+            let levels = 6u16;
+            for y in 0..h {
+                for x in 0..w {
+                    let mut bins = vec![(0u16, [0u8; 3]); (levels + 1) as usize * (levels + 1) as usize * (levels + 1) as usize / 4];
+                    let mut y0 = y.saturating_sub(2);
+                    while y0 < (y + 2).min(h) {
+                        let mut x0 = x.saturating_sub(2);
+                        while x0 < (x + 2).min(w) {
+                            let p = rgba.get_pixel(x0, y0).0;
+                            let key = (u16::from(p[0]) / (256 / levels) * levels + u16::from(p[1]) / (256 / levels)) as usize;
+                            let idx = key.min(bins.len().saturating_sub(1));
+                            bins[idx].0 += 1;
+                            bins[idx].1 = [p[0], p[1], p[2]];
+                            x0 += 1;
+                        }
+                        y0 += 1;
+                    }
+                    let best = bins.iter().max_by_key(|b| b.0).unwrap_or(&(0, [0, 0, 0]));
+                    let px = out.get_pixel_mut(x, y);
+                    px.0 = [best.1[0], best.1[1], best.1[2], rgba.get_pixel(x, y).0[3]];
+                }
+            }
+            image::DynamicImage::ImageRgba8(out)
+        }
+        "glow" => {
+            // Lighten + bloom: a blurred copy screened over the original.
+            let base = img.to_rgba8();
+            let soft = image::DynamicImage::ImageRgba8(base.clone()).blur(6.0).to_rgba8();
+            let mut out = base;
+            for (a, b) in out.pixels_mut().zip(soft.pixels()) {
+                for i in 0..3 {
+                    // Screen blend: 1-(1-a)(1-b), the soft light's own alpha carrying the strength.
+                    let (av, bv) = (a.0[i] as f32 / 255.0, b.0[i] as f32 / 255.0);
+                    let s = 1.0 - (1.0 - av) * (1.0 - bv * 0.55);
+                    a.0[i] = (s * 255.0).round().clamp(0.0, 255.0) as u8;
+                }
+            }
+            image::DynamicImage::ImageRgba8(out)
+        }
         _ => img,
     }
 }
@@ -1845,6 +1984,32 @@ mod tests {
         s.run("select.collapse", &json!({"end": true})).unwrap();
         s.run("text.insert", &json!({"text": "x"})).unwrap();
         assert!(s.run("picture.crop", &json!({"left": 0.1})).is_err());
+    }
+
+    /// The new artistic effects each change the pixels, are deterministic, and `none` restores
+    /// the original bitmap.
+    #[test]
+    fn artistic_effects_change_pixels_and_none_restores() {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        let data = super::super::insert::base64_encode(&png(24, 12));
+        s.run("insert.picture", &json!({"data": data})).unwrap();
+        let rgba = |s: &Session| {
+            let (_, o) = selected(s).unwrap();
+            let InlineObject::Image { media, .. } = o else { panic!("a picture") };
+            let bytes = s.doc.media.get(&media).cloned().unwrap();
+            image::load_from_memory(&bytes).unwrap().to_rgba8().pixels().map(|p| p.0).collect::<Vec<_>>()
+        };
+        let orig = rgba(&s);
+        for e in ["sepia", "duotone", "emboss", "edges", "filmGrain", "photocopy", "oil", "glow"] {
+            s.run("picture.effects", &json!({"effect": e})).unwrap();
+            let after = rgba(&s);
+            assert_ne!(after, orig, "{e}: the pixels change");
+            // Deterministic: the same effect again is the same bitmap.
+            s.run("picture.effects", &json!({"effect": e})).unwrap();
+            assert_eq!(rgba(&s), after, "{e}: repeating is idempotent");
+            s.run("picture.effects", &json!({"effect": "none"})).unwrap();
+            assert_eq!(rgba(&s), orig, "{e}: none restores the original");
+        }
     }
 
     /// Transparency is absolute from the original pixels: 80% then 0% is opaque again
