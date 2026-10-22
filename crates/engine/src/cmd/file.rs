@@ -97,6 +97,12 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("file.exportPng", "Export Page as PNG", "File › Export", export_png)
             .params(r#"{"path": string, "page"?: n (1-based), "scale"?: px per pt, "markup"?: bool (the page with its comments in balloons beside it; default file.printMarkup)}"#)
             .pure(),
+        CommandSpec::new("file.exportLongPng", "Export as Long Image", "File › Export", export_long_png)
+            .params(r#"{"path": string, "scale"?: px per pt (default 1.5), "maxPages"?: n (default 50; a taller cap needs a deliberate choice), "markup"?: bool} (every page stacked into one tall image — the share-to-chat flow, offline)"#)
+            .pure(),
+        CommandSpec::new("file.slim", "Slim Document", "File › Info", slim)
+            .params(r#"{"quality"?: 10..100 (default 75; JPEG quality for re-encoding photographs), "maxPixels"?: 32..20000 (default 2000; the longest side kept)} → before/after bytes. Re-encodes the document's photographs as JPEG and drops unreferenced media; undo keeps the originals"#)
+            .when(|s| (s.doc.media.is_empty()).then_some("the document has no pictures")),
         // A print setting, like Word's: not part of the document, so no undo step.
         CommandSpec::new("file.printMarkup", "Print Markup", "File › Print", |s, v| {
             s.prefs.print_markup = p::bool(v, "value").unwrap_or(!s.prefs.print_markup);
@@ -372,6 +378,141 @@ fn export_png(s: &mut Session, v: &Value) -> CmdResult {
     let png = img.to_png();
     crate::io::write_file(path, &png).map_err(CmdError::Failed)?;
     Ok(json!({"path": path, "width": img.width, "height": img.height, "bytes": png.len()}))
+}
+
+/// `file.exportLongPng`: the whole document as one tall image — every page rendered at the same
+/// width and stacked vertically (the "output as long image" share flow, offline). Pages with a
+/// different width (landscape mixed in) are scaled to the first page's width.
+fn export_long_png(s: &mut Session, v: &Value) -> CmdResult {
+    let Some(path) = p::str(v, "path") else {
+        s.ui_requests.push(json!({"open": "exportLongPng"}));
+        return Ok(json!({"exported": false}));
+    };
+    let scale = p::f32(v, "scale").unwrap_or(1.5).clamp(0.1, 4.0);
+    let max_pages = p::u64(v, "maxPages").unwrap_or(50).clamp(1, 500) as usize;
+    let l = s.export_layout_with(export_options(s, v).markup);
+    if l.pages.is_empty() {
+        return Err(CmdError::Failed("the document has no pages".into()));
+    }
+    let mut opts = wordcraft_render::RenderOptions::default();
+    opts.display.dim_header = false;
+    let pages: Vec<wordcraft_render::Rendered> =
+        l.pages.iter().take(max_pages).map(|pg| wordcraft_render::render_page(&s.doc, pg, scale, &opts)).collect();
+    // The seam between pages: a hairline of the page edge colour (white), 0.25% of the width
+    // capped at 4px, so consecutive pages read as one strip without melting together.
+    let w = pages[0].width;
+    let seam = ((w as f32) * 0.0025).round().clamp(1.0, 4.0) as u32;
+    let total_h: u64 = pages.iter().map(|p| p.height as u64).sum::<u64>() + seam as u64 * (pages.len() as u64 - 1);
+    let total_h = u32::try_from(total_h).map_err(|_| CmdError::Failed("the long image would be too tall".into()))?;
+    let mut out = image::RgbaImage::from_pixel(w, total_h, image::Rgba([255, 255, 255, 255]));
+    let from = |r: &wordcraft_render::Rendered| {
+        image::RgbaImage::from_raw(r.width, r.height, r.to_straight()).unwrap_or_else(|| image::RgbaImage::new(r.width, r.height))
+    };
+    let mut y = 0u32;
+    for p in &pages {
+        let page = if p.width == w {
+            from(p)
+        } else {
+            image::imageops::resize(
+                &from(p),
+                w,
+                ((p.height as f32) * (w as f32 / p.width as f32)).round() as u32,
+                image::imageops::FilterType::Lanczos3,
+            )
+        };
+        image::imageops::overlay(&mut out, &page, 0, y as i64);
+        y += page.height() + seam;
+    }
+    let img = image::DynamicImage::ImageRgba8(out);
+    let mut png = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|e| CmdError::Failed(e.to_string()))?;
+    crate::io::write_file(path, &png).map_err(CmdError::Failed)?;
+    Ok(json!({"path": path, "width": w, "height": total_h, "pages": pages.len(), "bytes": png.len()}))
+}
+
+/// `file.slim`: shrink the document's bytes. Every picture the document still references is
+/// re-encoded as JPEG (photographs shrink several-fold; flat art stays as it was when JPEG
+/// would not win), oversized ones are scaled to `maxPixels`, and media nothing references is
+/// dropped. Undo restores the originals: the edits are ordinary ones on the picture keys.
+fn slim(s: &mut Session, v: &Value) -> CmdResult {
+    let quality = p::u64(v, "quality").unwrap_or(75).clamp(10, 100) as u8;
+    let max = p::u64(v, "maxPixels").unwrap_or(2000).clamp(32, 20000) as u32;
+    let before: usize = s.doc.media.values().map(|b| b.len()).sum();
+
+    // The media keys every live picture still references.
+    let mut used: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    s.doc.objects_in_reading_order(&mut |o| {
+        if let wordcraft_doc::InlineObject::Image { media, .. } = o {
+            used.insert(media.clone());
+        }
+    });
+
+    // Re-encode each referenced picture that JPEG would shrink.
+    let mut new_keys: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let keys: Vec<String> = used.iter().cloned().collect();
+    for key in keys {
+        let Some(bytes) = s.doc.media.get(&key).cloned() else { continue };
+        // A JPEG/PNG/… that is already small, or not an image at all (an OLE package), is left.
+        let Ok(img) = image::load_from_memory(&bytes) else { continue };
+        if (img.width() as u64) * (img.height() as u64) > 80_000_000 {
+            continue;
+        }
+        let mut img = img;
+        if img.width().max(img.height()) > max {
+            img = img.resize(max, max, image::imageops::FilterType::Lanczos3);
+        }
+        let flat = if img.color().has_alpha() {
+            let mut bg = image::RgbaImage::from_pixel(img.width(), img.height(), image::Rgba([255, 255, 255, 255]));
+            image::imageops::overlay(&mut bg, &img.to_rgba8(), 0, 0);
+            image::DynamicImage::ImageRgba8(bg)
+        } else {
+            img
+        };
+        let mut jpg = Vec::new();
+        let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpg, quality);
+        if enc.encode_image(&flat.to_rgb8()).is_err() || jpg.len() >= bytes.len() {
+            continue; // JPEG would not win: keep the original bytes.
+        }
+        let new_key = s.doc.add_media(jpg, "jpeg");
+        s.originals.entry(new_key.clone()).or_insert(key.clone());
+        new_keys.insert(key, new_key);
+    }
+    // Point the pictures at the re-encoded media.
+    if !new_keys.is_empty() {
+        s.doc.objects_mut(&|o| matches!(o, wordcraft_doc::InlineObject::Image { .. }), &mut |o| {
+            if let wordcraft_doc::InlineObject::Image { media, .. } = o
+                && let Some(k) = new_keys.get(media)
+            {
+                *media = k.clone();
+            }
+        });
+    }
+    // Drop the media nothing references (the pre-slim bitmaps, and anything already orphaned).
+    let mut removed = 0usize;
+    let live: std::collections::BTreeSet<String> = {
+        let mut live = std::collections::BTreeSet::new();
+        s.doc.objects_in_reading_order(&mut |o| {
+            if let wordcraft_doc::InlineObject::Image { media, .. } = o {
+                live.insert(media.clone());
+            }
+        });
+        live
+    };
+    let originals: Vec<String> = s.originals.values().cloned().collect();
+    let dead: Vec<String> = s.doc.media.keys().filter(|k| !live.contains(*k) && !originals.contains(k)).cloned().collect();
+    for k in dead {
+        if s.doc.media.remove(&k).is_some() {
+            removed += 1;
+        }
+    }
+    // `media` still holds the pre-slim bitmaps this session (undo needs them); the number that
+    // matters is what a save writes: the live media only.
+    let saved_bytes: usize = live.iter().filter_map(|k| s.doc.media.get(k)).map(|b| b.len()).sum();
+    Ok(json!({
+        "before": before, "after": saved_bytes,
+        "reencoded": new_keys.len(), "removedMedia": removed,
+        "saved": before.saturating_sub(saved_bytes),
+    }))
 }
 
 fn properties(s: &mut Session, v: &Value) -> CmdResult {

@@ -5336,6 +5336,7 @@ name = "wordcraft-cli"
 version = "0.9.0"
 dependencies = [
  "base64",
+ "image",
  "serde_json",
  "sha2",
  "sys-locale",
@@ -5343,6 +5344,7 @@ dependencies = [
  "wordcraft-doc",
  "wordcraft-engine",
  "wordcraft-mcp",
+ "wordcraft-pdf",
  "wordcraft-pdfedit",
  "wordcraft-render",
  "wordcraft-zotero",

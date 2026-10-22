@@ -18,6 +18,9 @@ USAGE:
   wordcraft-cli pdf delete <in> <out> [--pages 2,4]    drop the selected pages (at least one stays)
   wordcraft-cli pdf extract <in> <out> [--pages 1,3]   keep only the selected pages
   wordcraft-cli pdf merge <out> <in1> <in2> [in…]      concatenate the files in order
+  wordcraft-cli pdf images <out> <img1> [img2…]       each picture becomes one PDF page
+                                                       (the page is the picture's own size,
+                                                       clamped to A4; jpg/png/gif/bmp/webp/tiff)
 
 --pages takes 1-based page numbers, ranges and commas (\"1-3,5\"); left out it means every page.
 ";
@@ -79,8 +82,62 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
             eprintln!("wrote {output} ({} pages)", into.page_count());
             Ok(())
         }
+        // 图片转 PDF：每张图一页，页面尺寸即图片尺寸（像素→磅，72dpi）。
+        // 走文档模型（每页一个 InlineObject::Image + 分节），复用 wordcraft-pdf 的导出。
+        "images" => {
+            let files = positional(rest, VALUED);
+            if files.len() < 2 {
+                return Err(Failure::from("pdf images 需要 <out> <img1> [img2…]"));
+            }
+            let (output, imgs) = (&files[0], &files[1..]);
+            let mut doc = wordcraft_doc::Document::new();
+            let mut first = true;
+            for img_path in imgs {
+                let bytes = std::fs::read(img_path).map_err(|e| format!("{img_path}: {e}"))?;
+                let decoder = image::ImageReader::new(std::io::Cursor::new(&bytes)).with_guessed_format().map_err(|e| e.to_string())?;
+                let (w, h) = decoder.into_dimensions().map_err(|_| format!("{img_path}: 不是支持的图片"))?;
+                // 像素 → 磅（72dpi：1px = 1pt），A4 内钳制防超页。
+                let (pw, ph) = ((w as f32).clamp(72.0, 595.0), (h as f32).clamp(72.0, 842.0));
+                let key = doc.add_media(bytes, &img_ext(img_path));
+                if !first {
+                    // 每图一节一页：分节符段落携带新页面尺寸。
+                    doc.body.push(wordcraft_doc::para_block({
+                        let mut p = wordcraft_doc::Paragraph::new();
+                        p.section = Some(Box::new(wordcraft_doc::SectionProps { page_w: pw, page_h: ph, ..Default::default() }));
+                        p
+                    }));
+                } else {
+                    // 第一节由首段携带。
+                    let mut p = wordcraft_doc::Paragraph::with_text("", wordcraft_doc::CharProps::default());
+                    p.section = Some(Box::new(wordcraft_doc::SectionProps { page_w: pw, page_h: ph, ..Default::default() }));
+                    doc.body.push(wordcraft_doc::para_block(p));
+                    first = false;
+                }
+                let img = wordcraft_doc::InlineObject::Image {
+                    media: key,
+                    w: pw,
+                    h: ph,
+                    alt: img_path.clone(),
+                    float: Default::default(),
+                    crop: [0.0; 4],
+                    ole: None,
+                };
+                let mut p = wordcraft_doc::Paragraph::new();
+                p.insert_object(0, img, &wordcraft_doc::CharProps::default()).map_err(|e| e.to_string())?;
+                doc.body.push(wordcraft_doc::para_block(p));
+            }
+            let pdf_bytes = wordcraft_pdf::export(&doc, &wordcraft_pdf::PdfOptions::default()).map_err(|e| e.to_string())?;
+            std::fs::write(output, &pdf_bytes).map_err(|e| format!("{output}: {e}"))?;
+            eprintln!("wrote {output} ({} pages, {} images)", imgs.len(), imgs.len());
+            Ok(())
+        }
         _ => Err(Failure::from(USAGE)),
     }
+}
+
+/// 路径的图片扩展名（小写；默认 png）。
+fn img_ext(path: &str) -> String {
+    path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_else(|| "png".into())
 }
 
 /// `--name value` 的值。
