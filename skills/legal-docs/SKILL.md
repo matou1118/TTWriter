@@ -27,6 +27,10 @@ metadata:
 
 每种文书的要素顺序与版式表见 [references/format.md](references/format.md)。
 
+借条、欠条、收条是定式文书，可由参数直接生成（九要素内置、利率超 LPR 四倍拒绝生成）：
+`python scripts/jietiao.py --kind jietiao|qiantiao|shoutiao -o 输出.docx --borrower … --lender … --amount …`，
+生成后仍须过 `check_legal.py` 体检与人眼看图。其余文书仍只排版定稿，不起草。
+
 **边界说明**：合同**审查**（理解条款风险）需要法务内容层（WorkMind），本 skill 不做；合同**排版**（定稿后的格式）是纯版式层，做。
 
 ## 边界（重要）

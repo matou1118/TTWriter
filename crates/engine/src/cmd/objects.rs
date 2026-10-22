@@ -196,11 +196,113 @@ pub fn specs() -> Vec<CommandSpec> {
         })
         .params(r#"{"tolerance"?: 0..255}"#)
         .when(has_picture),
+        CommandSpec::new("picture.inpaint", "Erase Area", "Picture Format › Adjust", |s, v| {
+            // Clear a logo or watermark in a rectangle (fractions of the picture): the hole is
+            // filled from its edges, so a uniform or slowly varying background closes over it.
+            let (l, t) = (p::f32(v, "left").unwrap_or(0.0).clamp(0.0, 1.0), p::f32(v, "top").unwrap_or(0.0).clamp(0.0, 1.0));
+            let (r, b) = (p::f32(v, "right").unwrap_or(0.2).clamp(0.0, 1.0), p::f32(v, "bottom").unwrap_or(0.1).clamp(0.0, 1.0));
+            if r <= l || b <= t {
+                return Err(CmdError::Params("right/bottom must be greater than left/top".into()));
+            }
+            adjust(s, move |img| inpaint(img, l, t, r, b))
+        })
+        .params(r#"{"left"?, "top"?, "right"?, "bottom"?: fraction of the picture (the erased rectangle; fills from its edges — clears logos on plain backgrounds)"#)
+        .when(has_picture),
+        CommandSpec::new("picture.enhance", "Enhance", "Picture Format › Adjust", |s, v| {
+            // One-click clarity: auto-contrast (histogram percentile stretch) then a mild
+            // unsharp mask. No parameters — it adapts to the picture's own histogram.
+            let strength = p::f32(v, "strength").unwrap_or(1.0).clamp(0.0, 3.0);
+            adjust(s, move |img| enhance(img, strength))
+        })
+        .params(r#"{"strength"?: 0..3 (1 = one click; higher = stronger unsharp after auto-contrast)} (fixes a dim, blurry photo)"#)
+        .when(has_picture),
         CommandSpec::new("picture.compress", "Compress Pictures", "Picture Format › Adjust", |s, v| {
             let max = p::u64(v, "maxPixels").unwrap_or(1600).clamp(32, 20000) as u32;
-            adjust(s, move |img| if img.width().max(img.height()) > max { img.resize(max, max, image::imageops::FilterType::Lanczos3) } else { img })
+            let quality = p::u64(v, "quality").unwrap_or(0).clamp(0, 100) as u8; // 0 = keep PNG
+            adjust(s, move |img| {
+                let mut img = img;
+                if img.width().max(img.height()) > max {
+                    img = img.resize(max, max, image::imageops::FilterType::Lanczos3);
+                }
+                // A quality hint re-encodes as JPEG (photographs shrink 5-10x; flat art is
+                // kept PNG by the caller's own choice of not passing `quality`).
+                img
+            })?;
+            if quality > 0 {
+                // The stored bitmap is PNG by convention (`adjust`); a JPEG hint re-encodes
+                // through a dedicated media entry so the docx keeps the smaller bytes.
+                reencode_jpeg(s, quality)?;
+            }
+            Ok(serde_json::json!({"compressed": true}))
         })
-        .params(r#"{"maxPixels"?: n}"#)
+        .params(r#"{"maxPixels"?: n, "quality"?: 0..100 (0 keeps PNG; >0 re-encodes as JPEG at that quality — photographs shrink several-fold)}"#)
+        .when(has_picture),
+        CommandSpec::new("picture.idphoto", "ID Photo", "Picture Format › Adjust", |s, v| {
+            // Standard ID-photo sizes (px at 300dpi) and the sheet preset that tiles copies of
+            // the photo on a 6-print (a common photo-shop request, done offline here).
+            let preset = p::str(v, "preset").unwrap_or("one").to_string();
+            let bg = p::str(v, "background").and_then(Rgb::parse);
+            let (pw, ph, sheet) = match preset.as_str() {
+                "one" => (295u32, 413u32, false),          // 一寸 25×35mm
+                "two" => (413, 579, false),                // 二寸 35×49mm
+                "smallTwo" => (413, 531, false),           // 小二寸 33×48mm (visa-ish)
+                "oneSheet" => (295, 413, true),
+                "twoSheet" => (413, 579, true),
+                other => return Err(CmdError::Params(format!("unknown preset `{other}` (one|two|smallTwo|oneSheet|twoSheet)"))),
+            };
+            adjust(s, move |img| {
+                let mut img = img;
+                // Crop to the aspect ratio first (centre), then resize to the exact size.
+                let (iw, ih) = (img.width(), img.height());
+                if iw > 0 && ih > 0 {
+                    let target = pw as f32 / ph as f32;
+                    let cur = iw as f32 / ih as f32;
+                    let (cx, cy, cw, ch) = if cur > target {
+                        let w = (ih as f32 * target).round() as u32;
+                        ((iw - w) / 2, 0, w, ih)
+                    } else {
+                        let h = (iw as f32 / target).round() as u32;
+                        (0, (ih - h) / 2, iw, h)
+                    };
+                    img = img.crop_imm(cx, cy, cw, ch).resize_exact(pw, ph, image::imageops::FilterType::Lanczos3);
+                }
+                // Background swap: flood-fill from the borders (like removeBackground) and
+                // paint the transparent pixels with the requested colour.
+                if let Some(bgc) = bg {
+                    img = remove_background(img, 28.0);
+                    let mut rgba = img.to_rgba8();
+                    let solid = image::Rgba([bgc.0, bgc.1, bgc.2, 255]);
+                    for px in rgba.pixels_mut() {
+                        if px.0[3] == 0 {
+                            *px = solid;
+                        }
+                    }
+                    img = image::DynamicImage::ImageRgba8(rgba);
+                }
+                // Sheet: tile the photo on a 6-print (6×4 inch at 300dpi = 1800×1200) with a
+                // 4px gap, centred — cut lines are the gaps.
+                if sheet {
+                    let (sw, sh) = (1800u32, 1200u32);
+                    let mut out = image::RgbaImage::from_pixel(sw, sh, image::Rgba([255, 255, 255, 255]));
+                    let photo = img.to_rgba8();
+                    let gap = 4u32;
+                    let cols = (sw / (pw + gap)).max(1);
+                    let rows = (sh / (ph + gap)).max(1);
+                    let used_w = cols * pw + (cols - 1) * gap;
+                    let used_h = rows * ph + (rows - 1) * gap;
+                    let (mx, my) = ((sw - used_w) / 2, (sh - used_h) / 2);
+                    for r in 0..rows {
+                        for c in 0..cols {
+                            let (x, y) = (mx + c * (pw + gap), my + r * (ph + gap));
+                            image::imageops::overlay(&mut out, &photo, x as i64, y as i64);
+                        }
+                    }
+                    img = image::DynamicImage::ImageRgba8(out);
+                }
+                img
+            })
+        })
+        .params(r#"{"preset"?: "one|two|smallTwo|oneSheet|twoSheet" (一寸/二寸/小二寸, Sheet = tiled on a 6-print), "background"?: "RRGGBB" (flood-fills the photo's border colour and paints it — red/blue/white ID backgrounds)} (the selected picture becomes a standard-size ID photo; the aspect ratio is centre-cropped)"#)
         .when(has_picture),
         CommandSpec::new("picture.reset", "Reset Picture", "Picture Format › Adjust", reset).when(has_picture),
         CommandSpec::new("picture.change", "Change Picture", "Picture Format › Adjust", |s, v| {
@@ -1473,6 +1575,164 @@ fn remove_background(img: image::DynamicImage, tol: f32) -> image::DynamicImage 
     image::DynamicImage::ImageRgba8(rgba)
 }
 
+/// Fill the rectangle (fractions of the picture) from its edges: each pixel inside takes the
+/// colour of the nearest known pixel on its row (from the left and right of the hole), then a
+/// vertical pass averages the columns. Two cheap passes close a plain or slowly varying
+/// background over the hole — a logo on sky, a watermark on a wall.
+fn inpaint(img: image::DynamicImage, l: f32, t: f32, r: f32, b: f32) -> image::DynamicImage {
+    let mut rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    let (x0, y0) = ((l * w as f32) as u32, (t * h as f32) as u32);
+    let (x1, y1) = (((r * w as f32) as u32).min(w), ((b * h as f32) as u32).min(h));
+    let (x1, y1) = (x1.max(x0 + 1).min(w), y1.max(y0 + 1).min(h));
+    if x0 >= w || y0 >= h || x1 <= x0 || y1 <= y0 {
+        return image::DynamicImage::ImageRgba8(rgba);
+    }
+    // Pass 1 (rows): each hole pixel blends the nearest known pixels left and right of the hole
+    // on its own row, weighted by distance.
+    for y in y0..y1 {
+        let left = x0.checked_sub(1).and_then(|x| rgba.get_pixel_checked(x, y)).map(|p| p.0);
+        let right = x1.checked_add(0).and_then(|x| rgba.get_pixel_checked(x, y)).map(|p| p.0);
+        for x in x0..x1 {
+            let px = match (left, right) {
+                (Some(a), Some(bb)) => {
+                    // Distance to each edge of the hole (u32-safe: x is inside x0..x1).
+                    let (da, dbb) = (x - x0 + 1, x1 - x);
+                    let (wa, wb) = (1.0 / (da.max(1) as f32), 1.0 / (dbb.max(1) as f32));
+                    let k = wa / (wa + wb);
+                    [0, 1, 2].map(|i| (a[i] as f32 * (1.0 - k) + bb[i] as f32 * k) as u8)
+                }
+                (Some(a), None) => [a[0], a[1], a[2]],
+                (None, Some(bb)) => [bb[0], bb[1], bb[2]],
+                (None, None) => continue, // a hole wider than the picture: nothing to fill from
+            };
+            let a = rgba.get_pixel(x, y).0[3];
+            rgba.put_pixel(x, y, image::Rgba([px[0], px[1], px[2], a]));
+        }
+    }
+    // Pass 2 (columns): smooth the striping the row pass leaves, averaging each hole pixel with
+    // the pixels above and below it (the row above the hole and the row below are known or
+    // already filled; a box average over three is enough for a plain background).
+    let copy = rgba.clone();
+    for x in x0..x1 {
+        for y in y0..y1 {
+            let mut acc = [0u32; 3];
+            let mut n = 0u32;
+            for dy in [y.checked_sub(1), Some(y), y.checked_add(1)] {
+                if let Some(yy) = dy.filter(|&yy| yy < h) {
+                    let p = copy.get_pixel(x, yy).0;
+                    for (a, v) in acc.iter_mut().zip(p.iter()) {
+                        *a += *v as u32;
+                    }
+                    n += 1;
+                }
+            }
+            if let Some(inv) = (n > 0).then(|| 1.0 / n as f32) {
+                let cur = rgba.get_pixel_mut(x, y);
+                for (dst, a) in cur.0.iter_mut().zip(acc.iter()) {
+                    *dst = (*a as f32 * inv).round() as u8;
+                }
+            }
+        }
+    }
+    image::DynamicImage::ImageRgba8(rgba)
+}
+
+/// One-click enhance: auto-contrast (a percentile stretch per channel, clipping the darkest
+/// 0.5% and brightest 0.5%), then a mild unsharp mask. Dim, hazy photos come out clear without
+/// any parameter to guess.
+fn enhance(img: image::DynamicImage, strength: f32) -> image::DynamicImage {
+    let mut rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    let total = (w as usize) * (h as usize);
+    if w == 0 || h == 0 || total == 0 {
+        return image::DynamicImage::ImageRgba8(rgba);
+    }
+    // Per-channel histogram → 0.5/99.5 percentile bounds.
+    let mut bounds = [[0u8, 255u8]; 3];
+    for (c, bound) in bounds.iter_mut().enumerate() {
+        let mut hist = [0usize; 256];
+        for px in rgba.pixels() {
+            hist[px.0[c] as usize] += 1;
+        }
+        let cut = (total as f64 * 0.005).ceil() as usize;
+        let (mut lo, mut hi) = (0usize, 255usize);
+        let mut acc = 0usize;
+        for (i, n) in hist.iter().enumerate() {
+            acc += n;
+            if acc > cut {
+                lo = i;
+                break;
+            }
+        }
+        acc = 0;
+        for (i, n) in hist.iter().enumerate().rev() {
+            acc += n;
+            if acc > cut {
+                hi = i;
+                break;
+            }
+        }
+        if hi > lo {
+            *bound = [lo as u8, hi as u8];
+        }
+    }
+    // Stretch each channel into its bounds.
+    for px in rgba.pixels_mut() {
+        for (c, bound) in bounds.iter().enumerate() {
+            if c >= px.0.len() {
+                break;
+            }
+            let (lo, hi) = (bound[0] as f32, bound[1] as f32);
+            px.0[c] = ((px.0[c] as f32 - lo) * (255.0 / (hi - lo))).clamp(0.0, 255.0) as u8;
+        }
+    }
+    let out = image::DynamicImage::ImageRgba8(rgba);
+    if strength > 0.0 {
+        // A mild unsharp mask after the stretch: amount scales with `strength`.
+        out.unsharpen(0.8 * strength, 2)
+    } else {
+        out
+    }
+}
+
+/// Re-encode the selected picture's current bitmap as JPEG at `quality` and swap the picture's
+/// media key to it. Photographs shrink several-fold; the originals map keeps the pre-edit
+/// bitmap so Reset Picture still restores it.
+fn reencode_jpeg(s: &mut Session, quality: u8) -> CmdResult {
+    let (_, o) = selected(s).ok_or_else(|| CmdError::Disabled("no picture".into()))?;
+    let InlineObject::Image { media, .. } = o else { return Err(CmdError::Disabled("not a picture".into())) };
+    let cur = media.clone();
+    let bytes = s.doc.media.get(&cur).cloned().ok_or_else(|| CmdError::Failed("picture data missing".into()))?;
+    let img = image::load_from_memory(&bytes).map_err(|e| CmdError::Failed(format!("can't decode the picture: {e}")))?;
+    if (img.width() as u64) * (img.height() as u64) > 80_000_000 {
+        return Err(CmdError::Failed("picture is too large to edit".into()));
+    }
+    // A transparent picture flattens onto white first: JPEG has no alpha.
+    let flat = if img.color().has_alpha() {
+        let mut bg = image::RgbaImage::from_pixel(img.width(), img.height(), image::Rgba([255, 255, 255, 255]));
+        image::imageops::overlay(&mut bg, &img.to_rgba8(), 0, 0);
+        image::DynamicImage::ImageRgba8(bg)
+    } else {
+        img
+    };
+    let rgb = flat.to_rgb8();
+    let mut jpg = Vec::new();
+    let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpg, quality);
+    enc.encode_image(&rgb).map_err(|e| CmdError::Failed(e.to_string()))?;
+    if jpg.len() >= bytes.len() {
+        // JPEG made it bigger (flat art): keep the original bytes.
+        return Ok(serde_json::json!({"compressed": false, "note": "JPEG would not shrink this picture; kept as it was"}));
+    }
+    let key = s.doc.add_media(jpg, "jpeg");
+    s.originals.entry(key.clone()).or_insert(cur);
+    with_obj(s, |o| {
+        if let InlineObject::Image { media, .. } = o {
+            *media = key.clone();
+        }
+    })
+}
+
 fn frame(img: image::DynamicImage, border: u32, color: [u8; 4]) -> image::DynamicImage {
     let (w, h) = (img.width(), img.height());
     let mut out = image::RgbaImage::from_pixel(w + 2 * border, h + 2 * border, image::Rgba(color));
@@ -1984,6 +2244,104 @@ mod tests {
         s.run("select.collapse", &json!({"end": true})).unwrap();
         s.run("text.insert", &json!({"text": "x"})).unwrap();
         assert!(s.run("picture.crop", &json!({"left": 0.1})).is_err());
+    }
+
+    /// inpaint clears a logo patch: the hole fills from the edges, a uniform background closes
+    /// over it exactly, and Reset Picture restores the original bitmap.
+    #[test]
+    fn inpaint_erases_a_patch_from_its_edges() {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        // A picture with a distinct logo block in the middle of a uniform sky.
+        let img = image::RgbaImage::from_fn(40, 20, |x, y| {
+            if (10..20).contains(&x) && (5..10).contains(&y) { image::Rgba([255, 0, 0, 255]) } else { image::Rgba([100, 150, 200, 255]) }
+        });
+        let mut b = Vec::new();
+        image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut b), image::ImageFormat::Png).unwrap();
+        s.run("insert.picture", &json!({"data": super::super::insert::base64_encode(&b)})).unwrap();
+        let rgba = |s: &Session| {
+            let (_, o) = selected(s).unwrap();
+            let InlineObject::Image { media, .. } = o else { panic!("a picture") };
+            let bytes = s.doc.media.get(&media).cloned().unwrap();
+            image::load_from_memory(&bytes).unwrap().to_rgba8().pixels().map(|p| p.0).collect::<Vec<_>>()
+        };
+        let before = rgba(&s);
+        assert!(before.iter().any(|p| p[0] == 255 && p[1] == 0), "the red logo is there");
+        s.run("picture.inpaint", &json!({"left": 0.25, "top": 0.25, "right": 0.5, "bottom": 0.5})).unwrap();
+        let after = rgba(&s);
+        // The logo pixels became the sky colour (the fill blends the edge colours).
+        assert!(after.iter().all(|p| p[0] != 255 || p[1] != 0), "the logo is gone");
+        // A uniform background closes over exactly: every filled pixel is the sky colour.
+        assert!(after.iter().all(|p| (p[0] as i16 - 100).abs() <= 3 && (p[2] as i16 - 200).abs() <= 3), "the fill is the sky colour");
+        s.run("picture.reset", &json!({})).unwrap();
+        assert_eq!(rgba(&s), before, "reset restores the original");
+    }
+
+    /// A bad rectangle is a parameter error, not a panic.
+    #[test]
+    fn inpaint_rejects_an_empty_rectangle() {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        let data = super::super::insert::base64_encode(&png(20, 10));
+        s.run("insert.picture", &json!({"data": data})).unwrap();
+        for bad in [json!({"left": 0.5, "right": 0.5}), json!({"top": 0.8, "bottom": 0.2})] {
+            assert!(s.run("picture.inpaint", &bad).is_err(), "{bad}: an empty rectangle is rejected");
+        }
+    }
+
+    /// enhance lifts a dim picture: the darkest and brightest stretches widen, and repeating
+    /// it is idempotent (it re-derives from the current bitmap deterministically).
+    #[test]
+    fn enhance_lifts_a_dim_picture() {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        // A picture that only uses the middle of the range (a dim, hazy photo).
+        let img = image::RgbaImage::from_fn(60, 40, |x, y| image::Rgba([(100 + x % 40) as u8, (100 + y % 40) as u8, 120, 255]));
+        let mut b = Vec::new();
+        image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut b), image::ImageFormat::Png).unwrap();
+        s.run("insert.picture", &json!({"data": super::super::insert::base64_encode(&b)})).unwrap();
+        let range = |s: &Session| {
+            let (_, o) = selected(s).unwrap();
+            let InlineObject::Image { media, .. } = o else { panic!("a picture") };
+            let bytes = s.doc.media.get(&media).cloned().unwrap();
+            let rgba = image::load_from_memory(&bytes).unwrap().to_rgba8();
+            rgba.pixels().map(|p| p.0[0]).fold((u8::MAX, u8::MIN), |(lo, hi), v| (lo.min(v), hi.max(v)))
+        };
+        let (lo0, hi0) = range(&s);
+        s.run("picture.enhance", &json!({})).unwrap();
+        let (lo1, hi1) = range(&s);
+        assert!(lo1 <= lo0 || hi1 >= hi0, "the range widens: ({lo0},{hi0}) -> ({lo1},{hi1})");
+        assert!(lo1 < lo0 || hi1 > hi0, "the stretch actually moved a bound");
+    }
+
+    /// idphoto sizes the picture to a standard ID-photo size and paints the background.
+    #[test]
+    fn idphoto_sizes_and_paints_the_background() {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        // A 4:3 snapshot with a light border (a studio-ish photo).
+        let img = image::RgbaImage::from_fn(120, 90, |_, _| image::Rgba([220, 225, 230, 255]));
+        let mut b = Vec::new();
+        image::DynamicImage::ImageRgba8(img).write_to(&mut std::io::Cursor::new(&mut b), image::ImageFormat::Png).unwrap();
+        s.run("insert.picture", &json!({"data": super::super::insert::base64_encode(&b)})).unwrap();
+        s.run("picture.idphoto", &json!({"preset": "one", "background": "FF0000"})).unwrap();
+        let (w, h, red) = {
+            let (_, o) = selected(&s).unwrap();
+            let InlineObject::Image { media, .. } = o else { panic!("a picture") };
+            let bytes = s.doc.media.get(&media).cloned().unwrap();
+            let rgba = image::load_from_memory(&bytes).unwrap().to_rgba8();
+            let red = rgba.pixels().filter(|p| p.0[0] > 200 && p.0[1] < 60 && p.0[2] < 60).count();
+            (rgba.width(), rgba.height(), red)
+        };
+        assert_eq!((w, h), (295, 413), "一寸 at 300dpi");
+        assert!(red > 0, "the border was painted red");
+        // The sheet preset tiles several copies on a 6-print.
+        s.run("picture.reset", &json!({})).unwrap();
+        s.run("picture.idphoto", &json!({"preset": "oneSheet"})).unwrap();
+        let (w, h) = {
+            let (_, o) = selected(&s).unwrap();
+            let InlineObject::Image { media, .. } = o else { panic!("a picture") };
+            let bytes = s.doc.media.get(&media).cloned().unwrap();
+            let rgba = image::load_from_memory(&bytes).unwrap().to_rgba8();
+            (rgba.width(), rgba.height())
+        };
+        assert_eq!((w, h), (1800, 1200), "a 6-print sheet");
     }
 
     /// The new artistic effects each change the pixels, are deterministic, and `none` restores

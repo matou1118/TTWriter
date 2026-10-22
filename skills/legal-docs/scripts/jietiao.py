@@ -21,26 +21,30 @@
 大写金额算法：元角分 → 壹贰叁……佰仟萬亿，零的连读规则按会计惯例。
 """
 import argparse
+import calendar
 import datetime
 import json
+import math
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 LPR4X_CAP = 15.4
 DIGITS = "零壹贰叁肆伍陆柒捌玖"
 UNITS = ["", "拾", "佰", "仟"]
-BIGUNITS = ["", "万", "亿", "兆"]
+BIGUNITS = ["", "萬", "亿", "兆"]
 
 
 def to_capital(amount: float) -> str:
     """金额 → 人民币大写（会计惯例的零连读规则）。"""
-    if amount < 0 or amount >= 10**13:
+    if not math.isfinite(amount) or amount < 0 or amount >= 10**13:
         raise ValueError(f"金额超出可表达范围：{amount}")
-    cents = round(amount * 100)
+    cents = int((Decimal(str(amount)) * 100).to_integral_value(rounding=ROUND_HALF_UP))
+    if cents == 0:
+        return "人民币零元整"
     yuan, fen = divmod(cents, 100)
     jiao, fen = divmod(fen, 10)
 
@@ -106,7 +110,6 @@ def add_months(d: datetime.date, years: int, months: int) -> datetime.date:
     y = d.year + (m - 1) // 12
     m = (m - 1) % 12 + 1
     # 月末钳到目标月最后一天
-    import calendar
     return d.replace(year=y, month=m, day=min(d.day, calendar.monthrange(y, m)[1]))
 
 
@@ -132,7 +135,7 @@ def build_blocks(a) -> dict:
             lines.append({"type": "paragraph", "text": "借款期限：双方另行约定。"})
         if a.rate and a.rate > 0:
             lines.append({"type": "paragraph",
-                          "text": f"利率：年利率 {a.rate}%（单利，逾期按同利率继续计算）。"})
+                          "text": f"利率：年利率 {a.rate:g}%（单利，逾期按同利率继续计算）。"})
         else:
             lines.append({"type": "paragraph", "text": "利率：本笔借款无息。"})
         deliver = "银行转账至借款人指定账户（户名：{}）".format(a.borrower) if a.delivery == "transfer" else "现金交付（出借人当面点清）"
@@ -141,7 +144,9 @@ def build_blocks(a) -> dict:
         lines.append({"type": "paragraph", "text": f"还款方式：{repay}。"})
         lines.append({"type": "sign", "lines": [
             "借款人（签名 + 按手印）：",
-            "（签名处请留白三行：签名、手印、日期）",
+            "",
+            "",
+            "",
             f"{today.year} 年 {today.month} 月 {today.day} 日",
         ]})
         return {"kind": "letter", "title": "借条", "blocks": lines, "masked": False}
@@ -158,9 +163,14 @@ def build_blocks(a) -> dict:
         else:
             lines.append({"type": "paragraph", "text": "还款日期：双方另行约定。"})
         if a.rate and a.rate > 0:
-            lines.append({"type": "paragraph", "text": f"利率：年利率 {a.rate}%。"})
+            lines.append({"type": "paragraph", "text": f"利率：年利率 {a.rate:g}%。"})
+        else:
+            lines.append({"type": "paragraph", "text": "利率：本笔欠款无息。"})
         lines.append({"type": "sign", "lines": [
             "欠款人（签名 + 按手印）：",
+            "",
+            "",
+            "",
             f"{today.year} 年 {today.month} 月 {today.day} 日",
         ]})
         return {"kind": "letter", "title": "欠条", "blocks": lines, "masked": False}
@@ -172,6 +182,9 @@ def build_blocks(a) -> dict:
         {"type": "paragraph", "text": f"今收到 {a.lender} 交来{a.for_ or '[待补充款项性质]'}{capital}（小写：{small}）。"},
         {"type": "sign", "lines": [
             "收款人（签名）：",
+            "",
+            "",
+            "",
             f"{today.year} 年 {today.month} 月 {today.day} 日",
         ]},
     ]
@@ -199,16 +212,22 @@ def main() -> int:
     args = ap.parse_args()
 
     # 参数校验（拒绝生成不合规文书）
+    if not math.isfinite(args.amount) or args.amount <= 0:
+        sys.exit("金额必须为正数")
+    if not math.isfinite(args.rate) or args.rate < 0:
+        sys.exit("利率不能为负或非数值")
     if args.rate > LPR4X_CAP:
         sys.exit(f"年利率 {args.rate}% 超过 LPR 四倍上限（≈{LPR4X_CAP}%）——"
                  f"超出部分法院不支持，拒绝生成。降到上限内再试。")
+    if not args.lender.strip() or not args.borrower.strip():
+        sys.exit("双方姓名不能为空")
     for who, pid in (("出借人", args.lender_id), ("借款人", args.borrower_id)):
-        if not re.fullmatch(r"\d{17}[\dXx]", pid):
-            sys.exit(f"{who}身份证号「{pid}」不是 18 位格式——借条要全文身份号")
-    if args.amount <= 0:
-        sys.exit("金额必须为正数")
+        if not re.fullmatch(r"\d{6}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])\d{3}[\dXx]", pid):
+            sys.exit(f"{who}身份证号「{pid}」不是合法的 18 位身份证号——借条要全文身份号")
     if args.years < 0 or args.months < 0:
         sys.exit("期限不能为负")
+    if args.years * 12 + args.months > 600:
+        sys.exit("期限不能超过 50 年")
 
     data = build_blocks(args)
     script_dir = Path(__file__).resolve().parent
@@ -216,10 +235,9 @@ def main() -> int:
         json.dump(data, f, ensure_ascii=False, indent=1)
         data_path = f.name
 
-    exe = shutil.which("wordcraft-cli") or ""
     try:
         # 生成器输出走 format_legal.py 的排版（同一版式规范）
-        layout = ["python", str(script_dir / "format_legal.py"), data_path, "-o", args.out]
+        layout = [sys.executable, str(script_dir / "format_legal.py"), data_path, "-o", args.out]
         if args.pdf:
             layout.append("--pdf")
         r = subprocess.run(layout, capture_output=True)
@@ -230,7 +248,7 @@ def main() -> int:
 
     print(f"[生成] {args.out}")
     print(f"[要素] 金额 {to_capital(args.amount)} / {fmt_amount(args.amount)}；"
-          f"利率 {'无息' if not args.rate else f'{args.rate}%'}；期限 {args.years * 12 + args.months} 个月")
+          f"利率 {'无息' if not args.rate else f'{args.rate:g}%'}；期限 {args.years * 12 + args.months} 个月")
     print("[提醒] 打印后签名+按手印；转账留流水；现金当场点清并写明。本工具不构成法律意见。")
     return 0
 
