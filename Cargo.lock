@@ -5336,7 +5336,9 @@ name = "wordcraft-cli"
 version = "0.9.0"
 dependencies = [
  "serde_json",
+ "sha2",
  "sys-locale",
+ "wordcraft-control-key",
  "wordcraft-doc",
  "wordcraft-engine",
  "wordcraft-mcp",

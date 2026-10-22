@@ -91,6 +91,46 @@ fn fetch(url: &str, timeout: u64) -> Option<String> {
     if out.status.success() { Some(String::from_utf8_lossy(&out.stdout).into_owned()) } else { None }
 }
 
+/// The release manifest (`site/latest.json`, committed to the repository): the version, the
+/// download URL per channel and the SHA-256 of every asset. The China host is direct and
+/// fast; GitHub is the fallback. Both are plain files, so there is no API rate limit.
+fn manifest_hosts() -> [&'static str; 2] {
+    [
+        "https://raw.atomgit.com/matou118/ttwriter/master/site/latest.json",
+        "https://raw.githubusercontent.com/matou1118/ttwriter/master/site/latest.json",
+    ]
+}
+
+/// The manifest's SHA-256 for an asset, when the manifest is reachable and lists it.
+fn manifest_hash(asset: &str) -> Option<String> {
+    for host in manifest_hosts() {
+        let Some(text) = fetch(host, 10) else { continue };
+        let Ok(v) = serde_json::from_str::<Value>(&text) else { continue };
+        let Some(assets) = v.get("assets").and_then(|a| a.as_array()) else { continue };
+        let found = assets.iter().find(|a| a.get("name").and_then(|n| n.as_str()) == Some(asset));
+        if let Some(hash) = found.and_then(|a| a.get("sha256")).and_then(|s| s.as_str()) {
+            return Some(hash.to_string());
+        }
+    }
+    None
+}
+
+/// A file's SHA-256, lowercase hex.
+fn sha256_file(path: &std::path::Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1 << 20];
+    loop {
+        let n = std::io::Read::read(&mut file, &mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
 /// The latest release from a source: `(tag, published_at, assets)`.
 fn github_latest() -> Option<(String, u64, Vec<String>)> {
     let text = fetch("https://api.github.com/repos/matou1118/ttwriter/releases/latest", 30)?;
@@ -105,10 +145,40 @@ fn github_latest() -> Option<(String, u64, Vec<String>)> {
     Some((tag, published, assets))
 }
 
-/// The latest release from AtomGit: the releases page, parsed leniently for the first tag and
-/// the Windows asset links on it. AtomGit's release API, when it has one, serves the same
-/// fields; this parser works on the HTML page either way.
+/// The latest release from AtomGit: its release API first (the releases page is rendered by
+/// JavaScript, so parsing its HTML finds no tags), the HTML page as a fallback.
 fn atomgit_latest() -> Option<(String, u64, Vec<String>)> {
+    if let Some(found) = atomgit_api_latest() {
+        return Some(found);
+    }
+    atomgit_page_latest()
+}
+
+/// The AtomGit release API: `GET /api/v5/repos/{owner}/{repo}/releases/latest`, the same
+/// shape as GitHub's (`tag_name`, `published_at`, `assets[].name`).
+fn atomgit_api_latest() -> Option<(String, u64, Vec<String>)> {
+    let text = fetch("https://atomgit.com/api/v5/repos/matou118/ttwriter/releases/latest", 30)?;
+    let v: Value = serde_json::from_str(&text).ok()?;
+    let tag = v.get("tag_name")?.as_str()?.to_string();
+    // AtomGit's API calls it `created_at`; GitHub's is `published_at`.
+    let published = v
+        .get("published_at")
+        .or_else(|| v.get("created_at"))
+        .and_then(|p| p.as_str())
+        .and_then(|s| s.get(..10))
+        .map(iso_to_epoch)
+        .unwrap_or(0);
+    let assets = v
+        .get("assets")
+        .and_then(|a| a.as_array())
+        .map(|a| a.iter().filter_map(|x| x.get("name").and_then(|n| n.as_str())).map(String::from).collect())
+        .unwrap_or_default();
+    Some((tag, published, assets))
+}
+
+/// The latest release from AtomGit's releases page, parsed leniently for the first tag and
+/// the Windows asset links on it.
+fn atomgit_page_latest() -> Option<(String, u64, Vec<String>)> {
     let text = fetch("https://atomgit.com/matou118/ttwriter/releases", 30)?;
     // Tags appear as links to /releases/tag/<tag> (or /matou118/ttwriter/releases/tag/...).
     let mut tags: Vec<String> = Vec::new();
@@ -282,6 +352,26 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
             std::process::Command::new("curl").args(["-fL", "--retry", "2", "-o"]).arg(&out).arg(&url).status().map_err(|e| format!("curl: {e}"))?;
         if !st.success() {
             return Err(format!("download failed: {url}").into());
+        }
+        // 校验：发布清单（site/latest.json，在仓库里）带每个资产的 SHA-256。国内走
+        // raw.atomgit.com，海外走 raw.githubusercontent.com，任一可达即可。清单取不到时
+        // 只提示"未校验"，不阻塞下载。
+        match manifest_hash(asset) {
+            Some(want) => {
+                let got = sha256_file(&out)?;
+                if got != want {
+                    let _ = std::fs::remove_file(&out);
+                    return Err(format!("sha256 mismatch for {asset}: expected {want}, got {got}").into());
+                }
+                if !json {
+                    println!("sha256 ok ({want})");
+                }
+            }
+            None => {
+                if !json {
+                    println!("note: the release manifest has no sha256 for this asset; the download is unverified");
+                }
+            }
         }
         if json {
             println!("{}", serde_json::json!({"downloaded": out.to_string_lossy(), "tag": check.tag, "source": check.source}));
