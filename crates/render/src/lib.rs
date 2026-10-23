@@ -1739,7 +1739,8 @@ mod tests {
         const MIN_DIRECTION_PIXELS: usize = 100;
         let shot = |c: CharProps, offset: f32| {
             let mut d = Document::from_text("x");
-            let cp = CharProps { size: Some(SIZE), bold: Some(true), ..c };
+            // Pin the bundled font: Aptos resolves to different system faces on CI hosts.
+            let cp = CharProps { size: Some(SIZE), bold: Some(true), font: Some("Source Sans 3".into()), ..c };
             d.body = vec![wordcraft_doc::para_block(wordcraft_doc::Paragraph::with_text("HHHH", cp))];
             let l = layout(&d, &mut LayoutCache::new(), &LayoutOptions::default());
             render_area(&d, &l.pages[0], -offset, -offset, 400.0, 150.0, SCALE, &RenderOptions::default())
