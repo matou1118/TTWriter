@@ -31,6 +31,11 @@ metadata:
 `python scripts/jietiao.py --kind jietiao|qiantiao|shoutiao -o 输出.docx --borrower … --lender … --amount …`，
 生成后仍须过 `check_legal.py` 体检与人眼看图。其余文书仍只排版定稿，不起草。
 
+四类高频合同可由参数生成**骨架**（法定必备条款齐全、事实留占位，`contract_gen.py`）：
+`python scripts/contract_gen.py --kind labor|service|sales|lease -o 合同.docx --party-a … --party-b …`，
+劳动合同试用期超《劳动合同法》§19 上限直接拒绝生成；押金超两月租金警告；
+金额数值与大写并存；生成后填齐 `[待补充]` 与 `__` 空格、过 `check_legal.py`、请律师审。
+
 **边界说明**：合同**审查**（理解条款风险）需要法务内容层（WorkMind），本 skill 不做；合同**排版**（定稿后的格式）是纯版式层，做。
 
 ## 边界（重要）
