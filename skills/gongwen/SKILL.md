@@ -39,6 +39,21 @@ python scripts/format_gongwen.py content.docx -o q.docx --preset school  # 学�
 python scripts/format_gongwen.py content.docx -o q.docx --pdf            # 同时出 PDF
 ```
 
+### 0b. 红头版头（wordcraft-cli redhead）
+
+文档还没有红头版头时，一条命令生成（要素齐全的 GB/T 9704 版头，正文接在后面写，
+写完再跑上面的套版脚本排全文）：
+
+```bash
+wordcraft-cli redhead head.docx --org "××市人民政府" --docno "×政发〔2026〕12号" \
+  --fenhao 000001 --secret "秘密★1年" --urgency 特急 --issuer 张三 \
+  --title "关于印发……的通知" --pdf head.pdf
+```
+
+参数全部可选；缺的要素留 `[发文机关]` / `[发文字号]` 占位（不猜、不编——补齐是
+写作环节的事）。红色分隔线是文号段的段落下边框，真边框不是图形。生成后**渲染看一眼**
+（`wordcraft-cli render head.docx head.png --page 1`）。
+
 preset：`gb`（默认，国标全要素）/ `company`（版心稍松、14pt 紧凑商务）/ `school`（三号字、26 磅行距阅读友好）/ `hospital`（国标版心、版记从简）。
 
 批量发文（一份定稿 + 收文单位名单 → 每单位一份版记）：

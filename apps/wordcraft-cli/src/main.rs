@@ -4,6 +4,7 @@
 mod automation_args;
 mod ocrbridge;
 mod pdfcmd;
+mod redhead;
 mod script;
 mod update;
 
@@ -39,6 +40,12 @@ USAGE:
                                               No document model and no reflow: turning the pages of
                                               a PDF is not the same as editing what is on them;
                                               `wordcraft-cli pdf` alone prints the details
+  wordcraft-cli redhead <out.docx> [--org 名称] [--docno 文号] [--fenhao 份号]
+                              [--secret 密级] [--urgency 紧急] [--issuer 签发人]
+                              [--title 标题] [--pdf out.pdf]
+                                              generate the GB/T 9704 red-header block (org mark,
+                                              doc number, red rule, optional secret/urgency/
+                                              issuer/title) as a .docx to continue writing in
   wordcraft-cli run [--file F | --template T] [--script FILE|-] --cmd 'id={json}' [--cmd …]
                     [--save OUT] [--print] [--author NAME]
                                               run commands headlessly, then save (--author names
@@ -84,7 +91,8 @@ same output on every machine.
 ";
 
 /// The subcommands, in `USAGE` order; `--help` or `-h` after any of them prints `USAGE` (#968).
-const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "pdf", "run", "commands", "parity", "mcp", "zotero", "update"];
+const SUBCOMMANDS: &[&str] =
+    &["convert", "info", "text", "inspect", "render", "pdf", "redhead", "run", "commands", "parity", "mcp", "zotero", "update"];
 
 fn wants_help(cmd: &str, rest: &[String]) -> bool {
     SUBCOMMANDS.contains(&cmd) && rest.iter().any(|a| a == "--help" || a == "-h")
@@ -408,6 +416,7 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
     }
     match cmd {
         "pdf" => crate::pdfcmd::run(&rest),
+        "redhead" => crate::redhead::run(&rest).map_err(Failure::from),
         "update" => crate::update::run(&rest),
         "convert" => {
             validate_options("convert", &rest, CONVERT_OPTIONS)?;
