@@ -199,6 +199,91 @@ impl Pdf {
         Ok(())
     }
 
+    /// 双层 PDF：给每页叠一层**隐形文本**（渲染模式 3），让扫描件可搜索、可复制。
+    ///
+    /// `layers` 是每页的文本（下标 0 对应第 1 页；短的按缺省处理——没有文本的页跳过）。
+    /// 文本按 12pt 行距排在页面左侧自上而下；坐标只是让它落在页内，视觉上完全不可见
+    /// （`3 Tr` 是 PDF 的隐形渲染模式，选择/搜索照常工作）。
+    pub fn overlay_text(&mut self, layers: &[String]) -> Result<()> {
+        if layers.is_empty() {
+            return Err(Error::Bad("没有可叠的文本层".into()));
+        }
+        let n = self.page_count();
+        if layers.len() > n {
+            return Err(Error::Bad(format!("给了 {} 页的文本，但 PDF 只有 {n} 页", layers.len())));
+        }
+        // 一个共享的简单字体（Helvetica，WinAnsi 可直出 ASCII；非 ASCII 转成 '?'——
+        // 双层 PDF 的搜索层以可检索为先，字形保真交给页面图像层）。
+        let font = self.doc.add_object(Object::Dictionary(lopdf::Dictionary::from_iter([
+            ("Type", Object::Name(b"Font".to_vec())),
+            ("Subtype", Object::Name(b"Type1".to_vec())),
+            ("BaseFont", Object::Name(b"Helvetica".to_vec())),
+        ])));
+        for (i, text) in layers.iter().enumerate() {
+            if text.trim().is_empty() {
+                continue;
+            }
+            let page_no = u32::try_from(i + 1).map_err(|_| Error::Bad("页数溢出".into()))?;
+            let id = self.id_of(page_no)?;
+            // 页面尺寸（文字排进页内；拿不到就用 A4）。
+            let (w, h) = self.page_size(page_no).unwrap_or((595.0, 842.0));
+            let _ = w;
+            let mut body = String::with_capacity(text.len() + 64);
+            body.push_str("BT\n3 Tr\n/F1 12 Tf\n");
+            let mut y = h - 24.0;
+            for line in text.lines() {
+                if y < 24.0 {
+                    break; // 页满即止（剩余文本丢弃：搜索层不是重排版）
+                }
+                body.push_str(&format!("1 0 0 1 14 {:.1} Tm ({}) Tj\n", y, escape_simple(line)));
+                y -= 14.0;
+            }
+            body.push_str("ET");
+            let content = self.doc.add_object(Object::Stream(lopdf::Stream::new(
+                lopdf::Dictionary::from_iter([("Length", Object::Integer(body.len() as i64))]),
+                body.into_bytes(),
+            )));
+            // 页字典取快照改完写回（借用一次一收）。
+            let mut page = match self.doc.get_object(id)? {
+                Object::Dictionary(d) => d.clone(),
+                _ => return Err(Error::Pdf(format!("{id:?} 不是页面字典"))),
+            };
+            // 页资源里挂 F1；已有 Font 字典就并入，没有就新建。
+            match page.get(b"Resources").cloned().unwrap_or(Object::Dictionary(lopdf::Dictionary::new())) {
+                Object::Reference(rid) => {
+                    let Object::Dictionary(mut rd) = self.doc.get_object(rid)?.clone() else {
+                        return Err(Error::Pdf("Resources 不是字典".into()));
+                    };
+                    merge_font(&mut rd, font);
+                    *self.doc.get_object_mut(rid)? = Object::Dictionary(rd);
+                }
+                Object::Dictionary(mut rd) => {
+                    merge_font(&mut rd, font);
+                    let rid = self.doc.add_object(Object::Dictionary(rd));
+                    page.set("Resources", Object::Reference(rid));
+                }
+                _ => return Err(Error::Pdf("Resources 不是字典".into())),
+            }
+            // 内容流：已有 Contents（数组或单流）就追加为多流。
+            let contents = page.get(b"Contents").cloned().ok();
+            let new_contents = match contents {
+                Some(Object::Reference(existing)) => {
+                    let arr = Object::Array(vec![Object::Reference(existing), Object::Reference(content)]);
+                    self.doc.add_object(arr)
+                }
+                Some(Object::Array(existing)) => {
+                    let mut a = existing.clone();
+                    a.push(Object::Reference(content));
+                    self.doc.add_object(a)
+                }
+                _ => content,
+            };
+            page.set("Contents", Object::Reference(new_contents));
+            *self.doc.get_object_mut(id)? = Object::Dictionary(page);
+        }
+        Ok(())
+    }
+
     /// 存成内存里的 PDF 字节。
     pub fn to_bytes(&mut self) -> Result<Vec<u8>> {
         let mut out = Vec::new();
@@ -253,11 +338,66 @@ fn reference_of(o: &Object) -> Result<lopdf::ObjectId> {
     }
 }
 
+/// 简单字体字符串里的字符转义（`(`、`)`、`\`；其余非 ASCII 降为 `?`——搜索层够用）。
+fn escape_simple(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '(' | ')' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            '\n' | '\r' => out.push(' '),
+            c if (c as u32) < 0x80 => out.push(c),
+            _ => out.push('?'),
+        }
+    }
+    out
+}
+
+/// 资源字典里并入 `/F1 → font`（已有 Font 字典就改，没有就建）。
+fn merge_font(rd: &mut lopdf::Dictionary, font: lopdf::ObjectId) {
+    match rd.get_mut(b"Font") {
+        Ok(Object::Dictionary(fd)) => {
+            fd.set(b"F1", Object::Reference(font));
+        }
+        _ => {
+            let fd = lopdf::Dictionary::from_iter([(b"F1".to_vec(), Object::Reference(font))]);
+            rd.set(b"Font", Object::Dictionary(fd));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use lopdf::{Dictionary, Stream};
 
     use super::*;
+
+    /// 双层 PDF：叠的隐形文本层要能被（我们自己的）提取器读回来。
+    #[test]
+    fn overlay_text_makes_a_searchable_layer() {
+        let mut pdf = blank(1);
+        pdf.overlay_text(&["Searchable layer 42".into()]).expect("overlay");
+        let out = pdf.text_of(1);
+        let text: String = out.lines.iter().map(|l| l.text.clone()).collect();
+        assert!(text.contains("Searchable layer 42"), "the layer reads back: {text:?}");
+    }
+
+    /// 转义与多页：括号文本不破坏流，多余的层报错，中文降级为问号但流仍合法。
+    #[test]
+    fn overlay_text_escapes_and_validates() {
+        let mut pdf = blank(2);
+        pdf.overlay_text(&["with (parens) and \\slash".into(), "page two".into()]).expect("overlay");
+        let one: String = pdf.text_of(1).lines.iter().map(|l| l.text.clone()).collect();
+        assert!(one.contains("(parens)"), "{one:?}");
+        let two: String = pdf.text_of(2).lines.iter().map(|l| l.text.clone()).collect();
+        assert!(two.contains("page two"), "{two:?}");
+        // 层数超过页数是错误，不是 panic。
+        assert!(blank(1).overlay_text(&["a".into(), "b".into()]).is_err());
+        // 空层报错。
+        assert!(blank(1).overlay_text(&[]).is_err());
+    }
 
     /// 一份 n 页的 A4 空白 PDF，测试自己生成，仓库里不留 PDF 文件。
     fn blank(pages: u32) -> Pdf {

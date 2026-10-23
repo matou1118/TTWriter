@@ -196,7 +196,7 @@ fn hex_utf8(s: &str) -> String {
     if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
         // UTF-16BE with BOM
         String::from_utf16_lossy(&bytes[2..].chunks(2).map(|c| u16::from_be_bytes([c[0], *c.get(1).unwrap_or(&0)])).collect::<Vec<_>>())
-    } else if bytes.len() % 2 == 0 && bytes.len() >= 2 {
+    } else if bytes.len().is_multiple_of(2) && bytes.len() >= 2 {
         // UTF-16BE without BOM
         String::from_utf16_lossy(&bytes.chunks(2).map(|c| u16::from_be_bytes([c[0], c[1]])).collect::<Vec<_>>())
     } else {
@@ -533,7 +533,6 @@ fn tokenize(content: &[u8]) -> Vec<Tok> {
                 // 名字定界符：上一个 token 结束，名字自成一词（`Tr\n/f0` 里 Tr 与 /f0 分开）。
                 if in_token {
                     out.push(kind_of(std::mem::take(&mut cur)));
-                    in_token = false;
                 }
                 cur.push(b'/');
                 in_token = true;
@@ -714,14 +713,13 @@ mod tests {
             rest = &rest[at + "beginbfrange".len()..];
             let end = rest.find("endbfrange").unwrap_or(rest.len());
             let toks: Vec<&str> = rest[..end].split_whitespace().collect();
-            if toks.len() >= 3 {
-                if let (Some(lo), Some(hi)) = (hex_u16(toks[0]), hex_u16(toks[1])) {
+            if toks.len() >= 3
+                && let (Some(lo), Some(hi)) = (hex_u16(toks[0]), hex_u16(toks[1])) {
                     let base = hex_u16(toks[2]).unwrap_or(0);
                     for c in lo..=hi {
                         map.insert(c, char::from_u32(base as u32 + (c - lo) as u32).map(String::from).unwrap_or_default());
                     }
                 }
-            }
             rest = &rest[end..];
         }
         map

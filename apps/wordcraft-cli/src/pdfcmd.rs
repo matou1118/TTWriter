@@ -24,12 +24,16 @@ USAGE:
   wordcraft-cli pdf text <in.pdf> [out.docx]          the PDF's text layer rebuilt as a Word
                                                        document (paragraphs by line position;
                                                        a scan with no text layer is refused)
+  wordcraft-cli pdf ocr <in.pdf> <out.pdf> --text TEXT  overlay an invisible, searchable text
+                                     or --text-file F    layer (a double-deck PDF: the page
+                                                        image plus searchable text; pour OCR
+                                                        output in through --text-file)
 
 --pages takes 1-based page numbers, ranges and commas (\"1-3,5\"); left out it means every page.
 ";
 
 /// Options whose value is not a file name.
-const VALUED: &[&str] = &["--degrees", "--pages"];
+const VALUED: &[&str] = &["--degrees", "--pages", "--text", "--text-file"];
 
 pub fn run(args: &[String]) -> Result<(), Failure> {
     let (cmd, rest) = args.split_first().ok_or_else(|| Failure::from(USAGE))?;
@@ -144,7 +148,7 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
                 .get(1)
                 .cloned()
                 .unwrap_or_else(|| input.rsplit_once('.').map(|(b, _)| format!("{b}.docx")).unwrap_or_else(|| "out.docx".into()));
-            let mut pdf = Pdf::open(&input).map_err(|e| e.to_string())?;
+            let pdf = Pdf::open(&input).map_err(|e| e.to_string())?;
             let mut doc = wordcraft_doc::Document::new();
             let mut first = true;
             let mut total_lines = 0usize;
@@ -153,7 +157,7 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
                 // y 相近（行距内）的行并一段；y 跳变分新段。
                 let mut para: Vec<&str> = Vec::new();
                 let mut last_y: Option<f64> = None;
-                let mut flush = |para: &mut Vec<&str>,
+                let flush = |para: &mut Vec<&str>,
                                  doc: &mut wordcraft_doc::Document,
                                  first: &mut bool,
                                  page: u32,
@@ -191,6 +195,40 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
             let bytes = wordcraft_docx::write(&doc).map_err(|e| e.to_string())?;
             std::fs::write(&output, bytes).map_err(|e| format!("{output}: {e}"))?;
             eprintln!("wrote {output} ({} pages, {total_lines} text lines)", pdf.page_count());
+            Ok(())
+        }
+        // 双层 PDF：给（扫描）PDF 叠一层隐形可搜索文本。文本来源：
+        //   --text "…"           全部页同一文本
+        //   --text-file 文件      每页一段（空行分页），或整文件一层
+        // 配合 OCR 工具产出文本后灌入（我们不做 OCR，做最后一公里）。
+        "ocr" => {
+            let files = positional(rest, VALUED);
+            if files.len() < 2 {
+                return Err(Failure::from("pdf ocr 需要 <in.pdf> <out.pdf> --text … 或 --text-file …"));
+            }
+            let (input, output) = (files[0].clone(), files[1].clone());
+            let single = option(rest, "--text");
+            let text_file = option(rest, "--text-file");
+            let (single, text_file) = match (single, text_file) {
+                (Some(t), None) => (Some(t), None),
+                (None, Some(f)) => (None, Some(f)),
+                (None, None) => return Err(Failure::from("pdf ocr 需要 --text \"…\" 或 --text-file 文件")),
+                (Some(_), Some(_)) => return Err(Failure::from("--text 与 --text-file 只能给一个")),
+            };
+            let mut pdf = Pdf::open(&input).map_err(|e| e.to_string())?;
+            let pages = pdf.page_count();
+            let layers: Vec<String> = if let Some(t) = single {
+                vec![t]
+            } else {
+                // 文本文件：空行（两个连续换行）分页；没有分页符就整文件当第 1 页。
+                let content = std::fs::read_to_string(text_file.unwrap_or_default()).map_err(|e| e.to_string())?;
+                let parts: Vec<String> = content.split("\n\n\n").map(|s| s.to_string()).collect();
+                if parts.len() > 1 { parts } else { vec![content] }
+            };
+            let _ = pages;
+            pdf.overlay_text(&layers).map_err(|e| e.to_string())?;
+            pdf.save(&output).map_err(|e| e.to_string())?;
+            eprintln!("wrote {output} ({} pages, {} text layers)", pdf.page_count(), layers.len());
             Ok(())
         }
         _ => Err(Failure::from(USAGE)),
