@@ -67,12 +67,12 @@ Write-Output "       git tag $Tag"
 Write-Output '       git push atomgit master; git push gitee master; git push atomgit $Tag'
 Write-Output '       git push origin master; git push origin $Tag    # 可选：GitHub 推不动就跳过，步骤 2 的 gh 会替你建 tag'
 Write-Output ''
-Write-Output '  2. upload the assets to the release (both hosts)'
-foreach ($a in $assets) {
-  $file = Join-Path $Dist $a.name
-  Write-Output "       gh release create $Tag `"$file`" --repo matou1118/ttwriter --title `"$Tag`" --notes `"$Version`""
-  Write-Output "       # atomgit: POST /api/v5/repos/matou118/ttwriter/releases/$Tag/assets (needs your token)"
-}
+Write-Output '  2. upload the assets'
+$ghFiles = ($assets | ForEach-Object { '"' + (Join-Path $Dist $_.name) + '"' }) -join ' '
+Write-Output "       github:  gh release create $Tag $ghFiles --repo matou1118/ttwriter --title `"$Tag`" --notes `"$Version`""
+Write-Output '       atomgit: upload manually on https://atomgit.com/matou118/ttwriter/releases'
+foreach ($a in $assets) { Write-Output ("                 {0}  ({1:N1} MB)" -f $a.name, ($a.size / 1MB)) }
+Write-Output '                 (API: GET /api/v5/repos/matou118/ttwriter/releases/<tag>/upload_url?access_token=<token>&file_name=<name> then PUT the file to the returned url)'
 Write-Output ''
 Write-Output '  3. the manifest the updater reads (it lands with the master push above)'
 Write-Output "       https://gitee.com/ttwriter/ttread/raw/master/site/latest.json"

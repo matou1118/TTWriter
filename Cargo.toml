@@ -105,6 +105,9 @@ opt-level = 3
 lto = "thin"
 codegen-units = 16
 debug = 0
+# debug = 0 still leaves the PE symbol table: strip = "symbols" cuts ~25% off GNU builds and is
+# accepted-and-neutral on MSVC (rustc hands a symbols object to the linker there).
+strip = "symbols"
 
 # Required by craft-pdf: the backend rejects writers that failed during unwinding.
 [patch.crates-io]
