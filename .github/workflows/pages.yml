@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: assemble the site
         run: |
           mkdir -p _site
@@ -33,8 +33,8 @@ jobs:
           cp assets/app-icon/hicolor/256x256/apps/ai.storyteller.wordcraft.png _site/icon/icon.png
           cp assets/app-icon/wordcraft.svg _site/icon/icon.svg
           rm -f _site/README.md
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
   deploy:
@@ -45,4 +45,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
