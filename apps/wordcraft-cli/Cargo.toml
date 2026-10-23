@@ -27,6 +27,8 @@ image = { workspace = true }
 serde_json = { workspace = true }
 # The update check verifies the downloaded installer against the release manifest's SHA-256.
 sha2 = { workspace = true }
+# update --install unpacks the portable zip (deflate only: our own zips).
+zip = { workspace = true }
 # AtomGit's contents API returns the release manifest base64-encoded.
 base64 = { workspace = true }
 # The update check's cache lives in the settings folder (shared with the control key).

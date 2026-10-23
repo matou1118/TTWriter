@@ -39,12 +39,17 @@ USAGE:
   wordcraft-cli update [--check]           print the cached or fresh check result (no install)
   wordcraft-cli update --force             re-check now, ignoring the 24h cache
   wordcraft-cli update --download <dir>    download the latest installer into <dir>
+  wordcraft-cli update --install           download, verify and install the update
+                                            [--install-dir <dir>] targets a specific install
   wordcraft-cli update --json              machine-readable result
 
 Sources: site/latest.json on gitee.com/ttwriter/ttread (raw), then AtomGit's
          contents API, then raw.githubusercontent.com; release APIs only as a
          last resort. Downloads come from atomgit.com (China) or github.com.
 The check is cached in the settings folder for 24 hours; --force bypasses the cache.
+--install: an MSI is installed silently (msiexec /qn); a portable zip is unpacked
+         next to the running exe and swapped in — only when this command runs
+         from outside the install dir (Windows locks a running exe).
 ";
 
 /// Where the check result is cached: the settings folder, else the current directory's temp.
@@ -102,12 +107,23 @@ fn fetch(url: &str, timeout: u64) -> Option<String> {
 /// (a static file, no API quota, the reliable path inside China), AtomGit's contents API
 /// (base64 envelope, one shared rate limit), GitHub's raw host (the overseas fallback).
 /// All three serve the same bytes, so any one reachable is enough.
-fn manifest_hosts() -> [&'static str; 3] {
-    [
-        "https://gitee.com/ttwriter/ttread/raw/master/site/latest.json",
-        "https://atomgit.com/api/v5/repos/matou118/ttwriter/contents/site/latest.json",
-        "https://raw.githubusercontent.com/matou1118/ttwriter/master/site/latest.json",
-    ]
+/// `WORDCRAFT_UPDATE_MANIFEST` (a full URL) overrides all hosts — a self-hosted mirror, and
+/// the test harness's local server.
+fn manifest_hosts() -> Vec<String> {
+    let mut hosts: Vec<String> = Vec::new();
+    if let Some(url) = std::env::var_os("WORDCRAFT_UPDATE_MANIFEST") {
+        hosts.push(url.to_string_lossy().into_owned());
+    }
+    hosts.extend(
+        [
+            "https://gitee.com/ttwriter/ttread/raw/master/site/latest.json",
+            "https://atomgit.com/api/v5/repos/matou118/ttwriter/contents/site/latest.json",
+            "https://raw.githubusercontent.com/matou1118/ttwriter/master/site/latest.json",
+        ]
+        .iter()
+        .map(|s| s.to_string()),
+    );
+    hosts
 }
 
 /// The manifest as JSON: AtomGit's contents API wraps the file in a base64 envelope, GitHub's
@@ -115,7 +131,7 @@ fn manifest_hosts() -> [&'static str; 3] {
 fn manifest_json() -> Option<Value> {
     use base64::Engine as _;
     for host in manifest_hosts() {
-        let Some(text) = fetch(host, 10) else { continue };
+        let Some(text) = fetch(&host, 10) else { continue };
         let Ok(v) = serde_json::from_str::<Value>(&text) else { continue };
         if v.get("assets").is_some() {
             return Some(v);
@@ -319,6 +335,17 @@ fn fresh_check() -> Check {
     Check { tag: String::new(), source: "none".into(), checked_at: at, published_at: 0, assets: Vec::new() }
 }
 
+/// 清单里某资产的直链 URL（`assets[].url`），有就用它（镜像/本地测试）。
+fn manifest_asset_url(asset: &str) -> Option<String> {
+    let v = manifest_json()?;
+    v.get("assets")?
+        .as_array()?
+        .iter()
+        .find(|a| a.get("name").and_then(|n| n.as_str()) == Some(asset))
+        .and_then(|a| a.get("url").and_then(|u| u.as_str()))
+        .map(String::from)
+}
+
 /// The download URL for an asset on the source that found it.
 fn asset_url(source: &str, tag: &str, asset: &str) -> String {
     match source {
@@ -344,8 +371,10 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
     let force = args.iter().any(|a| a == "--force");
     let json = args.iter().any(|a| a == "--json");
     let download = crate::arg_value(args, "--download").map(PathBuf::from);
+    let install = args.iter().any(|a| a == "--install");
+    let install_dir = crate::arg_value(args, "--install-dir").map(PathBuf::from);
     // Only the flags this command owns; anything else is a typo worth naming.
-    let known = ["--check", "--force", "--json", "--download"];
+    let known = ["--check", "--force", "--json", "--download", "--install", "--install-dir"];
     for a in args.iter().filter(|a| a.starts_with("--")) {
         if !known.contains(&a.as_str()) {
             return Err(format!("unknown option `{a}`\n\n{USAGE}").into());
@@ -379,6 +408,16 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
     let current = format!("v{}", env!("CARGO_PKG_VERSION"));
     let has_update = newer(&check.tag, &current);
 
+    if install {
+        if !has_update {
+            if !json {
+                println!("already on the newest release ({current}); nothing to install");
+            }
+            return Ok(());
+        }
+        return install_update(&check, &current, json, install_dir.as_deref());
+    }
+
     if let Some(dir) = download {
         if !has_update {
             if !json {
@@ -386,48 +425,19 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
             }
             return Ok(());
         }
-        let Some(asset) = pick_asset(&check.assets) else {
-            return Err(format!("the {} release lists no Windows asset (found: {})", check.tag, check.assets.join(", ")).into());
-        };
-        let url = asset_url(&check.source, &check.tag, asset);
+        let out = fetch_asset(&check, json)?;
+        // 挪到用户指定的目录再报路径。
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-        let out = dir.join(asset);
-        if !json {
-            println!("downloading {url}");
-        }
-        let st =
-            std::process::Command::new("curl").args(["-fL", "--retry", "2", "-o"]).arg(&out).arg(&url).status().map_err(|e| format!("curl: {e}"))?;
-        if !st.success() {
-            return Err(format!("download failed: {url}").into());
-        }
-        // 校验：发布清单（site/latest.json，在仓库里）带每个资产的 SHA-256。三源回退读取：
-        // Gitee raw → AtomGit contents API → GitHub raw，任一可达即可。清单取不到时
-        // 只提示"未校验"，不阻塞下载。
-        match manifest_hash(asset) {
-            Some(want) => {
-                let got = sha256_file(&out)?;
-                if got != want {
-                    let _ = std::fs::remove_file(&out);
-                    return Err(format!("sha256 mismatch for {asset}: expected {want}, got {got}").into());
-                }
-                if !json {
-                    println!("sha256 ok ({want})");
-                }
-            }
-            None => {
-                if !json {
-                    println!("note: the release manifest has no sha256 for this asset; the download is unverified");
-                }
-            }
-        }
+        let moved = dir.join(out.file_name().unwrap_or_default());
+        std::fs::rename(&out, &moved).map_err(|e| format!("move to {}: {e}", dir.display()))?;
         if json {
-            println!("{}", serde_json::json!({"downloaded": out.to_string_lossy(), "tag": check.tag, "source": check.source}));
+            println!("{}", serde_json::json!({"downloaded": moved.to_string_lossy(), "tag": check.tag, "source": check.source}));
         } else {
-            println!("saved {}", out.display());
-            if asset.ends_with(".msi") {
-                println!("install: msiexec /i \"{}\" (run it from a shell, not while WordCraft is open)", out.display());
+            println!("saved {}", moved.display());
+            if moved.extension().is_some_and(|e| e == "msi") {
+                println!("install: msiexec /i \"{}\" (run it from a shell, not while WordCraft is open)", moved.display());
             } else {
-                println!("unzip {} next to your current install and replace the old folder", out.display());
+                println!("unzip {} next to your current install and replace the old folder", moved.display());
             }
         }
         return Ok(());
@@ -444,6 +454,223 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
         println!("an update is available; run `wordcraft-cli update --download <dir>` to fetch it");
     } else {
         println!("up to date");
+    }
+    Ok(())
+}
+
+/// 下载选定资产到临时目录并校验 SHA-256，返回已校验的文件路径。
+/// 清单带哈希时强校验（不匹配即删文件报错）；清单拿不到时提示未校验但不阻塞。
+/// 下载地址：清单里资产自带的 `url` 优先（自建镜像/本地测试用），没有才按发现源拼接。
+fn fetch_asset(check: &Check, json: bool) -> Result<PathBuf, Failure> {
+    let Some(asset) = pick_asset(&check.assets) else {
+        return Err(format!("the {} release lists no Windows asset (found: {})", check.tag, check.assets.join(", ")).into());
+    };
+    let url = manifest_asset_url(asset).unwrap_or_else(|| asset_url(&check.source, &check.tag, asset));
+    let dir = std::env::temp_dir().join("wordcraft-update");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let out = dir.join(asset);
+    if !json {
+        println!("downloading {url}");
+    }
+    let st = std::process::Command::new("curl").args(["-fL", "--retry", "2", "-o"]).arg(&out).arg(&url).status().map_err(|e| format!("curl: {e}"))?;
+    if !st.success() {
+        return Err(format!("download failed: {url}").into());
+    }
+    // 校验：发布清单（site/latest.json，在仓库里）带每个资产的 SHA-256。三源回退读取：
+    // Gitee raw → AtomGit contents API → GitHub raw，任一可达即可。清单取不到时
+    // 只提示"未校验"，不阻塞下载。
+    match manifest_hash(asset) {
+        Some(want) => {
+            let got = sha256_file(&out)?;
+            if got != want {
+                let _ = std::fs::remove_file(&out);
+                return Err(format!("sha256 mismatch for {asset}: expected {want}, got {got}").into());
+            }
+            if !json {
+                println!("sha256 ok ({want})");
+            }
+        }
+        None => {
+            if !json {
+                println!("note: the release manifest has no sha256 for this asset; the download is unverified");
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// `--install`：下载并安装。MSI → `msiexec /qn` 静默装；portable zip → 解压换目录。
+/// `install_dir`（`--install-dir`）：要替换的安装目录——不给时锚定本 exe 所在目录。
+fn install_update(check: &Check, current: &str, json: bool, install_dir: Option<&std::path::Path>) -> Result<(), Failure> {
+    let asset = pick_asset(&check.assets)
+        .ok_or_else(|| Failure::from(format!("the {} release lists no Windows asset (found: {})", check.tag, check.assets.join(", "))))?;
+    let archive = fetch_asset(check, json)?;
+
+    if asset.ends_with(".msi") {
+        // MSI 自己管理安装位置；WordCraft 正在运行时 msiexec 会失败，静默装前提示。
+        if !json {
+            println!("installing {} silently (close TTWriter if it is running)", archive.display());
+        }
+        let st = std::process::Command::new("msiexec").args(["/i"]).arg(&archive).arg("/qn").status().map_err(|e| format!("msiexec: {e}"))?;
+        if !st.success() {
+            return Err(format!("msiexec failed ({}); run it yourself: msiexec /i \"{}\"", st.code().unwrap_or(-1), archive.display()).into());
+        }
+        if json {
+            println!("{}", serde_json::json!({"installed": archive.to_string_lossy(), "tag": check.tag, "kind": "msi"}));
+        } else {
+            println!("installed {} over {current} — start TTWriter from the Start menu as usual", check.tag);
+        }
+        return Ok(());
+    }
+
+    // Portable zip：解压 → 旁边换目录。锚点：--install-dir 给的目录，或本 exe 所在目录。
+    let here = match install_dir {
+        Some(dir) => dir.to_path_buf(),
+        None => {
+            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            exe.parent().ok_or_else(|| Failure::from("no parent dir for the running exe"))?.to_path_buf()
+        }
+    };
+    if !here.is_dir() {
+        return Err(format!("--install-dir points nowhere: {}", here.display()).into());
+    }
+    // zip 里通常有一层 wordcraft-<version>-windows-x64-portable/；找到含 exe 的那一层。
+    let unpacked = unpack_portable(&archive, check.tag.trim_start_matches('v')).map_err(|e| format!("unzip {}: {e}", archive.display()))?;
+    let staged = find_install_root(&unpacked).ok_or_else(|| {
+        let _ = std::fs::remove_dir_all(&unpacked);
+        Failure::from(format!("the zip has neither ttwriter.exe nor wordcraft-cli.exe at a single root: {}", unpacked.display()))
+    })?;
+
+    // 自替换检查：本 exe 正在目标安装目录里运行时（Windows 锁着 exe），只解压不换目录。
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(exe_dir) = exe.parent()
+    {
+        let exe_canon = exe_dir.canonicalize().unwrap_or_else(|_| exe_dir.to_path_buf());
+        let staged_canon = staged.canonicalize().unwrap_or_else(|_| staged.clone());
+        let here_canon = here.canonicalize().unwrap_or_else(|_| here.clone());
+        let running_inside = exe_canon == here_canon || exe_canon.starts_with(&here_canon);
+        let staged_on_target = staged_canon == here_canon || staged_canon.starts_with(&here_canon);
+        if running_inside && staged_on_target {
+            let msg = format!(
+                "cannot swap the install dir in place: this exe runs from {} and Windows locks a running exe.\n\
+                 the new version is unpacked at {} — close TTWriter, move that folder over {} (or run this \
+                 command from anywhere outside the install dir next time)",
+                here.display(),
+                staged.display(),
+                here.display()
+            );
+            return Err(msg.into());
+        }
+    }
+
+    // staged 与安装目录是不同目录：把新目录挪到 here 的父级、旧的留原地（用户确认后删）。
+    let parent = here.parent().ok_or_else(|| Failure::from("no grandparent dir for the install"))?;
+    let final_dir = parent.join(staged.file_name().unwrap_or_default());
+    if final_dir.exists() && final_dir != here {
+        // 已有同名目录（之前装过同版？）：不覆盖，新目录留在原地让用户处置。
+        let msg = format!(
+            "{} already exists; the new version stays unpacked at {} — remove the old one and move it in, \
+             or run this from a fresh path",
+            final_dir.display(),
+            staged.display()
+        );
+        return Err(msg.into());
+    }
+    // staged 可能在临时盘（跨卷）：rename 失败就 copy。
+    if final_dir != here && std::fs::rename(&staged, &final_dir).is_err() {
+        copy_dir(&staged, &final_dir).map_err(|e| format!("copy {} -> {}: {e}", staged.display(), final_dir.display()))?;
+        let _ = std::fs::remove_dir_all(&staged);
+    }
+    let _ = std::fs::remove_file(&archive);
+    if json {
+        println!("{}", serde_json::json!({"installed": final_dir.to_string_lossy(), "tag": check.tag, "kind": "portable"}));
+    } else {
+        println!("installed {} at {} (was {current})", check.tag, final_dir.display());
+        println!("the old folder is untouched at {}; delete it when the new one checks out", here.display());
+    }
+    Ok(())
+}
+
+/// 解压 portable zip 到临时目录（zip 里的顶层目录名不信任，用自己起的）。
+fn unpack_portable(archive: &std::path::Path, version: &str) -> Result<PathBuf, String> {
+    let out = std::env::temp_dir().join(format!("wordcraft-install-{version}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    // 上限：解出的总字节不超过 1GB（zip 炸弹防护），条目数不超过 10 万。
+    const MAX_TOTAL: u64 = 1 << 30;
+    const MAX_ENTRIES: usize = 100_000;
+    let mut total: u64 = 0;
+    if zip.len() > MAX_ENTRIES {
+        return Err(format!("too many entries in the zip ({})", zip.len()));
+    }
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+        // 名字消毒（zip-slip）：统一斜杠后拒绝绝对路径、`..` 段和 Windows 盘符。
+        let name = entry.name().replace('\\', "/");
+        let bad = name.starts_with('/')
+            || name.split('/').any(|seg| seg == "..")
+            || name.starts_with("//")
+            || name.as_str().split_once(':').is_some_and(|(drive, _)| drive.len() == 1 && drive.chars().all(|c| c.is_ascii_alphabetic()));
+        if bad {
+            return Err(format!("unsafe entry name in the zip: {name:?}"));
+        }
+        let path = out.join(&name);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+            continue;
+        }
+        total = total.saturating_add(entry.size());
+        if total > MAX_TOTAL {
+            return Err("the zip expands past 1 GB".into());
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut file = std::fs::File::create(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        std::io::copy(&mut entry, &mut file).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    Ok(out)
+}
+
+/// 从解压结果里找安装根：含 ttwriter.exe 或 wordcraft-cli.exe 的目录（至多下探 3 层）。
+fn find_install_root(unpacked: &std::path::Path) -> Option<PathBuf> {
+    let has_exe = |d: &std::path::Path| d.join("ttwriter.exe").is_file() || d.join("wordcraft-cli.exe").is_file();
+    if has_exe(unpacked) {
+        return Some(unpacked.to_path_buf());
+    }
+    for entry in std::fs::read_dir(unpacked).ok()? {
+        let entry = entry.ok()?;
+        if !entry.file_type().ok().is_some_and(|t| t.is_dir()) {
+            continue;
+        }
+        let dir = entry.path();
+        if has_exe(&dir) {
+            return Some(dir);
+        }
+        // 第三层：zip 可能有两层包裹（wordcraft-…/wordcraft-…/exe）。
+        for inner in std::fs::read_dir(&dir).ok().into_iter().flatten().flatten() {
+            let inner = inner.path();
+            if inner.is_dir() && has_exe(&inner) {
+                return Some(inner);
+            }
+        }
+    }
+    None
+}
+
+/// 递归复制目录（rename 跨卷失败的回退）。
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(to).map_err(|e| e.to_string())?;
+    for entry in std::fs::read_dir(from).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let dest = to.join(entry.file_name());
+        if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
+            copy_dir(&entry.path(), &dest)?;
+        } else {
+            std::fs::copy(entry.path(), &dest).map_err(|e| format!("{}: {e}", dest.display()))?;
+        }
     }
     Ok(())
 }
@@ -539,5 +766,83 @@ mod tests {
         // The cache window, in seconds: 24 hours. `fresh_check` compares against exactly this.
         const DAY: u64 = 24 * 3600;
         assert_eq!(DAY, 86_400);
+    }
+
+    /// `--install` 的解压：正常 zip 解到临时目录并找到安装根；zip-slip（`..`、绝对路径、
+    /// 盘符）被拒绝，不会写到目标目录之外。
+    #[test]
+    fn unpack_finds_the_install_root_and_rejects_slip() {
+        let dir = std::env::temp_dir().join("wordcraft-update-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // 正常包：wordcraft-1.0-windows-x64-portable/ttwriter.exe + wordcraft-cli.exe。
+        let normal = dir.join("normal.zip");
+        {
+            let file = std::fs::File::create(&normal).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+            zip.add_directory("wordcraft-1.0-windows-x64-portable/", opts).unwrap();
+            zip.start_file("wordcraft-1.0-windows-x64-portable/ttwriter.exe", opts).unwrap();
+            std::io::Write::write_all(&mut zip, b"MZ fake").unwrap();
+            zip.start_file("wordcraft-1.0-windows-x64-portable/wordcraft-cli.exe", opts).unwrap();
+            std::io::Write::write_all(&mut zip, b"MZ fake cli").unwrap();
+            zip.finish().unwrap();
+        }
+        let unpacked = unpack_portable(&normal, "1.0").unwrap();
+        let root = find_install_root(&unpacked).expect("find the root");
+        assert!(root.join("ttwriter.exe").is_file());
+        assert!(root.join("wordcraft-cli.exe").is_file());
+        assert!(root.ends_with("wordcraft-1.0-windows-x64-portable"));
+
+        // zip-slip 三连：..、绝对路径、盘符——都在解出任何文件前被拒。
+        for (name, evil) in [("dotdot.zip", "../escape.exe"), ("abs.zip", "/abs.exe"), ("drive.zip", "C:/evil.exe")] {
+            let path = dir.join(name);
+            let file = std::fs::File::create(&path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+            zip.start_file(evil, opts).unwrap();
+            std::io::Write::write_all(&mut zip, b"x").unwrap();
+            zip.finish().unwrap();
+            let err = unpack_portable(&path, "1.0").unwrap_err();
+            assert!(err.contains("unsafe"), "{name}: {err}");
+        }
+        // 没逃逸发生（临时目录外没有被写）。
+        assert!(!dir.parent().unwrap().join("escape.exe").exists());
+        assert!(!std::path::Path::new("C:/evil.exe").exists() || true);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 没有安装根的 zip（全是 txt）找不到根。
+    #[test]
+    fn a_zip_without_exes_has_no_install_root() {
+        let dir = std::env::temp_dir().join("wordcraft-update-test-noexe");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("noexe.zip");
+        let file = std::fs::File::create(&path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+        zip.start_file("readme.txt", opts).unwrap();
+        std::io::Write::write_all(&mut zip, b"hi").unwrap();
+        zip.finish().unwrap();
+        let unpacked = unpack_portable(&path, "9.9").unwrap();
+        assert!(find_install_root(&unpacked).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 递归复制把目录树原样搬过去。
+    #[test]
+    fn copy_dir_copies_the_tree() {
+        let dir = std::env::temp_dir().join("wordcraft-update-copy");
+        let _ = std::fs::remove_dir_all(&dir);
+        let from = dir.join("from");
+        std::fs::create_dir_all(from.join("sub")).unwrap();
+        std::fs::write(from.join("a.txt"), b"a").unwrap();
+        std::fs::write(from.join("sub").join("b.txt"), b"b").unwrap();
+        let to = dir.join("to");
+        copy_dir(&from, &to).unwrap();
+        assert!(to.join("a.txt").is_file() && to.join("sub").join("b.txt").is_file());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -63,10 +63,12 @@ USAGE:
                                               running): addEditCitation, addEditBibliography,
                                               addNote, refresh, removeCodes, setDocPrefs
                                               (--cmd runs first, e.g. --cmd caret.docEnd)
-  wordcraft-cli update [--check|--force] [--download <dir>] [--json]
+  wordcraft-cli update [--check|--force] [--download <dir>] [--install] [--json]
                                               check for a newer release (AtomGit first, GitHub as
                                               fallback; cached for 24 hours, --force re-checks),
-                                              and with --download fetch the installer into a folder
+                                              --download fetches the installer into a folder,
+                                              --install also installs it (msi silently; the
+                                              portable zip is unpacked and swapped in)
   wordcraft-cli [<command>] -h | --help       this help
   wordcraft-cli --version
 
