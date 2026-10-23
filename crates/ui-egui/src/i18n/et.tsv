@@ -92,8 +92,11 @@
 	Bold	Paks
 	Bookmark	Järjehoidja
 	Bookmark name:	Järjehoidja nimi:
+	Continue from previous section	Jätka eelmisest jaotisest
 	Delete Bookmark	Kustuta järjehoidja
 	Hidden bookmarks	Peidetud järjehoidjad
+	Page Number Format	Leheküljenumbri vorming
+	Page numbering	Lehekülgede nummerdamine
 	Sort by:	Sordi:
 	Book Title	Raamatu pealkiri
 	Border Painter	Äärisepintsel
@@ -250,6 +253,8 @@
 	Edit\nRecipient List	Muuda\nadressaatide loendit
 	Edited	Muudetud
 	Editing	Redigeerimine
+	Editing endnote	Lõpumärkuse redigeerimine
+	Editing footnote	Allmärkuse redigeerimine
 	Editing header/footer	Päise või jaluse redigeerimine
 	Editing — edit the document directly	Redigeerimine — muuda dokumenti otse
 	Editor	Toimetaja
@@ -289,6 +294,9 @@
 	First line:	Esimene rida:
 	Fixed Column Width	Fikseeritud veerulaius
 	Focus	Keskendu
+	Full Screen View	Täisekraanvaade
+	Show the ribbon	Kuva menüülint
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	Vanad menüüklahvid: Alt, {keys}. Jätkake tippimist või tühistage Esc-klahviga.
 	Font	Font
 	Font Color	Fondi värv
 	Font Dialog	Fondi dialoog
@@ -1250,6 +1258,9 @@
 	{cols}×{rows} Table	Tabel {cols}×{rows}
 	AaBbYyZz	AaBbYyZz ÕõÄäÖöÜü
 	pt	pt
+	cm	cm
+	mm	mm
+	pi	pi
 	Document1	Dokument1
 	Username	Kasutajanimi
 	Display name	Kuvatav nimi
@@ -1764,6 +1775,12 @@
 	Reading Text Size	Lugemisteksti suurus
 	Do Not Check Spelling or Grammar	Ära kontrolli õigekirja ega grammatikat
 	English (United Kingdom)	Inglise (Ühendkuningriik)
+	English (Australia)	Inglise (Austraalia)
+	English (Canada)	Inglise (Kanada)
+	English (India)	Inglise (India)
+	English (Ireland)	Inglise (Iirimaa)
+	English (New Zealand)	Inglise (Uus-Meremaa)
+	English (South Africa)	Inglise (Lõuna-Aafrika)
 	Polish	Poola
 	Chinese	Chinese
 
@@ -2263,6 +2280,7 @@
 	Submitting print job…	Prinditöö saatmine…
 	Print job submitted.	Prinditöö saadetud.
 	Print job submitted: {receipt}	Prinditöö saadetud: {receipt}
+	Print job submitted: spooled {count} sheet(s)	Printimistöö saadetud: prindijärjekorda lisati lehti: {count}
 	Print failed: the printing worker stopped.	Printimine nurjus: printimisprotsess peatus.
 	Print settings	Printimisseaded
 	Submit print job	Saada prinditöö
@@ -2296,6 +2314,9 @@
 # Reading Mode column widths (#1040)
 	Narrow	Kitsas
 	Medium	Keskmine
+	Dot-dot-dash	Punkt-punkt-kriipsjoon
+	More Underlines…	Rohkem allajooni…
+	Underline Color	Allajoone värv
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	Ühenda lahtrid enne tükeldamist
 	Table size	Tabeli suurus
@@ -2343,3 +2364,61 @@
 	ID Photo	ID Photo
 	Slim Document	Slim Document
 	Export as Long Image	Export as Long Image
+
+# Personal templates (#2852)
+	Personal	Isiklik
+	Personal Templates	Isiklikud mallid
+	Templates you save in your templates folder show up here.	Siin kuvatakse mallid, mille salvestate oma mallide kausta.
+	Save as Word Template…	Salvesta Wordi mallina…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	Salvestab .dotx-malli teie mallide kausta. See kuvatakse jaotises Fail › Uus all Isiklik.
+	File locations	Failide asukohad
+	User templates:	Kasutaja mallid:
+	Not set	Määramata
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	Fail › Uus loetleb siinsed .dotx- ja .dotm-mallid jaotises Isiklik; Salvesta Wordi mallina alustab siit.
+	Format Shape Pane	Kujundi vormindamise paan
+	Format Shape	Kujundi vormindamine
+	Format Shape…	Vorminda kujund…
+	No fill	Täiteta
+	Solid fill	Ühtlane täide
+	Gradient fill	Üleminekutäide
+	Preset gradients	Valmisüleminekud
+	Radial	Radiaalne
+	Rectangular	Ristkülikukujuline
+	Path	Rada
+	Direction	Suund
+	Angle	Nurk
+	Gradient stops	Ülemineku punktid
+	Add gradient stop	Lisa ülemineku punkt
+	Remove gradient stop	Eemalda ülemineku punkt
+	Rotate with shape	Pööra koos kujundiga
+	Gradient	Üleminek
+	No Gradient	Üleminekuta
+	Light Variations	Heledad variandid
+	Dark Variations	Tumedad variandid
+	More Gradients…	Veel üleminekuid…
+	Select a shape, text box or drawing canvas to format its fill.	Valige kujund, tekstiväli või joonistuslõuend, et selle täidet vormindada.
+	Linear Right	Lineaarne paremale
+	Linear Diagonal - Top Left to Bottom Right	Lineaarne diagonaal – ülal vasakul → all paremal
+	Linear Down	Lineaarne alla
+	Linear Diagonal - Top Right to Bottom Left	Lineaarne diagonaal – ülal paremal → all vasakul
+	Linear Left	Lineaarne vasakule
+	Linear Diagonal - Bottom Right to Top Left	Lineaarne diagonaal – all paremal → ülal vasakul
+	Linear Up	Lineaarne üles
+	Linear Diagonal - Bottom Left to Top Right	Lineaarne diagonaal – all vasakul → ülal paremal
+	From Top Left Corner	Nurgast (ülal vasakul)
+	From Top Right Corner	Nurgast (ülal paremal)
+	From Bottom Left Corner	Nurgast (all vasakul)
+	From Bottom Right Corner	Nurgast (all paremal)
+	From Center	Keskelt
+	Soft	Pehme
+	Lit from Top	Ülalt valgustatud
+	Deep	Sügav
+	Lit from Bottom	Alt valgustatud
+	Center Glow	Keskne kuma
+# File › Home greeting
+	Good morning	Tere hommikust
+	Good afternoon	Tere päevast
+	Good evening	Tere õhtust
+	More tabs	Veel vahekaarte
+# #3013: Insert Table of Figures
+	Include label and number	Lisa silt ja number

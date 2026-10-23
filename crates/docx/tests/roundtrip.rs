@@ -1,6 +1,7 @@
 //! Round-trip tests: build documents programmatically → write → read → compare.
 
 use std::sync::Arc;
+use wordcraft_doc::fill::Fill;
 
 use wordcraft_doc::numbering::ListKind;
 use wordcraft_doc::para::{Anchor, Float, FloatAlign, NoteKind, ShapeKind, Wrap};
@@ -20,6 +21,21 @@ fn rt(doc: &Document) -> Document {
 
 fn paras(doc: &Document) -> Vec<&Paragraph> {
     doc.body.iter().filter_map(|b| b.as_para()).collect()
+}
+
+/// `doc` with the stacking order of its body's floating objects cleared: saving gives objects
+/// without one an order (`relativeHeight`), so tests about other properties compare without it.
+fn unstacked(mut doc: Document) -> Document {
+    for b in &mut doc.body {
+        if let Block::Para(p) = std::sync::Arc::make_mut(b) {
+            for o in &mut p.objects {
+                if let Some(f) = o.float_mut() {
+                    f.z = 0;
+                }
+            }
+        }
+    }
+    doc
 }
 
 fn part_text(doc: &Document, id: Option<u32>) -> String {
@@ -114,6 +130,7 @@ fn every_char_prop_round_trips() {
         italic_cs: Some(true),
         lang_bidi: Some("fa-IR".into()),
         lang_ea: Some("zh-CN".into()),
+        lang_ea: Some("ja-JP".into()),
         east_asian_layout: Some(wordcraft_doc::props::EastAsianLayout {
             id: Some(3),
             combine: Some(true),
@@ -458,7 +475,7 @@ fn images_round_trip() {
         p.insert_object(end, f.clone(), &CharProps::default()).unwrap();
     }
     d.body = vec![para_block(p)];
-    let r = rt(&d);
+    let r = unstacked(rt(&d));
     let got = paras(&r)[0];
     let mut expect = vec![inline];
     expect.extend(floats);
@@ -1102,7 +1119,7 @@ fn shapes_textboxes_equations_dropcaps_round_trip() {
         kind: ShapeKind::TextBox,
         w: 144.0,
         h: 72.0,
-        fill: Some(Rgb(255, 255, 200)),
+        fill: Some(Fill::solid(Rgb(255, 255, 200))),
         stroke: Some(Rgb(0, 0, 0)),
         stroke_width: 1.0,
         float: Float { wrap: Wrap::Square, h_rel: Anchor::Margin, v_rel: Anchor::Paragraph, x: 10.0, y: 20.0, dist: 0.0, ..Default::default() },
@@ -1140,8 +1157,8 @@ fn shapes_textboxes_equations_dropcaps_round_trip() {
     match &got[0].objects[0] {
         InlineObject::Shape { kind, w, h, fill, stroke, stroke_width, float, story, .. } => {
             assert_eq!(
-                (*kind, *w, *h, *fill, *stroke, *stroke_width),
-                (ShapeKind::TextBox, 144.0, 72.0, Some(Rgb(255, 255, 200)), Some(Rgb(0, 0, 0)), 1.0)
+                (*kind, *w, *h, fill.clone(), *stroke, *stroke_width),
+                (ShapeKind::TextBox, 144.0, 72.0, Some(Fill::solid(Rgb(255, 255, 200))), Some(Rgb(0, 0, 0)), 1.0)
             );
             assert_eq!(float.wrap, Wrap::Square);
             assert_eq!(part_text(&r, *story), "Inside the box");
@@ -1175,7 +1192,7 @@ fn groups_round_trip() {
         kind: ShapeKind::Ellipse,
         w: 50.0,
         h: 30.0,
-        fill: Some(Rgb(200, 0, 0)),
+        fill: Some(Fill::solid(Rgb(200, 0, 0))),
         stroke: None,
         stroke_width: 0.0,
         float: Float::default(),
@@ -1200,7 +1217,7 @@ fn groups_round_trip() {
         kind: ShapeKind::TextBox,
         w: 100.0,
         h: 40.0,
-        fill: Some(Rgb(255, 255, 255)),
+        fill: Some(Fill::solid(Rgb(255, 255, 255))),
         stroke: Some(Rgb(0, 0, 0)),
         stroke_width: 0.75,
         float: Float::default(),
@@ -1227,7 +1244,7 @@ fn groups_round_trip() {
     let end = p.len();
     p.insert_object(end, group, &CharProps::default()).unwrap();
     d.body = vec![para_block(p)];
-    let r = rt(&d);
+    let r = unstacked(rt(&d));
     let got = paras(&r);
     let InlineObject::Group { w, h, float: f, ch_w, ch_h, children, .. } = &got[0].objects[0] else { panic!("{:?}", got[0].objects) };
     assert_eq!((*w, *h, *ch_w, *ch_h), (240.0, 120.0, 200.0, 100.0));
@@ -1262,7 +1279,7 @@ fn drawing_canvas_round_trips() {
         kind: ShapeKind::Star,
         w: 72.0,
         h: 72.0,
-        fill: Some(Rgb(0xE0, 0xA0, 0x20)),
+        fill: Some(Fill::solid(Rgb(0xE0, 0xA0, 0x20))),
         stroke: Some(Rgb(0x40, 0x40, 0x40)),
         stroke_width: 1.0,
         float: Float::default(),
@@ -1271,7 +1288,11 @@ fn drawing_canvas_round_trips() {
         freeform: None,
         extra: Default::default(),
     };
-    let style = CanvasStyle { fill: Some(Rgb(0xF0, 0xF4, 0xFF)), stroke: Some(Rgb(0x20, 0x40, 0x80)), stroke_width: 1.5 };
+    let style = CanvasStyle {
+        fill: Some(Fill::Solid { color: Rgb(0xF0, 0xF4, 0xFF), transparency: 25.0 }),
+        stroke: Some(Rgb(0x20, 0x40, 0x80)),
+        stroke_width: 1.5,
+    };
     let canvas = InlineObject::Group {
         w: 432.0,
         h: 216.0,
@@ -1279,7 +1300,7 @@ fn drawing_canvas_round_trips() {
         ch_w: 432.0,
         ch_h: 216.0,
         children: vec![GroupChild { x: 12.0, y: 18.0, obj: pic }, GroupChild { x: 300.0, y: 100.0, obj: star.clone() }],
-        canvas: Some(style),
+        canvas: Some(style.clone()),
     };
     let mut p = Paragraph::with_text("drawn ", CharProps::default());
     let end = p.len();
@@ -1310,7 +1331,7 @@ fn rotated_drawing_canvas_round_trips() {
         kind: ShapeKind::Rectangle,
         w: 60.0,
         h: 40.0,
-        fill: Some(Rgb(1, 2, 3)),
+        fill: Some(Fill::solid(Rgb(1, 2, 3))),
         stroke: None,
         stroke_width: 0.0,
         float: Float { rot: 15.0, ..Default::default() },
@@ -1326,7 +1347,7 @@ fn rotated_drawing_canvas_round_trips() {
         ch_w: 200.0,
         ch_h: 100.0,
         children: vec![GroupChild { x: 10.0, y: 20.0, obj: member.clone() }],
-        canvas: Some(CanvasStyle { fill: Some(Rgb(0xF0, 0xF4, 0xFF)), stroke: None, stroke_width: 0.0 }),
+        canvas: Some(CanvasStyle { fill: Some(Fill::solid(Rgb(0xF0, 0xF4, 0xFF))), stroke: None, stroke_width: 0.0 }),
     };
     let square = Float { wrap: Wrap::Square, ..Default::default() };
     let mut p = Paragraph::with_text("c", CharProps::default());
@@ -1512,7 +1533,10 @@ fn watermark_roundtrips() {
             color: Rgb(0x80, 0x10, 0x20),
             diagonal: false,
             semitransparent: false,
+            size: None,
         },
+        // A box of its own (not Word's default for the page) is kept.
+        Watermark { text: "COPY".into(), size: Some([300.0, 80.0]), ..Default::default() },
     ] {
         let mut d = doc_with(vec![Paragraph::with_text("Body", CharProps::default())]);
         d.settings.watermark = Some(wm.clone());
@@ -1912,11 +1936,11 @@ fn list_level_overrides_round_trip() {
 #[test]
 fn ink_and_freeforms_round_trip_as_custom_geometry() {
     use wordcraft_doc::freeform::{FreePath, Freeform, InkTool};
-    let shape = |fill, stroke_width, wrap, f: Freeform| InlineObject::Shape {
+    let shape = |fill: Option<Rgb>, stroke_width, wrap, f: Freeform| InlineObject::Shape {
         kind: ShapeKind::Freeform,
         w: f.w,
         h: f.h,
-        fill,
+        fill: fill.map(Fill::solid),
         stroke: Some(Rgb(0xC0, 0, 0)),
         stroke_width,
         float: Float { wrap, h_rel: Anchor::Column, v_rel: Anchor::Paragraph, x: 30.0, y: 12.0, ..Default::default() },
@@ -1952,7 +1976,7 @@ fn ink_and_freeforms_round_trip_as_custom_geometry() {
     assert_eq!(xml.matches("<a:custGeom>").count(), 3, "{xml}");
     assert!(xml.contains(r#"<a:path w="762000" h="254000" fill="none"><a:moveTo><a:pt x="12700" y="12700"/></a:moveTo><a:lnTo>"#), "{xml}");
     assert!(xml.contains(r#"<a:alpha val="50000"/>"#) && xml.contains(r#"cap="rnd""#), "{xml}");
-    let r = rt(&d);
+    let r = unstacked(rt(&d));
     let objs = &paras(&r)[0].objects;
     assert_eq!(objs.len(), 3);
     // Written in reverse (each inserted at the start): the triangle, the highlighter, the pen.
@@ -1976,7 +2000,7 @@ fn shape_effects_round_trip() {
         kind: ShapeKind::RoundedRectangle,
         w: 100.0,
         h: 50.0,
-        fill: Some(Rgb(0x15, 0x60, 0x82)),
+        fill: Some(Fill::solid(Rgb(0x15, 0x60, 0x82))),
         stroke: None,
         stroke_width: 0.0,
         float: Float::default(),
@@ -2052,7 +2076,7 @@ fn rotation_and_flips_round_trip() {
         kind,
         w: 80.0,
         h: 40.0,
-        fill: Some(Rgb(1, 2, 3)),
+        fill: Some(Fill::solid(Rgb(1, 2, 3))),
         stroke: None,
         stroke_width: 0.0,
         float,
@@ -2109,7 +2133,7 @@ fn rotated_group_and_shadow_rotation_round_trip() {
         kind: ShapeKind::Rectangle,
         w: 60.0,
         h: 40.0,
-        fill: Some(Rgb(1, 2, 3)),
+        fill: Some(Fill::solid(Rgb(1, 2, 3))),
         stroke: None,
         stroke_width: 0.0,
         float: Float { rot: 20.0, ..Default::default() },
@@ -2307,7 +2331,7 @@ fn wrap_polygons_round_trip() {
         kind,
         w: 80.0,
         h: 40.0,
-        fill: Some(Rgb(1, 2, 3)),
+        fill: Some(Fill::solid(Rgb(1, 2, 3))),
         stroke: None,
         stroke_width: 0.0,
         float,
@@ -2333,7 +2357,7 @@ fn wrap_polygons_round_trip() {
     std::io::Read::read_to_string(&mut zip.by_name("word/document.xml").unwrap(), &mut xml).unwrap();
     assert!(xml.contains(r#"<wp:wrapPolygon edited="1"><wp:start x="-300" y="0"/><wp:lineTo x="21600" y="1200"/>"#), "{xml}");
     assert!(xml.contains(r#"<wp:lineTo x="-300" y="0"/></wp:wrapPolygon>"#), "closed: {xml}");
-    let r = wordcraft_docx::read(&bytes).expect("read");
+    let r = unstacked(wordcraft_docx::read(&bytes).expect("read"));
     let got = paras(&r)[0];
     let floats: Vec<Float> = got.objects.iter().filter_map(|o| o.frame().map(|(_, _, f)| f.clone())).collect();
     assert_eq!(floats[0], edited);
@@ -2431,7 +2455,7 @@ fn wrap_text_sides_round_trip() {
         kind: ShapeKind::Rectangle,
         w: 80.0,
         h: 40.0,
-        fill: Some(Rgb(1, 2, 3)),
+        fill: Some(Fill::solid(Rgb(1, 2, 3))),
         stroke: None,
         stroke_width: 0.0,
         float,
@@ -2485,7 +2509,7 @@ fn alt_text_title_and_decorative_round_trip_for_every_object() {
         kind: ShapeKind::Ellipse,
         w: 80.0,
         h: 40.0,
-        fill: Some(Rgb(1, 2, 3)),
+        fill: Some(Fill::solid(Rgb(1, 2, 3))),
         stroke: None,
         stroke_width: 0.0,
         float: Float { alt, ..Default::default() },

@@ -46,8 +46,16 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(path) = &s.path {
         let mut destination = path.with_file_name(name);
         // The field edits the stem; retain the original format, including macro/template files.
+        // A name that already ends in that extension is taken as the whole file name, since a
+        // script or an agent passes one ("renamed.docx" became "renamed.docx.docx", #2983). The
+        // extension alone (".docx") is a stem, not a file name, so it still gets one.
         if let Some(ext) = path.extension() {
-            destination.set_file_name(format!("{name}.{}", ext.to_string_lossy()));
+            let ext = ext.to_string_lossy();
+            // Split at the name's own last dot rather than counting bytes back from its end: a
+            // name whose characters are more than one byte each ("résumé.docm") would be cut
+            // inside one of them, and slicing there panics (#3128 review).
+            let given = name.rsplit_once('.').is_some_and(|(stem, suffix)| !stem.is_empty() && suffix.eq_ignore_ascii_case(ext.as_ref()));
+            destination.set_file_name(if given { name.to_string() } else { format!("{name}.{ext}") });
         }
         if destination != *path {
             #[cfg(not(target_arch = "wasm32"))]
@@ -55,16 +63,18 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
                 crate::io::rename_file(path, &destination).map_err(CmdError::Failed)?;
             }
             s.path = Some(destination);
+            s.relayout();
         }
     } else {
         s.file_name = Some(name.to_string());
+        s.relayout();
     }
     Ok(json!({"name": name, "path": s.path}))
 }
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec::new("file.rename", "Rename Document", "File › Info", rename).params(r#"{"name": string (document name without its extension)}"#).pure(),
+        CommandSpec::new("file.rename", "Rename Document", "File › Info", rename).params(r#"{"name": string (document name; its extension is kept, so the name may be given with or without it)}"#).pure(),
         CommandSpec::new("file.new", "New", "File", new).key("Mod+N").params(r#"{"template"?: "blank|sample|letter|resume|report"}"#).pure(),
         CommandSpec::new("file.open", "Open", "File", open)
             .key("Mod+O / Mod+F12 / Mod+Alt+F2")
@@ -189,6 +199,7 @@ fn privacy(s: &Session) -> Value {
     json!({"removePersonalInfo": s.doc.settings.remove_personal_info, "removeDateTime": s.doc.settings.remove_date_time})
 }
 
+/// Create a blank document in the saved proofing language, or use the requested template.
 fn new(s: &mut Session, v: &Value) -> CmdResult {
     let doc = match p::str(v, "template").unwrap_or("blank") {
         "sample" => crate::sample::sample_document(),
@@ -207,7 +218,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 /// preset: SimSun body / SimHei headings, a 2-character first-line indent and 1.5× line spacing.
 fn normal_document(s: &Session) -> Document {
     let mut d = s.blank_document();
-    if let Some(lang) = &s.editing_lang {
+    if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref()) {
         d.styles.default_chr.lang = Some(lang.clone());
         if lang.starts_with("zh") {
             apply_chinese_preset(&mut d);
@@ -227,6 +238,7 @@ fn apply_chinese_preset(d: &mut Document) {
     d.settings.major_font = "SimHei".into();
 }
 
+/// Open a document, using the saved proofing default only for plain text and Markdown.
 fn open(s: &mut Session, v: &Value) -> CmdResult {
     let Some(path) = p::str(v, "path") else {
         s.ui_requests.push(json!({"open": "openFile"}));
@@ -249,7 +261,7 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     };
     // Plain text and Markdown carry no language: they are in the editing language.
     let ext = std::path::Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    if let Some(lang) = &s.editing_lang
+    if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref())
         && matches!(ext.as_str(), "txt" | "text" | "md" | "markdown")
     {
         doc.styles.default_chr.lang = Some(lang.clone());
@@ -319,15 +331,27 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
             return Err(CmdError::Params(format!("`format` is \"{FORMAT_WORD_2003}\" or \"{FORMAT_FLAT_OPC}\", and only for an .xml file")));
         }
     }
+    // Undone below if the write fails: a failed save (no permission, disk full, a bad path)
+    // must not leave the document's own save stamps — zoom, modified/created, author, revision —
+    // changed, or a later save would persist them for a write that never actually happened.
+    let before_stamp =
+        (s.doc.settings.zoom, s.doc.core.last_modified_by.clone(), s.doc.core.created.clone(), s.doc.core.modified.clone(), s.doc.core.revision);
     s.stamp_save();
     let password = s.password.as_ref().map(crate::io::Password::as_str);
     // A header/footer just made and left empty isn't saved (#960).
     let copy = super::insert::saved_copy(s);
-    crate::io::save_path_with(&path, copy.as_ref().unwrap_or(&s.doc), password, &opts).map_err(CmdError::Failed)?;
+    if let Err(e) = crate::io::save_path_with(&path, copy.as_ref().unwrap_or(&s.doc), password, &opts) {
+        (s.doc.settings.zoom, s.doc.core.last_modified_by, s.doc.core.created, s.doc.core.modified, s.doc.core.revision) = before_stamp;
+        return Err(CmdError::Failed(e));
+    }
     let encrypted = password.is_some() && crate::io::can_encrypt(&path.to_string_lossy());
-    if ["docx", "docm", "dotx", "dotm", "odt", "rtf", "json", "xml"].contains(&ext.as_str()) {
+    // A save in a format that doesn't keep everything (plain text, Markdown, a page image) is a
+    // copy, except over the document's own file: a note.txt opened and saved is saved (#2376).
+    let own_file = s.path.as_deref() == Some(path.as_path());
+    if own_file || ["docx", "docm", "dotx", "dotm", "odt", "rtf", "json", "xml"].contains(&ext.as_str()) {
         s.path = Some(path.clone());
         s.dirty = false;
+        s.relayout();
     }
     Ok(json!({"saved": true, "path": path.to_string_lossy(), "encrypted": encrypted}))
 }

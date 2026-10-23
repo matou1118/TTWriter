@@ -199,6 +199,30 @@ pub fn handle_table(l: &DocLayout, doc: &Document, story: StoryRef, page: usize,
         .max_by_key(|g| g.table.0.len())
 }
 
+/// The move and resize handles of table `table` of `story` on this page, as Word shows them
+/// while the caret is in the table: the move handle where it starts, the resize handle where it
+/// ends.
+pub fn caret_handles(l: &DocLayout, doc: &Document, story: StoryRef, table: &Path, page: usize) -> (Option<Rect>, Option<Rect>) {
+    let rows = doc.table(story, table).map_or(0, |t| t.rows.len());
+    let has_row = |p: usize, r: usize| {
+        l.pages.get(p).is_some_and(|pg| {
+            pg.items.iter().any(|it| matches!(it, Placed::Cell { table: t, story: st, row, .. } if *st == story && t == table && *row == r))
+        })
+    };
+    // A repeated header row, or a row running on to the next page, is drawn on more than one
+    // page: the handles go where the table starts and where it ends (its pages are consecutive).
+    let first = has_row(page, 0) && !page.checked_sub(1).is_some_and(|p| has_row(p, 0));
+    let last = rows.checked_sub(1).is_some_and(|r| has_row(page, r) && !page.checked_add(1).is_some_and(|p| has_row(p, r)));
+    if !first && !last {
+        return (None, None);
+    }
+    // The table's geometry on this page that the pointer handles are drawn and grabbed from.
+    let Some(g) = table_resize::tables_on(l, doc, page).into_iter().find(|g| g.story == story && g.table == *table) else {
+        return (None, None);
+    };
+    (first.then(|| handle(&g)), last.then(|| g.handle()))
+}
+
 /// The insert button a target is, if it's one.
 pub fn insert_mark(t: &Target) -> Option<InsertMark> {
     let g = &t.geom;
@@ -374,7 +398,7 @@ fn select_at(s: &mut Session, v: &Value) -> CmdResult {
 /// before it) or, at the table's right edge, a row's last cell (after it). (row, cell, after)
 fn beside_line(t: &Table, line: usize) -> Option<(usize, usize, bool)> {
     t.rows.iter().enumerate().find_map(|(r, row)| {
-        let mut g = 0usize;
+        let mut g = row.first_grid();
         for (c, cell) in row.cells.iter().enumerate() {
             if g == line {
                 return Some((r, c, false));
@@ -425,7 +449,7 @@ fn insert_at(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Where table `table` of `story` is first drawn: its page and top-left corner.
-fn corner(l: &DocLayout, story: StoryRef, table: &Path) -> Option<(usize, f32, f32)> {
+pub fn corner(l: &DocLayout, story: StoryRef, table: &Path) -> Option<(usize, f32, f32)> {
     l.pages.iter().enumerate().find_map(|(pi, pg)| {
         let cells = pg.items.iter().filter_map(|it| match it {
             Placed::Cell { rect, table: t, story: st, .. } if *st == story && t == table => Some(*rect),
@@ -1026,5 +1050,36 @@ mod tests {
         assert!(f.x.is_finite() && f.y.is_finite());
         let moved = cell_rect(&mut s, 0, 0);
         assert!(moved.x >= -0.5 && moved.right() <= 612.5 && moved.y >= -0.5, "{moved:?}");
+    }
+
+    /// #2038: a table dragged to the right floats and the empty paragraph after it moves up beside
+    /// it. As in Word, a click anywhere below the table then goes to that paragraph, not to a cell of the last row; a click in a cell still lands there.
+    #[test]
+    fn a_click_below_a_floating_table_goes_to_the_text_not_its_cells() {
+        let mut s = table_session(3, 3);
+        let h = handle(&table_resize::tables_on(&s.layout(), &s.doc, 0)[0]);
+        let (hx, hy) = (h.x + h.w / 2.0, h.y + h.h / 2.0);
+        s.run("table.moveDrag", &json!({"page": 0, "x": hx, "y": hy, "toX": hx + 60.0, "toY": hy + 10.0})).unwrap();
+        assert!(first_table(&s).props.float.is_some());
+        let after = Path(vec![table_path(&s).0[0] + 1]);
+        assert!(s.doc.block(StoryRef::Body, &after).is_some_and(|b| b.as_table().is_none()), "a paragraph follows the table");
+        let (first, last) = (cell_rect(&mut s, 0, 0), cell_rect(&mut s, 2, 2));
+        let (mid, bottom, margin) = ((first.x + last.right()) / 2.0, last.bottom(), s.layout().pages[0].body.x + 5.0);
+        let at = |s: &mut Session, x: f32, y: f32| {
+            s.run("caret.set", &json!({"page": 0, "x": x, "y": y})).unwrap();
+            s.sel.focus.path.clone()
+        };
+        for (name, x, y) in [
+            ("just below the middle", mid, bottom + 12.0),
+            ("far below the middle", mid, bottom + 200.0),
+            ("below, at the margin", margin, bottom + 12.0),
+        ] {
+            assert_eq!(at(&mut s, x, y), after, "a click {name}");
+        }
+        let b2 = cell_rect(&mut s, 1, 1);
+        assert_eq!(at(&mut s, b2.x + b2.w / 2.0, mid_y(b2)), cell_pos(&s, 1, 1).path, "in B2");
+        assert_eq!(at(&mut s, last.x + last.w / 2.0, last.bottom() - 1.0), cell_pos(&s, 2, 2).path, "low in C3");
+        s.run("caret.docEnd", &json!({})).unwrap();
+        assert_eq!(s.sel.focus.path, after, "Ctrl+End");
     }
 }

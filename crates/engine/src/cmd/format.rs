@@ -102,6 +102,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("format.growFont1", "Grow Font 1 Point", "Home › Font", |s, _| nudge_size(s, 1.0)).key("Mod+]"),
         CommandSpec::new("format.shrinkFont1", "Shrink Font 1 Point", "Home › Font", |s, _| nudge_size(s, -1.0)).key("Mod+["),
         CommandSpec::new("format.color", "Font Color", "Home › Font", color).params(r#"{"color": "RRGGBB" | "auto"}"#),
+        CommandSpec::new("format.underlineColor", "Underline Color", "Home › Font › Underline", underline_color)
+            .params(r#"{"color": "RRGGBB" | "auto"} (the underline's own colour; "auto" follows the text colour)"#),
         CommandSpec::new("format.highlight", "Text Highlight Color", "Home › Font", highlight)
             .params(
                 r#"{"color": "yellow|brightGreen|turquoise|pink|blue|red|darkBlue|teal|green|violet|darkRed|darkYellow|gray50|gray25|black|none"}"#,
@@ -366,6 +368,17 @@ fn color(s: &mut Session, v: &Value) -> CmdResult {
     apply(s, &|x| x.color = Some(tc))
 }
 
+/// `format.underlineColor`: the underline's own colour (`w:u w:color`), or `auto` to drop it so the
+/// underline follows the text colour again. The underline style is left as it is.
+fn underline_color(s: &mut Session, v: &Value) -> CmdResult {
+    let c = p::req_str(v, "color")?;
+    let rgb = match TextColor::parse(c).ok_or_else(|| CmdError::Params("color must be RRGGBB or auto".into()))? {
+        TextColor::Auto => None,
+        TextColor::Rgb(rgb) => Some(rgb),
+    };
+    apply(s, &|x| x.underline_color = rgb)
+}
+
 fn highlight(s: &mut Session, v: &Value) -> CmdResult {
     let c = p::str(v, "color").unwrap_or("yellow");
     let h = Highlight::ALL
@@ -603,7 +616,10 @@ fn convert_chars(src: &str, mode: &str, para_start: bool) -> Vec<String> {
                 } else {
                     lower(i, c)
                 };
-                if matches!(c, '.' | '!' | '?') {
+                let is_decimal = c == '.'
+                    && i.checked_sub(1).and_then(|j| chars.get(j)).is_some_and(|p| p.is_ascii_digit())
+                    && chars.get(i + 1).is_some_and(|n| n.is_ascii_digit());
+                if matches!(c, '!' | '?') || (c == '.' && !is_decimal) {
                     up = true;
                 }
                 n
@@ -677,6 +693,7 @@ pub fn state(s: &Session) -> Value {
         "bold": all.iter().all(|r| r.bold),
         "italic": all.iter().all(|r| r.italic),
         "underline": all.iter().all(|r| r.underline != Underline::None),
+        "underlineColor": same(&|r| json!(r.underline_color.map_or_else(|| "auto".to_string(), |c| c.hex()))),
         "strike": all.iter().all(|r| r.strike),
         "border": all.iter().all(|r| r.border.is_some()),
         "subscript": all.iter().all(|r| r.vert_align == VertAlign::Subscript),
@@ -709,6 +726,13 @@ mod tests {
         assert_eq!(convert("straße", "upper", true), "STRASSE");
         assert_eq!(convert("hello world", "title", false), "Hello World");
         assert_eq!(convert("ΣΟΦΟΣ ΟΔΟΣ", "lower", true), "σοφος οδος");
+    }
+
+    #[test]
+    fn sentence_case_ignores_decimal_points() {
+        // #3485: A period between two digits is a decimal point, not a sentence boundary.
+        assert_eq!(convert("one 3.14 apples and two 2.5 pears.", "sentence", true), "One 3.14 apples and two 2.5 pears.");
+        assert_eq!(convert("pi is 3.14. next sentence.", "sentence", true), "Pi is 3.14. Next sentence.");
     }
 }
 

@@ -724,13 +724,21 @@ fn call(name: &str, args: &[Expr], here: &Here) -> Result<f64, CmdError> {
         }
         "ABS" => Ok(one(name, args, here)?.abs()),
         "INT" => Ok(one(name, args, here)?.floor()),
-        "SIGN" => Ok(one(name, args, here)?.signum()),
+        "SIGN" => {
+            let x = one(name, args, here)?;
+            Ok(if x == 0.0 { 0.0 } else { x.signum() })
+        }
         "ROUND" => match args {
             [a, b] => {
                 let x = scalar(eval(a, here)?)?;
                 let digits = scalar(eval(b, here)?)?.clamp(-15.0, 15.0).trunc();
                 let scale = 10f64.powi(digits as i32);
-                finite((x * scale).round() / scale)
+                let scaled = x * scale;
+                if !scaled.is_finite() {
+                    // Too large to have a fractional part at this precision.
+                    return finite(x);
+                }
+                finite(scaled.round() / scale)
             }
             _ => Err(CmdError::Failed("ROUND takes two arguments".into())),
         },
@@ -770,6 +778,16 @@ mod tests {
     }
 
     #[test]
+    fn sign_of_zero_is_zero() {
+        let t = table(&[&["0", "5", "-5"]]);
+        assert_eq!(ev(&t, 0, 0, "=SIGN(0)"), Ok(0.0));
+        assert_eq!(ev(&t, 0, 0, "=SIGN(-0)"), Ok(0.0));
+        assert_eq!(ev(&t, 0, 1, "=SIGN(A1)"), Ok(0.0), "a cell holding 0");
+        assert_eq!(ev(&t, 0, 0, "=SIGN(5)"), Ok(1.0));
+        assert_eq!(ev(&t, 0, 0, "=SIGN(-5)"), Ok(-1.0));
+    }
+
+    #[test]
     fn cell_references_count_from_one_and_from_a() {
         assert_eq!(cell_ref("A1"), Some((0, 0)));
         assert_eq!(cell_ref("B4"), Some((3, 1)));
@@ -805,6 +823,14 @@ mod tests {
         let t = table(&[&["1"], &["4"], &["7"], &[""]]);
         let err = ev(&t, 3, 0, "=MEDIAN(ABOVE)").err().map(|e| e.to_string()).unwrap_or_default();
         assert!(err.contains("MEDIAN"), "{err}");
+    }
+
+    #[test]
+    fn round_large_values_return_input() {
+        let t = table(&[&["1", "2"], &["3", "4"], &["", ""]]);
+        let big = format!("1{}", "0".repeat(300));
+        assert_eq!(ev(&t, 2, 0, &format!("=ROUND({big},15)")), Ok(1e300));
+        assert_eq!(ev(&t, 2, 0, &format!("=ROUND({big},2)")), Ok(1e300));
     }
 
     #[test]

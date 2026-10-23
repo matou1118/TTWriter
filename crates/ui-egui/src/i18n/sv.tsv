@@ -85,6 +85,7 @@
 	Check spelling as you type	Kontrollera stavningen medan du skriver
 	Click to switch back to inserting	Klicka för att växla tillbaka till infogning
 	Color only	Bara färg
+	Continue from previous section	Fortsätt från föregående avsnitt
 	Custom dictionary	Egen ordlista
 	Define New Multilevel List	Definiera ny lista med flera nivåer
 	Define New Multilevel List…	Definiera ny lista med flera nivåer…
@@ -123,10 +124,13 @@
 	Number alignment:	Justering av nummer:
 	Number format	Nummerformat
 	Number style for this level:	Numreringsstil för den här nivån:
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	Gamla menytangenter: Alt, {keys}. Fortsätt skriva eller tryck på Esc för att avbryta.
 	Outside border	Yttre kantlinje
 	Overtype	Överskrivning
 	Overtype (typing replaces the characters after the caret)	Överskrivning (det du skriver ersätter tecknen efter markören)
+	Page Number Format	Format för sidnummer
 	Page display	Sidvisning
+	Page numbering	Sidnumrering
 	Paragraph marks	Stycketecken
 	Personalize	Personligt
 	Picas	Pica
@@ -367,6 +371,8 @@
 	Edit\nRecipient List	Redigera\nmottagarlista
 	Edited	Ändrat
 	Editing	Redigering
+	Editing endnote	Redigerar slutnot
+	Editing footnote	Redigerar fotnot
 	Editing header/footer	Redigerar sidhuvud/sidfot
 	Editing — edit the document directly	Redigering – redigera dokumentet direkt
 	Editor	Språkkontroll
@@ -406,6 +412,8 @@
 	First line:	Första raden:
 	Fixed Column Width	Fast kolumnbredd
 	Focus	Fokus
+	Full Screen View	Helskärmsvisning
+	Show the ribbon	Visa menyfliksområdet
 	Font	Typsnitt
 	Font Color	Teckenfärg
 	Font Dialog	Dialogrutan Typsnitt
@@ -1403,6 +1411,9 @@
 	{cols}×{rows} Table	Tabell {cols}×{rows}
 	AaBbYyZz	AaBbÅåÖö
 	pt	pt
+	cm	cm
+	mm	mm
+	pi	pi
 	Document1	Dokument1
 	Username	Användarnamn
 	Display name	Visningsnamn
@@ -1770,6 +1781,12 @@
 	Reading Line Spacing	Radavstånd vid läsning
 	Reading Text Size	Textstorlek vid läsning
 	English (United Kingdom)	Engelska (Storbritannien)
+	English (Australia)	Engelska (Australien)
+	English (Canada)	Engelska (Kanada)
+	English (India)	Engelska (Indien)
+	English (Ireland)	Engelska (Irland)
+	English (New Zealand)	Engelska (Nya Zeeland)
+	English (South Africa)	Engelska (Sydafrika)
 	Polish	Polska
 	Chinese	Chinese
 	Do Not Check Spelling or Grammar	Kontrollera inte stavning eller grammatik
@@ -2530,6 +2547,7 @@ preview	Title	Titel
 	Submitting print job…	Skickar utskriften…
 	Print job submitted.	Utskriften har skickats.
 	Print job submitted: {receipt}	Utskriften har skickats: {receipt}
+	Print job submitted: spooled {count} sheet(s)	Utskriftsjobbet skickades: {count} ark lades i utskriftskön
 	Print failed: the printing worker stopped.	Utskriften misslyckades: utskriftsprocessen avbröts.
 	Wait for the print job to finish submitting before closing.	Vänta tills utskriften har skickats innan du stänger.
 	Find “{text}” in the document	Sök efter ”{text}” i dokumentet
@@ -2663,6 +2681,9 @@ preview	Title	Titel
 	Bottom Right Cell	Nedre högra cellen
 	Inside Horizontal Border	Inre vågrät kantlinje
 	Inside Vertical Border	Inre lodrät kantlinje
+	Dot-dot-dash	Punkt-punkt-streck
+	More Underlines…	Fler understrykningar…
+	Underline Color	Understrykningsfärg
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	Sammanfoga celler före delning
 	Table size	Tabellstorlek
@@ -2723,3 +2744,70 @@ preview	Title	Titel
 	ID Photo	ID Photo
 	Slim Document	Slim Document
 	Export as Long Image	Export as Long Image
+
+# Personal templates (#2852)
+	Personal	Personliga
+	Personal Templates	Personliga mallar
+	Templates you save in your templates folder show up here.	Mallar som du sparar i din mallmapp visas här.
+	Save as Word Template…	Spara som Word-mall…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	Sparar en .dotx-mall i din mallmapp. Den visas i Arkiv › Ny under Personliga.
+	File locations	Filplatser
+	User templates:	Användarmallar:
+	Not set	Inte angivet
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	Arkiv › Ny visar .dotx- och .dotm-mallarna härifrån under Personliga; Spara som Word-mall börjar här.
+	Format Shape Pane	Fönstret Formatera form
+	Format Shape	Formatera form
+	Format Shape…	Formatera form…
+	No fill	Ingen fyllning
+	Solid fill	Heldragen fyllning
+	Gradient fill	Toningsfyllning
+	Preset gradients	Förinställda toningar
+	Radial	Radiell
+	Rectangular	Rektangulär
+	Path	Bana
+	Direction	Riktning
+	Angle	Vinkel
+	Gradient stops	Toningsstopp
+	Add gradient stop	Lägg till toningsstopp
+	Remove gradient stop	Ta bort toningsstopp
+	Rotate with shape	Rotera med form
+	Gradient	Toning
+	No Gradient	Ingen toning
+	Light Variations	Ljusa varianter
+	Dark Variations	Mörka varianter
+	More Gradients…	Fler toningar…
+	Select a shape, text box or drawing canvas to format its fill.	Markera en form, en textruta eller en ritarea för att formatera fyllningen.
+	Linear Right	Linjär åt höger
+	Linear Diagonal - Top Left to Bottom Right	Linjär diagonal – uppifrån vänster till nedtill höger
+	Linear Down	Linjär nedåt
+	Linear Diagonal - Top Right to Bottom Left	Linjär diagonal – uppifrån höger till nedtill vänster
+	Linear Left	Linjär åt vänster
+	Linear Diagonal - Bottom Right to Top Left	Linjär diagonal – nedtill höger till uppifrån vänster
+	Linear Up	Linjär uppåt
+	Linear Diagonal - Bottom Left to Top Right	Linjär diagonal – nedtill vänster till uppifrån höger
+	From Top Left Corner	Från övre vänstra hörnet
+	From Top Right Corner	Från övre högra hörnet
+	From Bottom Left Corner	Från nedre vänstra hörnet
+	From Bottom Right Corner	Från nedre högra hörnet
+	From Center	Från mitten
+	Soft	Mjuk
+	Lit from Top	Belyst uppifrån
+	Deep	Djup
+	Lit from Bottom	Belyst nedifrån
+	Center Glow	Glöd i mitten
+template	Letter	Brev
+	Style: APA	Stil: APA
+	➕ New comment	➕ Ny kommentar
+	📂  Browse…	📂  Bläddra…
+	B4 (JIS)   10.12" × 14.33"	B4 (JIS)   10,12" × 14,33"
+	B5 (JIS)   7.17" × 10.12"	B5 (JIS)   7,17" × 10,12"
+	Envelope #10   4.12" × 9.50"	Kuvert #10   4,12" × 9,50"
+	Envelope DL   4.33" × 8.66"	Kuvert DL   4,33" × 8,66"
+	Executive   7.25" × 10.50"	Executive   7,25" × 10,50"
+	Legal   8.50" × 14.00"	Legal   8,50" × 14,00"
+	Letter   8.50" × 11.00"	Letter   8,50" × 11,00"
+	Statement   5.50" × 8.50"	Statement   5,50" × 8,50"
+	Tabloid   11.00" × 17.00"	Tabloid   11,00" × 17,00"
+	More tabs	Fler flikar
+# #3013: Insert Table of Figures
+	Include label and number	Ta med etikett och nummer

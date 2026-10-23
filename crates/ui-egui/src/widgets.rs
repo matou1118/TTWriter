@@ -136,7 +136,7 @@ fn tooltip(app: &WordApp, resp: Response, label: &str, id: &str) -> Response {
     } else if !app.has_document() && !crate::works_without_document(id) {
         Some(tl!("Open a document first"))
     } else {
-        Some(spec.and_then(|s| (s.enabled)(&app.session)).unwrap_or(""))
+        Some(app.session.why_disabled(id).unwrap_or(""))
     };
     let (title, notes) = tooltip_lines(label, &shortcut_text(app, id), &desc, reason);
     show_hint(&resp, &title, &notes);
@@ -178,7 +178,7 @@ pub fn enabled(app: &WordApp, id: &str) -> bool {
         return false;
     }
     match app.session.registry.get(id) {
-        Some(s) => (s.enabled)(&app.session).is_none(),
+        Some(_) => app.session.why_disabled(id).is_none(),
         // Zotero: one command at a time, and only in the desktop app.
         None if id.starts_with("ui.zotero.") => app.zotero.busy.is_none() && !cfg!(target_arch = "wasm32"),
         None if id == "ui.linkTextBox" => enabled(app, "shape.link"),
@@ -331,6 +331,9 @@ pub fn split(
     let (arrow_title, _) = tooltip_lines(&crate::i18n::fmt(tl!("{name} options"), &[("name", tip)]), "", "", None);
     show_hint(&aresp, &arrow_title, &[]);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, tip));
+    // The arrow opens the choices beside the button: it says whose, so it is not just "button"
+    // (#3172).
+    aresp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, &arrow_title));
     if !on {
         return;
     }
@@ -393,7 +396,7 @@ pub fn menu_button(
         icons::paint(ui.painter(), Rect::from_center_size(pos2(r.max.x - 6.0, r.center().y), vec2(DROPDOWN, DROPDOWN)), "dropdown", c, c);
         resp
     };
-    let reason = if on { None } else { Some(app.session.registry.get(id).and_then(|s| (s.enabled)(&app.session)).unwrap_or("")) };
+    let reason = if on { None } else { Some(app.session.why_disabled(id).unwrap_or("")) };
     let (title, notes) = tooltip_lines(tip, &shortcut_text(app, id), "", reason);
     show_hint(&resp, &title, &notes);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, on, tip));
@@ -869,6 +872,11 @@ fn combo_impl(
         // The arrow's box is painted here, under the field, once its size is known.
         let arrow_bg = ui.painter().add(egui::Shape::Noop);
         let resp = ui.add(te);
+        // The field says what it is: without a name a screen reader has only "edit" to say
+        // (#3172). The arrow says whose options it opens, as the split buttons' arrow does.
+        if !tip.is_empty() {
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::TextEdit, ui.is_enabled(), tip));
+        }
         keytip_badge(ui, resp.rect, "combo", id);
         focused = resp.has_focus();
         let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -921,6 +929,10 @@ fn combo_impl(
             out = Some(text.clone());
         }
         let (ar, aresp) = ui.allocate_exact_size(vec2(16.0, resp.rect.height()), Sense::click());
+        if !tip.is_empty() {
+            let arrow_name = crate::i18n::fmt(tl!("{name} options"), &[("name", tip)]);
+            aresp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), &arrow_name));
+        }
         // It reaches one border width under the field, so the field's right border is the only line
         // between them: two borders side by side read as a double-width divider.
         let ar_radius = CornerRadius { nw: 0, sw: 0, ne: r.ne, se: r.se };

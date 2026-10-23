@@ -207,6 +207,23 @@ fn always_allowed(id: &str) -> bool {
     id == "review.restrict" || id.starts_with("file.") || id == "edit.undo" || id == "edit.redo"
 }
 
+/// Why protection refuses command `id` whatever its params and the selection, so the ribbon greys
+/// it out ([`Session::why_disabled`]); cheap enough to ask for every button on every frame.
+/// Observed in Word for Mac: with Filling in forms enforced, the Developer tab's control buttons
+/// and Properties are greyed out and a field's shortcut menu offers no Remove Content Control.
+/// The form's fields stay as they are; only their content is filled in.
+pub(crate) fn greyed_out(s: &Session, id: &str) -> Option<&'static str> {
+    if s.doc.settings.protection.as_deref() != Some("forms") {
+        return None;
+    }
+    match id {
+        "developer.removeControl" => Some("stop protection before removing a content control"),
+        "developer.properties" => Some("stop protection before changing a content control's properties"),
+        _ if CONTROL_INSERTS.contains(&id) => Some("stop protection before inserting a content control"),
+        _ => None,
+    }
+}
+
 /// What a protected document lets command `id` do before it runs: `Err` refuses it; `Ok(true)`
 /// lets it run as long as it only changes the exceptions (checked afterwards with
 /// [`outside_unchanged`]).
@@ -223,19 +240,8 @@ pub(crate) fn check_before(s: &Session, id: &str, params: &Value) -> Result<bool
     if id == "developer.properties" && (params.get("lockEdit").is_some() || params.get("lockDelete").is_some()) {
         return Err(CmdError::Disabled(format!("{id}: stop protection before changing a content control's locks")));
     }
-    // Observed in Word for Mac: with Filling in forms enforced, the Developer tab's control
-    // buttons and Properties are greyed out and a field's shortcut menu offers no Remove Content
-    // Control. The form's fields stay as they are; only their content is filled in.
-    if mode == "forms" {
-        if id == "developer.removeControl" {
-            return Err(CmdError::Disabled(format!("{id}: stop protection before removing a content control")));
-        }
-        if id == "developer.properties" {
-            return Err(CmdError::Disabled(format!("{id}: stop protection before changing a content control's properties")));
-        }
-        if CONTROL_INSERTS.contains(&id) {
-            return Err(CmdError::Disabled(format!("{id}: stop protection before inserting a content control")));
-        }
+    if let Some(why) = greyed_out(s, id) {
+        return Err(CmdError::Disabled(format!("{id}: {why}")));
     }
     if s.doc.settings.protect_formatting {
         check_formatting(s, id, params)?;
@@ -764,6 +770,27 @@ mod tests {
         s.run("review.restrict", &json!({"stop": true})).unwrap();
         s.run("developer.removeControl", &json!({"control": "name"})).unwrap();
         assert!(s.doc.control_ranges(StoryRef::Body).is_empty());
+    }
+
+    /// The ribbon greys out what forms mode refuses outright (as Word for Mac does), and only that:
+    /// typing into the field and the rest of the ribbon stay live.
+    #[test]
+    fn forms_mode_greys_out_the_control_commands() {
+        let mut s = Session::new(Document::from_text("Name: Fill name."));
+        select(&mut s, "Fill name.");
+        s.run("developer.richText", &json!({"tag": "name"})).unwrap();
+        let greyed = ["developer.removeControl", "developer.properties"].into_iter().chain(CONTROL_INSERTS);
+        assert!(greyed.clone().all(|id| s.why_disabled(id).is_none()), "unprotected");
+        s.run("review.restrict", &json!({"mode": "forms"})).unwrap();
+        for id in greyed {
+            let why = s.why_disabled(id).unwrap_or_default();
+            assert!(why.contains("stop protection"), "{id}: {why:?}");
+        }
+        for id in ["text.insert", "format.bold", "review.restrict", "view.zoom"] {
+            assert_eq!(s.why_disabled(id), None, "{id}");
+        }
+        s.run("review.restrict", &json!({"stop": true})).unwrap();
+        assert_eq!(s.why_disabled("developer.removeControl"), None);
     }
 
     #[test]

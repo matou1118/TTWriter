@@ -180,13 +180,8 @@ fn atomgit_api_latest() -> Option<(String, u64, Vec<String>)> {
     let v: Value = serde_json::from_str(&text).ok()?;
     let tag = v.get("tag_name")?.as_str()?.to_string();
     // AtomGit's API calls it `created_at`; GitHub's is `published_at`.
-    let published = v
-        .get("published_at")
-        .or_else(|| v.get("created_at"))
-        .and_then(|p| p.as_str())
-        .and_then(|s| s.get(..10))
-        .map(iso_to_epoch)
-        .unwrap_or(0);
+    let published =
+        v.get("published_at").or_else(|| v.get("created_at")).and_then(|p| p.as_str()).and_then(|s| s.get(..10)).map(iso_to_epoch).unwrap_or(0);
     let assets = v
         .get("assets")
         .and_then(|a| a.as_array())

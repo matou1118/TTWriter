@@ -487,12 +487,13 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
             }
             let mut s = match (from_file, from_template) {
                 (Some(f), _) => open(&f, password.as_deref())?,
-                (None, Some(t)) => {
+                // Both go through `file.new`, which puts a blank document on the region's paper (#3152).
+                (None, t) => {
                     let mut s = session(wordcraft_doc::Document::new());
-                    s.run("file.new", &json!({"template": t})).map_err(|e| e.to_string())?;
+                    let params = t.map_or_else(|| json!({}), |t| json!({"template": t}));
+                    s.run("file.new", &params).map_err(|e| e.to_string())?;
                     s
                 }
-                _ => session(wordcraft_doc::Document::new()),
             };
             if let Some(name) = arg_value(&rest, "--author") {
                 set_author(&mut s, &name)?;

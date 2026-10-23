@@ -43,6 +43,13 @@ pub struct Row {
     pub controls: ControlWrap,
 }
 
+impl Row {
+    /// Grid column where the row's first cell starts: the columns `w:gridBefore` skips.
+    pub fn first_grid(&self) -> usize {
+        (self.props.grid_before as usize).min(MAX_COLS)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct Table {
     #[serde(default)]
@@ -58,6 +65,10 @@ pub struct Table {
 /// Hard limits that keep hostile input from exhausting memory.
 pub const MAX_ROWS: usize = 32_767;
 pub const MAX_COLS: usize = 63;
+/// Most tables nested one inside another: the depth the DOCX reader and writer keep. Pasting
+/// and inserting stop there too, so no edit builds a document deep enough to overflow the stack
+/// when it is saved, copied or dropped (#1596).
+pub const MAX_TABLE_DEPTH: usize = 24;
 
 impl Table {
     /// A `rows × cols` table spanning `width` points, "Table Grid" style.
@@ -86,18 +97,22 @@ impl Table {
     }
 
     pub fn cols(&self) -> usize {
-        self.grid.len().max(self.rows.iter().map(|r| r.cells.iter().map(Cell::span).sum::<usize>()).max().unwrap_or(0))
+        let row_cols = |r: &Row| r.first_grid() + r.cells.iter().map(Cell::span).sum::<usize>() + r.props.grid_after as usize;
+        self.grid.len().max(self.rows.iter().map(row_cols).max().unwrap_or(0))
     }
 
     /// Grid column where cell `c` of row `r` starts.
     pub fn grid_col(&self, r: usize, c: usize) -> usize {
-        self.rows.get(r).map(|row| row.cells.iter().take(c).map(Cell::span).sum()).unwrap_or(0)
+        self.rows.get(r).map(|row| row.first_grid() + row.cells.iter().take(c).map(Cell::span).sum::<usize>()).unwrap_or(0)
     }
 
     /// Cell index in row `r` that covers grid column `g`.
     pub fn cell_at_grid(&self, r: usize, g: usize) -> Option<usize> {
         let row = self.rows.get(r)?;
-        let mut x = 0;
+        let mut x = row.first_grid();
+        if g < x {
+            return None;
+        }
         for (i, c) in row.cells.iter().enumerate() {
             if g < x + c.span() {
                 return Some(i);
@@ -494,6 +509,18 @@ impl Table {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn grid_before_shifts_the_row() {
+        let mut t = Table::new(2, 3, 300.0);
+        t.rows[1].cells.remove(0);
+        t.rows[1].props.grid_before = 1;
+        assert_eq!(t.grid_col(1, 0), 1);
+        assert_eq!(t.grid_col(1, 1), 2);
+        assert_eq!(t.cell_at_grid(1, 0), None);
+        assert_eq!(t.cell_at_grid(1, 2), Some(1));
+        assert_eq!(t.cols(), 3);
+    }
 
     #[test]
     fn new_table_shape() {

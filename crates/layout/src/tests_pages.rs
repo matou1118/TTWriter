@@ -491,6 +491,7 @@ fn widow_control_moves_a_three_line_paragraph_whole() {
                 c.size = Some(12.0);
             })
             .unwrap();
+            d.styles.default_chr.font = Some("Source Sans 3".into());
             d.format_paragraphs(&Pos::body(0, 0), &Pos::body(0, 0), &|p| p.space_before = Some(shift as f32)).unwrap();
             let l = lay(&d);
             let pieces: Vec<(usize, usize)> = l

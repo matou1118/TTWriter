@@ -670,7 +670,17 @@ fn step(s: &mut Session, dir: i64) -> CmdResult {
     Ok(json!({"index": idx, "count": n}))
 }
 
+/// Replace needs something to look for: the `text` given, or the last search's (Find then Replace
+/// with just a `with`). Neither is a call that would silently replace nothing (a misspelt `text`).
+fn need_query(s: &Session, v: &Value) -> Result<(), CmdError> {
+    if p::str(v, "text").is_none() && s.find.query.is_empty() {
+        return Err(CmdError::Params("`text` (string) is required".into()));
+    }
+    Ok(())
+}
+
 fn replace(s: &mut Session, v: &Value) -> CmdResult {
+    need_query(s, v)?;
     read_opts(s, v);
     let story = s.sel.focus.story;
     let results = search_full(s, story, true)?;
@@ -686,6 +696,7 @@ fn replace(s: &mut Session, v: &Value) -> CmdResult {
 /// Every match replaced, last first so earlier positions stay valid (one undo step). A `\r` in
 /// the replacement (`^p`) splits the paragraph.
 fn replace_all(s: &mut Session, v: &Value) -> CmdResult {
+    need_query(s, v)?;
     read_opts(s, v);
     let story = s.sel.focus.story;
     let results = search_full(s, story, true)?;

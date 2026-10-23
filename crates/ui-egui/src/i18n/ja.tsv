@@ -89,6 +89,7 @@
 	Click to switch back to inserting	クリックすると挿入モードに戻ります
 	Color only	色のみ
 	Compress punctuation at the start of a line	行頭の約物を詰める
+	Continue from previous section	前のセクションから続ける
 	Couldn't make WordCraft the default: {error}	WordCraft を既定のアプリにできませんでした: {error}
 	Custom dictionary	ユーザー辞書
 	Dark page (white text on black)	ダーク ページ (黒地に白い文字)
@@ -147,6 +148,8 @@
 	Opens Settings › Default apps, where you choose WordCraft for .docx and the other document types.	設定 › 既定のアプリ を開きます。そこで .docx などの文書の種類ごとに WordCraft を選びます。
 	Overtype	上書き
 	Overtype (typing replaces the characters after the caret)	上書き (入力した文字がカーソルの後ろの文字を置き換えます)
+	Page Number Format	ページ番号の書式
+	Page numbering	ページ番号
 	Show alignment guides when moving pictures and shapes	画像や図形を移動するときに配置ガイドを表示する
 	Moved objects snap to the page's edges and centre, the margins and other objects. Hold Alt to move freely.	移動したオブジェクトは、ページの端と中央、余白、ほかのオブジェクトに吸着します。Alt キーを押しながら移動すると自由に動かせます。
 	Page display	ページの表示
@@ -390,6 +393,8 @@
 	Edit\nRecipient List	アドレス帳の編集
 	Edited	編集済み
 	Editing	編集
+	Editing endnote	文末脚注を編集中
+	Editing footnote	脚注を編集中
 	Editing header/footer	ヘッダー/フッターを編集中
 	Editing — edit the document directly	編集 — 文書を直接編集します
 	Editor	エディター
@@ -427,6 +432,9 @@
 	First line:	最初の行:
 	Fixed Column Width	列の幅を固定する
 	Focus	フォーカス
+	Full Screen View	全画面ビュー
+	Show the ribbon	リボンを表示
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	旧メニュー キー: Alt, {keys}。続けて入力するか、Esc キーで取り消します。
 	Font	フォント
 	Font Color	フォントの色
 	Font color:	フォントの色:
@@ -1386,6 +1394,9 @@
 	{cols}×{rows} Table	{cols}×{rows} の表
 	AaBbYyZz	AaBbYyZz あア亜
 	pt	pt
+	cm	cm
+	mm	mm
+	pi	pi
 	Document1	文書 1
 	Username	ユーザー名
 	Display name	表示名
@@ -1762,6 +1773,12 @@
 	Reading Line Spacing	閲覧時の行間
 	Reading Text Size	閲覧時の文字サイズ
 	English (United Kingdom)	英語（英国）
+	English (Australia)	英語（オーストラリア）
+	English (Canada)	英語（カナダ）
+	English (India)	英語（インド）
+	English (Ireland)	英語（アイルランド）
+	English (New Zealand)	英語（ニュージーランド）
+	English (South Africa)	英語（南アフリカ）
 	Polish	ポーランド語
 	Chinese	中国語
 	Do Not Check Spelling or Grammar	スペル チェックと文章校正を行わない
@@ -2229,6 +2246,7 @@
 	Submitting print job…	印刷ジョブを送信しています…
 	Print job submitted.	印刷ジョブを送信しました。
 	Print job submitted: {receipt}	印刷ジョブを送信しました：{receipt}
+	Print job submitted: spooled {count} sheet(s)	印刷ジョブを送信しました: {count} 枚をスプールしました
 	Print failed: the printing worker stopped.	印刷に失敗しました：印刷ワーカーが停止しました。
 	Print settings	印刷設定
 	Submit print job	印刷ジョブの送信
@@ -2262,6 +2280,9 @@
 # Reading Mode column widths (#1040)
 	Narrow	狭い
 	Medium	中
+	Dot-dot-dash	二点鎖線
+	More Underlines…	その他の下線…
+	Underline Color	下線の色
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	分割する前にセルを結合する
 	Table size	表のサイズ
@@ -2309,3 +2330,61 @@
 	ID Photo	ID Photo
 	Slim Document	Slim Document
 	Export as Long Image	Export as Long Image
+
+# Personal templates (#2852)
+	Personal	個人用
+	Personal Templates	個人用テンプレート
+	Templates you save in your templates folder show up here.	テンプレート フォルダーに保存したテンプレートがここに表示されます。
+	Save as Word Template…	Word テンプレートとして保存…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	.dotx テンプレートをテンプレート フォルダーに保存します。[ファイル] › [新規] の [個人用] に表示されます。
+	File locations	ファイルの場所
+	User templates:	ユーザー テンプレート:
+	Not set	未設定
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	[ファイル] › [新規] の [個人用] に、ここにある .dotx と .dotm のテンプレートが表示されます。[Word テンプレートとして保存] はここから始まります。
+	Format Shape Pane	図形の書式設定ウィンドウ
+	Format Shape	図形の書式設定
+	Format Shape…	図形の書式設定…
+	No fill	塗りつぶしなし
+	Solid fill	単色の塗りつぶし
+	Gradient fill	グラデーションの塗りつぶし
+	Preset gradients	グラデーションのプリセット
+	Radial	放射
+	Rectangular	四角
+	Path	パス
+	Direction	方向
+	Angle	角度
+	Gradient stops	グラデーションの分岐点
+	Add gradient stop	分岐点を追加
+	Remove gradient stop	分岐点を削除
+	Rotate with shape	図形と一緒に回転する
+	Gradient	グラデーション
+	No Gradient	グラデーションなし
+	Light Variations	明るいバリエーション
+	Dark Variations	暗いバリエーション
+	More Gradients…	その他のグラデーション…
+	Select a shape, text box or drawing canvas to format its fill.	塗りつぶしを設定する図形、テキスト ボックス、または描画キャンバスを選択してください。
+	Linear Right	線形 右方向
+	Linear Diagonal - Top Left to Bottom Right	線形 (斜め) - 左上から右下
+	Linear Down	線形 下方向
+	Linear Diagonal - Top Right to Bottom Left	線形 (斜め) - 右上から左下
+	Linear Left	線形 左方向
+	Linear Diagonal - Bottom Right to Top Left	線形 (斜め) - 右下から左上
+	Linear Up	線形 上方向
+	Linear Diagonal - Bottom Left to Top Right	線形 (斜め) - 左下から右上
+	From Top Left Corner	左上の角から
+	From Top Right Corner	右上の角から
+	From Bottom Left Corner	左下の角から
+	From Bottom Right Corner	右下の角から
+	From Center	中央から
+	Soft	ソフト
+	Lit from Top	上から照明
+	Deep	ディープ
+	Lit from Bottom	下から照明
+	Center Glow	中央の光彩
+# File › Home greeting
+	Good morning	おはようございます
+	Good afternoon	こんにちは
+	Good evening	こんばんは
+	More tabs	その他のタブ
+# #3013: Insert Table of Figures
+	Include label and number	ラベルと番号を含める

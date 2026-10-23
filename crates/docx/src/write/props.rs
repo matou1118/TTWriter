@@ -106,15 +106,18 @@ pub fn rpr_inner(w: &mut W, c: &CharProps) {
     }
     toggle(w, "w:rtl", c.rtl);
     toggle(w, "w:cs", c.cs);
-    match (&c.lang, &c.lang_bidi, &c.lang_ea) {
-        (Some(l), Some(b), Some(e)) => w.empty("w:lang", &[("w:val", l), ("w:eastAsia", e), ("w:bidi", b)]),
-        (Some(l), None, Some(e)) => w.empty("w:lang", &[("w:val", l), ("w:eastAsia", e)]),
-        (Some(l), Some(b), None) => w.empty("w:lang", &[("w:val", l), ("w:bidi", b)]),
-        (Some(l), None, None) => w.val("w:lang", l),
-        (None, Some(b), Some(e)) => w.empty("w:lang", &[("w:eastAsia", e), ("w:bidi", b)]),
-        (None, None, Some(e)) => w.empty("w:lang", &[("w:eastAsia", e)]),
-        (None, Some(b), None) => w.empty("w:lang", &[("w:bidi", b)]),
-        (None, None, None) => {}
+    let mut lang_attrs: Vec<(&str, &str)> = Vec::with_capacity(3);
+    if let Some(l) = &c.lang {
+        lang_attrs.push(("w:val", l));
+    }
+    if let Some(ea) = &c.lang_ea {
+        lang_attrs.push(("w:eastAsia", ea));
+    }
+    if let Some(b) = &c.lang_bidi {
+        lang_attrs.push(("w:bidi", b));
+    }
+    if !lang_attrs.is_empty() {
+        w.empty("w:lang", &lang_attrs);
     }
     // After w:lang (CT_RPr's sequence).
     if let Some(l) = &c.east_asian_layout {

@@ -245,3 +245,89 @@ fn a_controls_run_properties_are_read_and_kept() {
     let out = document_xml(&write(&d).unwrap());
     assert!(out.contains(r#"<w:rPr><w:rStyle w:val="Eingabe"/><w:sz w:val="20"/></w:rPr>"#), "{out}");
 }
+
+/// Word's Table of Contents control (`w:docPartObj`, #2427) around a TOC the engine's
+/// heading/entry form doesn't cover (no `TOCHeading`, unstyled entries, the field ending in a
+/// paragraph of its own) is kept as read: nothing rebuilds it on save.
+#[test]
+fn toc_gallery_around_a_free_form_toc_round_trips() {
+    let pr = r#"<w:sdtPr><w:id w:val="-1234567"/><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj></w:sdtPr><w:sdtEndPr/><w:sdtContent>"#;
+    let field = format!(
+        r#"<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>{}<w:r><w:tab/></w:r>{}"#,
+        t("Chapter One"),
+        t("1")
+    );
+    let end = r#"<w:r><w:fldChar w:fldCharType="end"/></w:r>"#;
+    let body = format!("<w:sdt>{pr}{}{}{}</w:sdtContent></w:sdt>{}", p(&t("Contents")), p(&field), p(end), p(&t("Chapter One")));
+    let mut bytes = package(&body);
+    for pass in 0..2 {
+        let d = read(&bytes).unwrap();
+        bytes = write(&d).unwrap();
+        let xml = document_xml(&bytes);
+        assert_eq!(xml.matches("<w:sdt>").count(), 1, "pass {pass}: {xml}");
+        let open = xml.find(pr).unwrap_or_else(|| panic!("pass {pass}: {xml}"));
+        let close = xml.find("</w:sdtContent></w:sdt>").unwrap();
+        let (contents, fend) = (xml.find(">Contents<").unwrap(), xml.find(r#"w:fldCharType="end""#).unwrap());
+        assert!(open < contents && fend < close, "pass {pass}: {xml}");
+        assert!(close < xml.rfind(">Chapter One<").unwrap(), "the body paragraph stays outside: {xml}");
+    }
+}
+
+/// The control around a TOC in the engine's form (a `TOCHeading`, then TOC-styled entries the
+/// field spans) still goes to the TOC: written once, around the heading and the entries, and the
+/// field opens in the heading as References › Update Table expects.
+#[test]
+fn toc_gallery_around_the_engine_form_goes_to_the_toc() {
+    let style = |s: &str, inner: &str| format!(r#"<w:p><w:pPr><w:pStyle w:val="{s}"/></w:pPr>{inner}</w:p>"#);
+    let begin = r#"<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>"#;
+    let end = r#"<w:r><w:fldChar w:fldCharType="end"/></w:r>"#;
+    let content = format!(
+        "{}{}{}",
+        style("TOCHeading", &t("Contents")),
+        style("TOC1", &format!("{begin}{}", t("Chapter One\t1"))),
+        style("TOC2", &format!("{}{end}", t("Section\t2")))
+    );
+    let pr = r#"<w:id w:val="-1234567"/><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj>"#;
+    let mut bytes = package(&format!("{}{}", sdt(pr, &content), p(&t("Chapter One"))));
+    for pass in 0..2 {
+        let d = read(&bytes).unwrap();
+        assert!(controls(&d).is_empty(), "pass {pass}");
+        let heading = d.body[0].as_para().unwrap();
+        assert!(heading.objects.iter().any(|o| matches!(o, wordcraft_doc::InlineObject::Field { instr, .. } if instr.trim().starts_with("TOC"))));
+        bytes = write(&d).unwrap();
+        let xml = document_xml(&bytes);
+        assert_eq!(xml.matches("<w:sdt>").count(), 1, "pass {pass}: {xml}");
+        assert!(xml.contains(r#"<w:docPartGallery w:val="Table of Contents"/>"#), "pass {pass}: {xml}");
+        assert!(xml.find("</w:sdt>").unwrap() < xml.rfind(">Chapter One<").unwrap(), "pass {pass}: {xml}");
+    }
+}
+
+/// A rich text control around the heading and the first entry of a TOC in the engine's form,
+/// inside Word's Table of Contents control: the writer doesn't put a TOC control around a heading
+/// already in a block control, so the outer one is kept as read rather than lost on save.
+#[test]
+fn toc_gallery_around_a_toc_whose_heading_is_in_a_block_control_round_trips() {
+    let style = |s: &str, inner: &str| format!(r#"<w:p><w:pPr><w:pStyle w:val="{s}"/></w:pPr>{inner}</w:p>"#);
+    let begin = r#"<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>"#;
+    let end = r#"<w:r><w:fldChar w:fldCharType="end"/></w:r>"#;
+    let content = format!(
+        "{}{}",
+        sdt(
+            r#"<w:id w:val="31"/><w:richText/>"#,
+            &format!("{}{}", style("TOCHeading", &t("Contents")), style("TOC1", &format!("{begin}{}", t("Chapter One\t1"))))
+        ),
+        style("TOC2", &format!("{}{end}", t("Section\t2")))
+    );
+    let pr = r#"<w:id w:val="-1234567"/><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj>"#;
+    let mut bytes = package(&format!("{}{}", sdt(pr, &content), p(&t("Chapter One"))));
+    for pass in 0..2 {
+        let d = read(&bytes).unwrap();
+        bytes = write(&d).unwrap();
+        let xml = document_xml(&bytes);
+        assert_eq!(xml.matches("<w:sdt>").count(), 2, "pass {pass}: {xml}");
+        let (gallery, rich) =
+            (xml.find(&format!("<w:sdtPr>{pr}")).unwrap_or_else(|| panic!("pass {pass}: {xml}")), xml.find(r#"<w:id w:val="31"/>"#).unwrap());
+        assert!(gallery < rich && rich < xml.find(">Contents<").unwrap(), "pass {pass}: {xml}");
+        assert!(xml.rfind("</w:sdt>").unwrap() < xml.rfind(">Chapter One<").unwrap(), "pass {pass}: {xml}");
+    }
+}

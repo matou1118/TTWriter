@@ -25,6 +25,18 @@ pub struct Resolved {
 /// metric-compatible come first (Carlito ↔ Calibri, Caladea ↔ Cambria, Liberation ↔ Arial /
 /// Times New Roman / Courier New), then common system fonts, then our bundled families.
 fn substitutes(family: &str) -> &'static [&'static str] {
+    substitutes_by_name(family).0
+}
+
+/// Does `family` have substitutes of its own, picked by its name (a metric-compatible clone such
+/// as Liberation Serif for Times New Roman, or the same design under another name), rather than
+/// the generic lists any unknown font gets?
+pub fn has_named_substitutes(family: &str) -> bool {
+    substitutes_by_name(charset_base_family(family)).1
+}
+
+/// [`substitutes`], and whether they were chosen for this family by name.
+fn substitutes_by_name(family: &str) -> (&'static [&'static str], bool) {
     const SANS: &[&str] = &["Carlito", "Helvetica Neue", "Arial", "Liberation Sans", "Noto Sans", "DejaVu Sans", "Source Sans 3"];
     const SERIF: &[&str] = &["Caladea", "Times New Roman", "Liberation Serif", "Georgia", "Noto Serif", "DejaVu Serif", "Source Serif 4"];
     const MONO: &[&str] = &["Courier New", "Liberation Mono", "Menlo", "Consolas", "DejaVu Sans Mono", "JetBrains Mono"];
@@ -68,6 +80,15 @@ fn substitutes(family: &str) -> &'static [&'static str] {
     const THAI_SERIF: &[&str] = &["Sathu", "Noto Serif Thai", "Thonburi", "Ayuthaya", "Krungthep", "Noto Sans Thai", "Tahoma"];
     #[cfg(not(any(windows, target_os = "macos")))]
     const THAI_SERIF: &[&str] = &["Noto Serif Thai", "Norasi", "Kinnari", "Noto Sans Thai", "Laksaman", "Garuda", "Waree"];
+    // Khmer document fonts (Khmer OS …, Khmer Mool1…): a missing one is drawn in the system's
+    // Khmer font, as Word does, not in whatever Khmer font the document happens to load: the Khmer
+    // OS fonts are wider, so lines wrap and boxes overflow where Word's don't.
+    #[cfg(windows)]
+    const KHMER: &[&str] = &["Leelawadee UI", "Khmer UI", "DaunPenh", "MoolBoran", "Noto Sans Khmer"];
+    #[cfg(target_os = "macos")]
+    const KHMER: &[&str] = &["Khmer Sangam MN", "Khmer MN", "Noto Sans Khmer"];
+    #[cfg(not(any(windows, target_os = "macos")))]
+    const KHMER: &[&str] = &["Noto Sans Khmer", "Noto Serif Khmer"];
     // Palatino Linotype / Book Antiqua: macOS ships the same design as "Palatino"; open
     // look-alikes with matching metrics (TeX Gyre Pagella, URW P052 / Palladio) on Linux.
     const PALATINO: &[&str] = &[
@@ -97,27 +118,31 @@ fn substitutes(family: &str) -> &'static [&'static str] {
     const SONG: &[&str] = &["SimSun", "宋体", "Songti SC", "STSong", "华文宋体", "Noto Serif CJK SC", "Noto Serif SC", "FandolSong"];
     let f = family.to_ascii_lowercase();
     if is_thai_serif(&f) {
-        return THAI_SERIF;
+        return (THAI_SERIF, true);
     }
     if is_thai(&f) {
-        return THAI;
+        return (THAI, true);
     }
     if is_hebrew(&f) {
-        return HEBREW;
+        return (HEBREW, true);
+    }
+    if is_khmer(&f) {
+        return (KHMER, true);
     }
     if is_persian_naskh(&f) {
-        return NASKH;
+        return (NASKH, true);
     }
     if is_persian_sans(&f) {
-        return ARABIC_SANS;
+        return (ARABIC_SANS, true);
     }
     match f.as_str() {
-        "palatino linotype" | "book antiqua" | "palatino" => PALATINO,
-        "arial" | "helvetica" | "arial nova" => ARIAL,
-        "arial unicode ms" => ARIAL_UNICODE,
-        "times new roman" | "times" => TIMES,
-        "courier new" | "courier" | "consolas" | "lucida console" | "cascadia code" | "cascadia mono" => MONO,
-        "symbol" | "wingdings" | "wingdings 2" | "wingdings 3" | "segoe ui symbol" | "webdings" => SYMBOL,
+        "palatino linotype" | "book antiqua" | "palatino" => (PALATINO, true),
+        "arial" | "helvetica" | "arial nova" => (ARIAL, true),
+        "arial unicode ms" => (ARIAL_UNICODE, true),
+        "times new roman" | "times" => (TIMES, true),
+        "courier new" | "courier" | "consolas" | "lucida console" | "cascadia code" | "cascadia mono" => (MONO, true),
+        "symbol" | "wingdings" | "wingdings 2" | "wingdings 3" | "segoe ui symbol" | "webdings" => (SYMBOL, true),
+        // Serif faces with no open clone of their own: the generic serif list, as for any font.
         "cambria"
         | "cambria math"
         | "georgia"
@@ -129,17 +154,43 @@ fn substitutes(family: &str) -> &'static [&'static str] {
         | "bookman old style"
         | "sitka text"
         | "sitka"
-        | "aptos serif" => SERIF,
+        | "aptos serif" => (SERIF, false),
         // 中文的宋黑仿楷：请求的字体名按小写比对（中文字符不受影响）。
-        "仿宋" | "仿宋_gb2312" | "fangsong" | "fangsong_gb2312" | "stfangsong" | "华文仿宋" | "fandolfang" => FANGSONG,
-        "楷体" | "楷体_gb2312" | "kaiti" | "kaiti_gb2312" | "stkaiti" | "华文楷体" => KAITI,
+        "仿宋" | "仿宋_gb2312" | "fangsong" | "fangsong_gb2312" | "stfangsong" | "华文仿宋" | "fandolfang" => (FANGSONG, false),
+        "楷体" | "楷体_gb2312" | "kaiti" | "kaiti_gb2312" | "stkaiti" | "华文楷体" => (KAITI, false),
         "宋体" | "songti" | "simsun" | "songti sc" | "stsong" | "华文宋体" | "小标宋体" | "方正小标宋" | "方正小标宋体" | "方正小标宋简体" => {
-            SONG
+            (SONG, false)
         }
-        _ if f.contains("mono") || f.contains("code") => MONO,
-        _ if f.contains("serif") && !f.contains("sans") => SERIF,
-        _ => SANS,
+        _ if f.contains("mono") || f.contains("code") => (MONO, false),
+        _ if f.contains("serif") && !f.contains("sans") => (SERIF, false),
+        _ => (SANS, false),
     }
+}
+
+/// Ascent and descent (em) of Word's symbol fonts, which aren't open fonts. Their characters are
+/// drawn from other faces (`wordcraft_doc::symbol_fonts`), but Word sizes a line by the font
+/// itself: a Symbol bullet makes its line taller than the text alone. The values are those Word's
+/// PDFs give the fonts (`/Ascent`, `/Descent`).
+pub fn symbol_font_metrics(family: &str) -> Option<(f64, f64)> {
+    match family.trim().to_ascii_lowercase().as_str() {
+        "symbol" | "symbol (pcl6)" => Some((1.005, 0.216)),
+        "wingdings" => Some((0.899, 0.205)),
+        _ => None,
+    }
+}
+
+/// The (ascent, descent) in em Word gives a line with a run in a symbol font, when that isn't the
+/// resolved face's own: the font isn't installed (`resolved` is a substitute), or the installed
+/// face is one em tall, as Apple's Symbol is (hhea 0.701 / -0.299, no gap). Word for Mac spaces
+/// such lines like Windows' Symbol: 1.222 em at 11 and 20 pt on synthetic documents (#2681).
+pub fn symbol_line(family: &str, resolved: &Resolved) -> Option<(f64, f64)> {
+    let m = symbol_font_metrics(family)?;
+    (resolved.substituted || one_em(line_metrics(&resolved.face), resolved.face.upem)).then_some(m)
+}
+
+/// Is a line's (ascent, descent) one `upem` em tall?
+fn one_em((ascent, descent): (f64, f64), upem: f64) -> bool {
+    upem > 0.0 && ((ascent + descent) / upem - 1.0).abs() < 0.005
 }
 
 /// The font a Windows 3.1-era charset name stands for: `Times New Roman Cyr`, `Arial CE`,
@@ -287,6 +338,14 @@ fn is_thai_serif(f: &str) -> bool {
 pub fn is_thai_family(family: &str) -> bool {
     let f = family.to_ascii_lowercase();
     is_thai(&f) || is_thai_serif(&f)
+}
+
+/// Khmer document fonts: the Khmer OS family, Khmer Mool1 and the like, Windows' and the Mac's
+/// own and Noto's. Matched by name only.
+fn is_khmer(f: &str) -> bool {
+    f.starts_with("khmer")
+        || f.contains("khmer")
+        || matches!(f, "daunpenh" | "moolboran" | "limon" | "battambang" | "bokor" | "content" | "dangrek" | "angkor")
 }
 
 /// Hebrew document fonts.
@@ -466,6 +525,27 @@ mod tests {
     }
 
     #[test]
+    fn pcl6_symbol_has_symbols_line_metrics() {
+        assert_eq!(symbol_font_metrics("Symbol (PCL6)"), symbol_font_metrics("Symbol"));
+        assert_eq!(symbol_font_metrics("Arial"), None);
+    }
+
+    #[test]
+    fn a_one_em_symbol_face_takes_windows_symbols_line() {
+        // Apple's Symbol (2048 units): hhea 1436 / -612, no gap, one em; Windows' Symbol line is 1.221 em.
+        assert!(one_em(hhea_line(1436, -612, 0), 2048.0));
+        assert!(!one_em((1005.0, 216.0), 1000.0));
+        assert!(!one_em((899.0, 211.0), 1000.0));
+        assert!(!one_em((0.0, 0.0), 0.0));
+        let arial = resolve("Arial", false, false);
+        assert_eq!(symbol_line("Arial", &arial), None);
+        let symbol = resolve("Symbol", false, false);
+        if symbol.substituted {
+            assert_eq!(symbol_line("Symbol", &symbol), symbol_font_metrics("Symbol"));
+        }
+    }
+
+    #[test]
     fn chinese_document_fonts_substitute_to_the_open_faces() {
         // 系统装了真仿宋/楷体时走不到 substitutes()（resolve 先问 has_family，装了直接用真的），
         // 所以候选首位就是 craft-fonts 嵌的开源款——只有缺字的机器才轮到它们。
@@ -544,6 +624,13 @@ mod tests {
         }
         // Generic names with "Hebrew" in them also get Hebrew substitutions
         assert!(substitutes("SomeFont Hebrew").contains(&"Noto Sans Hebrew"));
+    }
+
+    #[test]
+    fn khmer_fonts_substitute_khmer_faces() {
+        for f in ["Khmer OS Bokor", "Khmer OS Battambang", "Khmer Mool1", "Khmer OS Muol Light"] {
+            assert!(substitutes(f).iter().any(|s| s.contains("Khmer")), "{f}: {:?}", substitutes(f));
+        }
     }
 
     #[test]
@@ -629,5 +716,15 @@ mod tests {
         let (bare, stacked) = (tone("\u{0E1B}\u{0E48}"), tone("\u{0E1B}\u{0E31}\u{0E48}"));
         assert!(bare.is_some() && stacked.is_some());
         assert_ne!(bare, stacked, "the tone mark over ั is raised or swapped");
+    }
+
+    #[test]
+    fn fonts_with_a_clone_have_named_substitutes() {
+        for f in ["Times New Roman", "Times New Roman Cyr", "Arial", "Courier New", "Palatino Linotype", "Symbol"] {
+            assert!(has_named_substitutes(f), "{f}");
+        }
+        for f in ["No Such Brand Font", "Cambria", "Georgia", "Brand Serif"] {
+            assert!(!has_named_substitutes(f), "{f}");
+        }
     }
 }

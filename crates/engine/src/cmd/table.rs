@@ -615,6 +615,57 @@ pub(crate) fn backspace_cells(s: &mut Session) -> Option<CmdResult> {
     Some(r)
 }
 
+/// Delete with whole cells selected (#2802): each cell is emptied to one empty paragraph, as in
+/// Word, nested tables included. That paragraph keeps the formatting of the cell's last one (its
+/// mark is the end-of-cell mark). `None` without whole cells, and with Track Changes on (the text
+/// is marked deleted as for any selection).
+pub(crate) fn clear_cells(s: &mut Session) -> Option<CmdResult> {
+    if s.doc.settings.track_changes {
+        return None;
+    }
+    let cr = s.cell_range()?.clone();
+    let t = s.doc.table(cr.story, &cr.table)?;
+    let prefixes: Vec<Vec<u32>> = cr.cells(t).into_iter().map(|(r, c)| cell_prefix(&cr.table, r, c)).collect();
+    let spans = text_spans(s, cr.story, &prefixes);
+    Some(clear_spans(s, cr.table.0.len().saturating_add(2), &spans))
+}
+
+/// Empty each span (one cell's text, from its first paragraph to its last; the cell's path is the
+/// first `depth` steps of its paths) to one paragraph with the last paragraph's formatting, bottom
+/// up so earlier spans stay valid; the caret goes to the start of the first cell.
+fn clear_spans(s: &mut Session, depth: usize, spans: &[(Pos, Pos)]) -> CmdResult {
+    // A cell's first block (its first paragraph may have been in a nested table that goes).
+    let first_block = |p: &Pos| {
+        let mut v = p.path.0.get(..depth).unwrap_or_default().to_vec();
+        v.push(0);
+        Pos { story: p.story, path: Path(v), off: 0 }
+    };
+    for (a, b) in spans {
+        super::controls::check_delete(s, a, b)?;
+    }
+    for (a, b) in spans.iter().rev() {
+        let Some(last) = s.doc.para(b.story, &b.path).map(|p| (p.props.clone(), p.mark.clone())) else { continue };
+        s.doc.delete_range(a, b)?;
+        // Now the cell's only block, unless it holds a table nested deeper than the paragraph
+        // walk (`delete_range` leaves those).
+        let first = first_block(a);
+        if s.doc.container(first.story, &first.path).is_some_and(|bl| bl.len() == 1)
+            && let Ok(p) = s.doc.para_mut(first.story, &first.path)
+        {
+            (p.props, p.mark) = last;
+            p.touch();
+        }
+    }
+    let at = spans.first().map(|(a, _)| s.doc.clamp(&first_block(a))).unwrap_or_else(|| s.sel.focus.clone());
+    s.sel = Selection::caret(at);
+    s.column = None;
+    s.column_mode = false;
+    s.goal_x = None;
+    s.pending = None;
+    super::controls::restore_placeholder(s)?;
+    sel_result(s)
+}
+
 fn del_table(s: &mut Session, _: &Value) -> CmdResult {
     let (tp, _, _) = cell(s)?;
     let story = s.sel.focus.story;
