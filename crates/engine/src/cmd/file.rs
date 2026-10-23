@@ -75,7 +75,7 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("file.rename", "Rename Document", "File › Info", rename).params(r#"{"name": string (document name; its extension is kept, so the name may be given with or without it)}"#).pure(),
-        CommandSpec::new("file.new", "New", "File", new).key("Mod+N").params(r#"{"template"?: "blank|sample|letter|resume|report"}"#).pure(),
+        CommandSpec::new("file.new", "New", "File", new).key("Mod+N").params(r#"{"template"?: "blank|sample|letter|resume|report (English) | resume-cn|letter-cn|timetable|minutes|memo (中文模板包)"}"#).pure(),
         CommandSpec::new("file.open", "Open", "File", open)
             .key("Mod+O / Mod+F12 / Mod+Alt+F2")
             .params(r#"{"path": string, "data"?: base64 (the file's bytes; `path` then only names it), "password"?: string (for a password-protected Word document)}"#)
@@ -206,6 +206,12 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
         "letter" => crate::sample::letter(),
         "resume" => crate::sample::resume(),
         "report" => crate::sample::report(),
+        // 中文模板包（占位文本，版式见 sample_cn.rs 的表）。
+        "resume-cn" => crate::sample_cn::resume_cn(),
+        "letter-cn" => crate::sample_cn::letter_cn(),
+        "timetable" => crate::sample_cn::timetable(),
+        "minutes" => crate::sample_cn::minutes(),
+        "memo" => crate::sample_cn::memo(),
         _ => normal_document(s),
     };
     s.set_document(doc);

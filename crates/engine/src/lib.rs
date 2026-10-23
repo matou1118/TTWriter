@@ -17,6 +17,7 @@ pub mod print;
 pub mod recovery;
 pub mod ribbon;
 pub mod sample;
+pub mod sample_cn;
 mod session;
 pub mod speech;
 
