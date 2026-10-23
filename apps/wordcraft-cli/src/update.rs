@@ -429,7 +429,11 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
         // 挪到用户指定的目录再报路径。
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let moved = dir.join(out.file_name().unwrap_or_default());
-        std::fs::rename(&out, &moved).map_err(|e| format!("move to {}: {e}", dir.display()))?;
+        // 资产下在 %TEMP%（C:），用户目录可能在别的盘——Windows 跨盘 rename 失败，回退 copy。
+        if std::fs::rename(&out, &moved).is_err() {
+            std::fs::copy(&out, &moved).map_err(|e| format!("move to {}: {e}", dir.display()))?;
+            let _ = std::fs::remove_file(&out);
+        }
         if json {
             println!("{}", serde_json::json!({"downloaded": moved.to_string_lossy(), "tag": check.tag, "source": check.source}));
         } else {
