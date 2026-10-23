@@ -5543,6 +5543,7 @@ dependencies = [
 name = "wordcraft-pdfedit"
 version = "0.10.0"
 dependencies = [
+ "flate2",
  "log",
  "lopdf",
  "thiserror 2.0.21",

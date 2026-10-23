@@ -7,6 +7,7 @@
 //!
 //! 全部依赖 lopdf（纯 Rust），不下载任何二进制，不引入 C 代码。
 
+pub mod images;
 pub mod text;
 
 use std::collections::HashMap;
@@ -89,6 +90,11 @@ impl Pdf {
     /// 一页的文本层（按阅读序排好的行）。扫描件没有文字层，返回空——那是 OCR 的活。
     pub fn text_of(&self, page: u32) -> text::PageText {
         text::page_text(&self.doc, page).sorted()
+    }
+
+    /// 一页里嵌入的位图（JPEG 原样字节；Flate 图带宽高与分量数）。OCR 桥从这拿图。
+    pub fn images_of(&self, page: u32) -> images::PageImages {
+        images::page_images(&self.doc, page)
     }
 
     /// 一页的宽和高（PostScript 点，1/72 英寸）。批注和水印按它定位。
@@ -370,9 +376,11 @@ fn merge_font(rd: &mut lopdf::Dictionary, font: lopdf::ObjectId) {
 
 #[cfg(test)]
 mod tests {
+    use flate2::write::ZlibEncoder;
     use lopdf::{Dictionary, Stream};
 
     use super::*;
+    use images::Kind;
 
     /// 双层 PDF：叠的隐形文本层要能被（我们自己的）提取器读回来。
     #[test]
@@ -382,6 +390,90 @@ mod tests {
         let out = pdf.text_of(1);
         let text: String = out.lines.iter().map(|l| l.text.clone()).collect();
         assert!(text.contains("Searchable layer 42"), "the layer reads back: {text:?}");
+    }
+
+    /// 嵌入位图提取：DCT（JPEG 原样字节）和 Flate（原始像素 + 分量数）两种都认。
+    #[test]
+    fn images_of_extracts_jpeg_and_flate_bmps() {
+        let mut doc = Document::with_version("1.5");
+        // 一张 3×2 的假 JPEG（DCTDecode：内容即文件字节）。
+        let jpeg_bytes: Vec<u8> = [0xFF, 0xD8, 0xFF, 0xE0, b'J', b'F', b'I', b'F', 0xFF, 0xD9].to_vec();
+        let dct = doc.add_object(Stream::new(
+            Dictionary::from_iter([
+                ("Type", Object::Name(b"XObject".to_vec())),
+                ("Subtype", Object::Name(b"Image".to_vec())),
+                ("Width", Object::Integer(3)),
+                ("Height", Object::Integer(2)),
+                ("ColorSpace", Object::Name(b"DeviceRGB".to_vec())),
+                ("BitsPerComponent", Object::Integer(8)),
+                ("Filter", Object::Name(b"DCTDecode".to_vec())),
+            ]),
+            jpeg_bytes.clone(),
+        ));
+        // 一张 2×2 的 Flate RGB 图：解出 12 字节像素（zlib 包好）。
+        let pixels: Vec<u8> = (0..12u8).collect();
+        let mut enc = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut enc, &pixels).unwrap();
+        let zipped = enc.finish().unwrap();
+        let flate = doc.add_object(Stream::new(
+            Dictionary::from_iter([
+                ("Type", Object::Name(b"XObject".to_vec())),
+                ("Subtype", Object::Name(b"Image".to_vec())),
+                ("Width", Object::Integer(2)),
+                ("Height", Object::Integer(2)),
+                ("ColorSpace", Object::Name(b"DeviceRGB".to_vec())),
+                ("BitsPerComponent", Object::Integer(8)),
+                ("Filter", Object::Name(b"FlateDecode".to_vec())),
+            ]),
+            zipped,
+        ));
+        let xobjs = Dictionary::from_iter([
+            (b"Im0".to_vec(), Object::Reference(dct)),
+            (b"Im1".to_vec(), Object::Reference(flate)),
+            // 不是图的东西不收。
+            (
+                b"Fm0".to_vec(),
+                Object::Reference(
+                    doc.add_object(Dictionary::from_iter([("Type", Object::Name(b"XObject".to_vec())), ("Subtype", Object::Name(b"Form".to_vec()))])),
+                ),
+            ),
+        ]);
+        let resources = Dictionary::from_iter([("XObject", Object::Dictionary(xobjs))]);
+        let contents = doc.add_object(Stream::new(Dictionary::new(), b"".to_vec()));
+        let parent = doc.add_object(Dictionary::new());
+        let page = doc.add_object(Dictionary::from_iter([
+            ("Type", Object::Name(b"Page".to_vec())),
+            ("Parent", Object::Reference(parent)),
+            ("MediaBox", Object::Array(vec![Object::Integer(0), Object::Integer(0), Object::Integer(595), Object::Integer(842)])),
+            ("Resources", Object::Dictionary(resources)),
+            ("Contents", Object::Reference(contents)),
+        ]));
+        let pages_id = doc.add_object(Dictionary::from_iter([
+            ("Type", Object::Name(b"Pages".to_vec())),
+            ("Kids", Object::Array(vec![Object::Reference(page)])),
+            ("Count", Object::Integer(1)),
+        ]));
+        let catalog = doc.add_object(Dictionary::from_iter([("Type", Object::Name(b"Catalog".to_vec())), ("Pages", Object::Reference(pages_id))]));
+        doc.trailer.set("Root", Object::Reference(catalog));
+        let pdf = Pdf { doc };
+
+        let imgs = pdf.images_of(1);
+        assert_eq!(imgs.images.len(), 2, "Form XObject 不是图，不收");
+        let im0 = &imgs.images[0];
+        assert_eq!((im0.name.as_str(), im0.w, im0.h), ("Im0", 3, 2));
+        assert!(matches!(&im0.kind, Kind::Jpeg(b) if b == &jpeg_bytes), "JPEG 原样字节");
+        let im1 = &imgs.images[1];
+        assert_eq!((im1.name.as_str(), im1.w, im1.h), ("Im1", 2, 2));
+        match &im1.kind {
+            Kind::Raw { components, bytes } => {
+                assert_eq!(*components, 3, "DeviceRGB");
+                assert_eq!(bytes.len(), 12, "2×2×3 = 12 字节像素");
+                assert_eq!(bytes, &(0..12).collect::<Vec<u8>>(), "Flate 解出的像素");
+            }
+            other => panic!("应是 Raw：{other:?}"),
+        }
+        // 没有图的页：空列表，不是错误。
+        assert!(pdf.images_of(2).images.is_empty());
     }
 
     /// 转义与多页：括号文本不破坏流，多余的层报错，中文降级为问号但流仍合法。

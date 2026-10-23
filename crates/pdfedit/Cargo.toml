@@ -8,6 +8,9 @@ description = "PDF page operations and annotations: open, rotate, delete, extrac
 [lints]
 workspace = true
 
+[dev-dependencies]
+flate2 = "1"
+
 [dependencies]
 lopdf = { workspace = true }
 thiserror = { workspace = true }

@@ -26,14 +26,17 @@ USAGE:
                                                        a scan with no text layer is refused)
   wordcraft-cli pdf ocr <in.pdf> <out.pdf> --text TEXT  overlay an invisible, searchable text
                                      or --text-file F    layer (a double-deck PDF: the page
-                                                        image plus searchable text; pour OCR
-                                                        output in through --text-file)
+                                     or --engine          image plus searchable text; pour OCR
+                                       tesseract          output in through --text-file, or
+                                     [--lang eng]         let tesseract do the OCR itself:
+                                     [--tesseract PATH]   it has to be installed — the error
+                                                         says how)
 
 --pages takes 1-based page numbers, ranges and commas (\"1-3,5\"); left out it means every page.
 ";
 
 /// Options whose value is not a file name.
-const VALUED: &[&str] = &["--degrees", "--pages", "--text", "--text-file"];
+const VALUED: &[&str] = &["--degrees", "--pages", "--text", "--text-file", "--engine", "--lang", "--tesseract"];
 
 pub fn run(args: &[String]) -> Result<(), Failure> {
     let (cmd, rest) = args.split_first().ok_or_else(|| Failure::from(USAGE))?;
@@ -98,28 +101,33 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
             }
             let (output, imgs) = (&files[0], &files[1..]);
             let mut doc = wordcraft_doc::Document::new();
-            let mut first = true;
+            // 初始空段属于默认节：留着占一行。
+            doc.body.clear();
+            // 单节文档：全部图片排在 body 级 sectPr（`last_section`）的节里。
+            // 图片段各自带节会得到「段节 + 尾节」两节两页——那是错的。
+            let mut first_img = true;
+            let mut last: wordcraft_doc::SectionProps = wordcraft_doc::SectionProps {
+                margin_top: 0.0,
+                margin_bottom: 0.0,
+                margin_left: 0.0,
+                margin_right: 0.0,
+                header: 0.0,
+                footer: 0.0,
+                ..Default::default()
+            };
             for img_path in imgs {
                 let bytes = std::fs::read(img_path).map_err(|e| format!("{img_path}: {e}"))?;
                 let decoder = image::ImageReader::new(std::io::Cursor::new(&bytes)).with_guessed_format().map_err(|e| e.to_string())?;
                 let (w, h) = decoder.into_dimensions().map_err(|_| format!("{img_path}: 不是支持的图片"))?;
                 // 像素 → 磅（72dpi：1px = 1pt），A4 内钳制防超页。
                 let (pw, ph) = ((w as f32).clamp(72.0, 595.0), (h as f32).clamp(72.0, 842.0));
-                let key = doc.add_media(bytes, &img_ext(img_path));
-                if !first {
-                    // 每图一节一页：分节符段落携带新页面尺寸。
-                    doc.body.push(wordcraft_doc::para_block({
-                        let mut p = wordcraft_doc::Paragraph::new();
-                        p.section = Some(Box::new(wordcraft_doc::SectionProps { page_w: pw, page_h: ph, ..Default::default() }));
-                        p
-                    }));
-                } else {
-                    // 第一节由首段携带。
-                    let mut p = wordcraft_doc::Paragraph::with_text("", wordcraft_doc::CharProps::default());
-                    p.section = Some(Box::new(wordcraft_doc::SectionProps { page_w: pw, page_h: ph, ..Default::default() }));
-                    doc.body.push(wordcraft_doc::para_block(p));
-                    first = false;
+                if first_img {
+                    // 首图定节：页尺寸即图片尺寸（边距 0）。
+                    last.page_w = pw;
+                    last.page_h = ph;
+                    first_img = false;
                 }
+                let key = doc.add_media(bytes, &img_ext(img_path));
                 let img = wordcraft_doc::InlineObject::Image {
                     media: key,
                     w: pw,
@@ -130,9 +138,16 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
                     ole: None,
                 };
                 let mut p = wordcraft_doc::Paragraph::new();
+                if !doc.body.is_empty() {
+                    // 后续图片：分页符（同节内换页）。
+                    p.props.page_break_before = Some(true);
+                }
+                // 行距 Exact 0：图片行的高度就是图片本身。
+                p.props.line_spacing = Some(wordcraft_doc::props::LineSpacing::Exactly(0.0));
                 p.insert_object(0, img, &wordcraft_doc::CharProps::default()).map_err(|e| e.to_string())?;
                 doc.body.push(wordcraft_doc::para_block(p));
             }
+            doc.last_section = last;
             let pdf_bytes = wordcraft_pdf::export(&doc, &wordcraft_pdf::PdfOptions::default()).map_err(|e| e.to_string())?;
             std::fs::write(output, &pdf_bytes).map_err(|e| format!("{output}: {e}"))?;
             eprintln!("wrote {output} ({} pages, {} images)", imgs.len(), imgs.len());
@@ -158,10 +173,10 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
                 let mut para: Vec<&str> = Vec::new();
                 let mut last_y: Option<f64> = None;
                 let flush = |para: &mut Vec<&str>,
-                                 doc: &mut wordcraft_doc::Document,
-                                 first: &mut bool,
-                                 page: u32,
-                                 text: &wordcraft_pdfedit::text::PageText| {
+                             doc: &mut wordcraft_doc::Document,
+                             first: &mut bool,
+                             page: u32,
+                             text: &wordcraft_pdfedit::text::PageText| {
                     if para.is_empty() {
                         return;
                     }
@@ -200,32 +215,68 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
         // 双层 PDF：给（扫描）PDF 叠一层隐形可搜索文本。文本来源：
         //   --text "…"           全部页同一文本
         //   --text-file 文件      每页一段（空行分页），或整文件一层
-        // 配合 OCR 工具产出文本后灌入（我们不做 OCR，做最后一公里）。
+        //   --engine tesseract   自动跑 OCR（装了 tesseract 才有；--lang eng/chi_sim+eng，
+        //                         --tesseract 指定可执行文件路径）
+        // 配合外部 OCR 工具产出文本后灌入也行（我们做最后一公里）。
         "ocr" => {
             let files = positional(rest, VALUED);
             if files.len() < 2 {
-                return Err(Failure::from("pdf ocr 需要 <in.pdf> <out.pdf> --text … 或 --text-file …"));
+                return Err(Failure::from("pdf ocr 需要 <in.pdf> <out.pdf> --text … / --text-file … / --engine tesseract"));
             }
             let (input, output) = (files[0].clone(), files[1].clone());
             let single = option(rest, "--text");
             let text_file = option(rest, "--text-file");
-            let (single, text_file) = match (single, text_file) {
-                (Some(t), None) => (Some(t), None),
-                (None, Some(f)) => (None, Some(f)),
-                (None, None) => return Err(Failure::from("pdf ocr 需要 --text \"…\" 或 --text-file 文件")),
-                (Some(_), Some(_)) => return Err(Failure::from("--text 与 --text-file 只能给一个")),
+            let engine = option(rest, "--engine");
+            let (single, text_file) = match (single, text_file, engine.as_deref()) {
+                (Some(t), None, None) => (Some(t), None),
+                (None, Some(f), None) => (None, Some(f)),
+                (None, None, Some("tesseract")) => (None, None),
+                (None, None, Some(other)) => return Err(Failure::from(format!("pdf ocr 不认识引擎 {other:?}（现在只有 tesseract）"))),
+                (None, None, None) => return Err(Failure::from("pdf ocr 需要 --text \"…\"、--text-file 文件，或 --engine tesseract")),
+                _ => return Err(Failure::from("--text / --text-file / --engine 只能给一个")),
             };
             let mut pdf = Pdf::open(&input).map_err(|e| e.to_string())?;
-            let pages = pdf.page_count();
             let layers: Vec<String> = if let Some(t) = single {
                 vec![t]
-            } else {
+            } else if let Some(f) = text_file {
                 // 文本文件：空行（两个连续换行）分页；没有分页符就整文件当第 1 页。
-                let content = std::fs::read_to_string(text_file.unwrap_or_default()).map_err(|e| e.to_string())?;
+                let content = std::fs::read_to_string(&f).map_err(|e| e.to_string())?;
                 let parts: Vec<String> = content.split("\n\n\n").map(|s| s.to_string()).collect();
                 if parts.len() > 1 { parts } else { vec![content] }
+            } else {
+                // 引擎桥：逐页抠图 → tesseract → 文本。
+                let lang = crate::ocrbridge::sanitize_lang(option(rest, "--lang").as_deref().unwrap_or("eng"))?;
+                let exe = crate::ocrbridge::find_tesseract(option(rest, "--tesseract").as_deref())?;
+                let dir = std::env::temp_dir().join(format!("wordcraft-ocr-{}", std::process::id()));
+                std::fs::create_dir_all(&dir).map_err(|e| format!("建临时目录失败：{e}"))?;
+                let result = (|| -> Result<Vec<String>, Failure> {
+                    let mut layers = Vec::new();
+                    for page in pdf.page_numbers() {
+                        let imgs = pdf.images_of(page);
+                        let layer = match crate::ocrbridge::biggest_image(&imgs.images) {
+                            Some(img) => {
+                                let bytes = crate::ocrbridge::encode_image_bytes(img).map_err(Failure::from)?;
+                                let out = crate::ocrbridge::ocr_image(&exe, &lang, img, &bytes, &dir, page).map_err(Failure::from)?;
+                                eprintln!("page {page}: {}×{} ({}) → {} chars", out.w, out.h, out.image_name, out.text.chars().count());
+                                out.text
+                            }
+                            None => String::new(),
+                        };
+                        layers.push(layer);
+                    }
+                    Ok(layers)
+                })();
+                let _ = std::fs::remove_dir_all(&dir);
+                let mut layers = result?;
+                if layers.iter().all(|l| l.trim().is_empty()) {
+                    return Err(Failure::from(format!("{input}：一页都没认出字（没有可 OCR 的页面图片？）——纯图片 PDF 每页要有嵌入位图")));
+                }
+                // 尾部空页的层去掉：overlay_text 按下标对页，全空层没意义。
+                while layers.last().is_some_and(|l| l.trim().is_empty()) {
+                    layers.pop();
+                }
+                layers
             };
-            let _ = pages;
             pdf.overlay_text(&layers).map_err(|e| e.to_string())?;
             pdf.save(&output).map_err(|e| e.to_string())?;
             eprintln!("wrote {output} ({} pages, {} text layers)", pdf.page_count(), layers.len());
@@ -314,5 +365,37 @@ mod tests {
         assert_eq!(option(&args, "--pages").as_deref(), Some("1,2"));
         assert_eq!(option(&args, "--degrees").as_deref(), Some("90"));
         assert_eq!(option(&args, "--nope"), None);
+        // ocr 桥的选项也认：文件位置不被选项值吃掉。
+        let args: Vec<String> = ["in.pdf", "out.pdf", "--engine", "tesseract", "--lang", "chi_sim+eng"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(positional(&args, VALUED), vec!["in.pdf".to_string(), "out.pdf".to_string()]);
+        assert_eq!(option(&args, "--engine").as_deref(), Some("tesseract"));
+        assert_eq!(option(&args, "--lang").as_deref(), Some("chi_sim+eng"));
+    }
+
+    /// `pdf images` 一图一页（回归：曾经每张图多出一页空白/尾页——空首段 + 段级节 + 尾节
+    /// 三重叠加，1 图能出 3 页）。
+    #[test]
+    fn pdf_images_makes_one_page_per_picture() {
+        let dir = std::env::temp_dir().join("wordcraft-pdfcmd-images");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mk = |name: &str, w: u32, h: u32| {
+            let path = dir.join(name);
+            let img = image::GrayImage::from_fn(w, h, |_, _| image::Luma([200u8]));
+            img.save_with_format(&path, image::ImageFormat::Png).unwrap();
+            path
+        };
+        let a = mk("a.png", 200, 100);
+        let b = mk("b.png", 80, 160);
+        let args: Vec<String> = vec![
+            "images".to_string(),
+            dir.join("out.pdf").to_string_lossy().into_owned(),
+            a.to_string_lossy().into_owned(),
+            b.to_string_lossy().into_owned(),
+        ];
+        run(&args).expect("pdf images");
+        let pdf = wordcraft_pdfedit::Pdf::open(dir.join("out.pdf")).unwrap();
+        assert_eq!(pdf.page_count(), 2, "两图两页，一图一页");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

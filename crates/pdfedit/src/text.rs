@@ -714,12 +714,13 @@ mod tests {
             let end = rest.find("endbfrange").unwrap_or(rest.len());
             let toks: Vec<&str> = rest[..end].split_whitespace().collect();
             if toks.len() >= 3
-                && let (Some(lo), Some(hi)) = (hex_u16(toks[0]), hex_u16(toks[1])) {
-                    let base = hex_u16(toks[2]).unwrap_or(0);
-                    for c in lo..=hi {
-                        map.insert(c, char::from_u32(base as u32 + (c - lo) as u32).map(String::from).unwrap_or_default());
-                    }
+                && let (Some(lo), Some(hi)) = (hex_u16(toks[0]), hex_u16(toks[1]))
+            {
+                let base = hex_u16(toks[2]).unwrap_or(0);
+                for c in lo..=hi {
+                    map.insert(c, char::from_u32(base as u32 + (c - lo) as u32).map(String::from).unwrap_or_default());
                 }
+            }
             rest = &rest[end..];
         }
         map
