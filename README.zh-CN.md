@@ -48,7 +48,11 @@ WordCraft 是一个 Rust 从零写的开源文字处理器，目标是对齐 Mic
 
 ### 用预编译版本
 
-从 [Releases](https://github.com/matou1118/TTWriter/releases)（国内镜像：[AtomGit](https://atomgit.com/matou118/ttwriter/releases)）下载便携包，解压即用：双击 `ttwriter.exe` 打开主程序，`wordcraft-cli.exe` 是命令行工具。界面语言（31 种）和文档技能（12 个）都编译在程序里，无需另配。
+三条路，按顺手程度排：
+
+**网页版（免安装）**：浏览器直接开 GitHub Pages 上的 [/app/](https://matou1118.github.io/TTWriter/app/)——完整界面编译成 WebAssembly 在本地跑，文档存在浏览器 IndexedDB 里，不上传服务器。首次加载约 50MB（wasm），之后有缓存。手机浏览器也能用，可「添加到主屏幕」当轻量 APP。
+
+**便携包**：从 [Releases](https://github.com/matou1118/TTWriter/releases)（国内镜像：[AtomGit](https://atomgit.com/matou118/ttwriter/releases)）下载解压即用：双击 `ttwriter.exe` 打开主程序，`wordcraft-cli.exe` 是命令行工具。界面语言（31 种）和文档技能（13 个）都编译在程序里，无需另配。
 
 **保持更新**（离线检查、双源下载、SHA-256 校验）：
 

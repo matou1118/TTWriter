@@ -1,12 +1,19 @@
 name: Pages
 
-# 官网（GitHub Pages）。源码在 site/，截图仍只有 docs/images/ 一份，发布时拷进来，
-# 免得同一张图在仓库里存两遍。
+# 官网（GitHub Pages）+ 网页版蜻蜓文档（wordcraft-web，完整 egui 界面编译到 wasm，
+# 落在 /app/ 路径）。一个工作流一次部署，两个产物一起组装——GitHub Pages 一次只保留
+# 一个 deployment，分成两个工作流会互相顶掉。
+#
+# 截图仍只有 docs/images/ 一份，发布时拷进来，免得同一张图在仓库里存两遍。
+# 网页版只在 tag（v*）与手动触发时重编（一次 wasm 构建约 10 分钟）；纯 site/ 文案
+# 改动复用上一次的 app（无缓存时跳过 app，Pages 上 /app/ 保持上版）。
 
 on:
   push:
     branches: [main, master]
     paths: ["site/**", "docs/images/**", "assets/app-icon/**", ".github/workflows/pages.yml"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -21,9 +28,51 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
+
+      # ---- 网页版（/app/）：release 发布或手动触发才重编，平时复用 -----------------
+      # Pages 每次 deployment 整站替换，所以 site-only 改动也要把上次的 app 带上：
+      # dist/web 按代码哈希缓存（Cargo.lock + wordcraft-web 源码没变 → 缓存命中）。
+      - name: should the web app be rebuilt?
+        id: webapp
+        run: |
+          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: restore the last built app
+        id: appcache
+        uses: actions/cache/restore@v4
+        with:
+          path: dist/web
+          key: webapp-${{ hashFiles('Cargo.lock', 'apps/wordcraft-web/src/**', 'apps/wordcraft-web/index.html', 'apps/wordcraft-web/Trunk.toml') }}
+
+      - name: install wasm target
+        if: steps.webapp.outputs.build == 'true'
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: install trunk
+        if: steps.webapp.outputs.build == 'true'
+        uses: jetli/trunk-action@v0.5.0
+        with:
+          version: "0.21.14"
+
+      - name: build the web app
+        if: steps.webapp.outputs.build == 'true'
+        working-directory: apps/wordcraft-web
+        run: trunk build --release
+
+      - name: save the built app for site-only redeployments
+        if: steps.webapp.outputs.build == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: dist/web
+          key: webapp-${{ hashFiles('Cargo.lock', 'apps/wordcraft-web/src/**', 'apps/wordcraft-web/index.html', 'apps/wordcraft-web/Trunk.toml') }}
+
       - name: assemble the site
         run: |
           mkdir -p _site
@@ -33,6 +82,11 @@ jobs:
           cp assets/app-icon/hicolor/256x256/apps/ai.storyteller.wordcraft.png _site/icon/icon.png
           cp assets/app-icon/wordcraft.svg _site/icon/icon.svg
           rm -f _site/README.md
+          if [[ "${{ steps.webapp.outputs.build }}" == "true" || "${{ steps.appcache.outputs.cache-hit }}" == "true" ]]; then
+            mkdir -p _site/app
+            cp -r dist/web/. _site/app/
+          fi
+          ls -la _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
