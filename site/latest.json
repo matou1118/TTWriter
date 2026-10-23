@@ -1,36 +1,22 @@
 {
-    "version":  "0.9.0-zh.2",
-    "tag":  "v0.9.0-zh.2",
-    "published":  "2026-10-22T12:38:24Z",
+    "version":  "0.10.0",
+    "tag":  "v0.10.0",
+    "published":  "2026-10-23T08:22:34Z",
     "notes":  "",
     "assets":  [
                    {
-                       "name":  "wordcraft-0.9.0-windows-x64-portable.zip",
+                       "name":  "wordcraft-0.10.0-windows-x64-portable.zip",
                        "channel":  "cn",
-                       "url":  "https://atomgit.com/matou118/ttwriter/releases/download/v0.9.0-zh.2/wordcraft-0.9.0-windows-x64-portable.zip",
-                       "sha256":  "b95e4e4173524a75c527b5ca4d0fec595ec6cb6e4e2a2713526f6ee8c542ac59",
-                       "size":  108864322
+                       "url":  "https://atomgit.com/matou118/ttwriter/releases/download/v0.10.0/wordcraft-0.10.0-windows-x64-portable.zip",
+                       "sha256":  "5825815965c22c78fed9ba0833e629bf848e28c878d68f5fa43e4b09deb3bbfa",
+                       "size":  44928269
                    },
                    {
-                       "name":  "wordcraft-0.9.0-windows-x64-portable.zip",
+                       "name":  "wordcraft-0.10.0-windows-x64-portable.zip",
                        "channel":  "global",
-                       "url":  "https://github.com/matou1118/ttwriter/releases/download/v0.9.0-zh.2/wordcraft-0.9.0-windows-x64-portable.zip",
-                       "sha256":  "b95e4e4173524a75c527b5ca4d0fec595ec6cb6e4e2a2713526f6ee8c542ac59",
-                       "size":  108864322
-                   },
-                   {
-                       "name":  "wordcraft-0.9.0-windows-x64.msi",
-                       "channel":  "cn",
-                       "url":  "https://atomgit.com/matou118/ttwriter/releases/download/v0.9.0-zh.2/wordcraft-0.9.0-windows-x64.msi",
-                       "sha256":  "d5e61f2505baf062148e293f75815181918b0a4582a7b648ae211a85229f8851",
-                       "size":  88739840
-                   },
-                   {
-                       "name":  "wordcraft-0.9.0-windows-x64.msi",
-                       "channel":  "global",
-                       "url":  "https://github.com/matou1118/ttwriter/releases/download/v0.9.0-zh.2/wordcraft-0.9.0-windows-x64.msi",
-                       "sha256":  "d5e61f2505baf062148e293f75815181918b0a4582a7b648ae211a85229f8851",
-                       "size":  88739840
+                       "url":  "https://github.com/matou1118/ttwriter/releases/download/v0.10.0/wordcraft-0.10.0-windows-x64-portable.zip",
+                       "sha256":  "5825815965c22c78fed9ba0833e629bf848e28c878d68f5fa43e4b09deb3bbfa",
+                       "size":  44928269
                    }
                ]
 }
