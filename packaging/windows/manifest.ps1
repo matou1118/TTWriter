@@ -4,10 +4,13 @@
 
 .DESCRIPTION
   The manifest is what an updater reads to learn that a new version exists: a few hundred bytes
-  with the version, the download URLs per channel and the SHA-256 of every asset. It is served
-  from the project site (GitHub Pages), so checking for updates costs no bandwidth worth
-  measuring; only the download itself does, and that points at the release assets on GitHub
-  (global) and AtomGit (China), which host them for free.
+  with the version, the download URLs per channel and the SHA-256 of every asset. It lives in
+  the repository, so the updater reads it from raw hosts — Gitee first (a static file, no API
+  quota, the reliable path inside China), then AtomGit's contents API, then GitHub's raw host —
+  and checking for updates costs no bandwidth worth measuring. Only the download itself does,
+  and that points at the release assets on GitHub (global) and AtomGit (China), which host them
+  for free (Gitee's 100 MB attachment cap cannot hold the installer, so it carries the
+  manifest only).
 
   The manifest is written to the site directory as `latest.json`, and to the dist directory
   next to the artifacts, so a release can upload it as a release asset too. Publishing it to

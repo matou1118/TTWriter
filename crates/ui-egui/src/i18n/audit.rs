@@ -383,28 +383,6 @@ fn complete_catalogs_have_every_string_the_interface_looked_up(mut keys: std::co
                     | "SIST02"
                     | "Turabian"
             )
-        matches!(
-            s,
-            "LaTeX"
-                | "LaTeX (*.tex)"
-                | "Unicode"
-                | "I. II. III."
-                | "i. ii. iii."
-                | "I, II, III, …"
-                | "i, ii, iii, …"
-                | "APA"
-                | "Chicago"
-                | "GB/T 7714"
-                | "GOST (name sort)"
-                | "GOST (title sort)"
-                | "Harvard (Anglia)"
-                | "IEEE"
-                | "ISO 690 (author-date)"
-                | "ISO 690 (numerical)"
-                | "MLA"
-                | "SIST02"
-                | "Turabian"
-        )
     };
     // A command called with parameters it can't use (`bad parameters: \`path\` (string) is
     // required`): the message names JSON parameters for scripts and MCP, so it stays English like

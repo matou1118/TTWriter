@@ -1,10 +1,15 @@
-//! `wordcraft-cli update`：在线升级（检查、下载、安装），AtomGit 与 GitHub 双源。
+//! `wordcraft-cli update`：在线升级（检查、下载、安装）。
 //!
 //! 设计要点（为什么这样做）：
 //!
-//! - **双源回退**：AtomGit（atomgit.com/matou118/ttwriter）在国内直连快；GitHub
-//!   （github.com/matou1118/ttwriter）作兜底，两个源都失败才报错。任一源拿到
-//!   release 元数据即停，不打第三个请求。
+//! - **清单优先**：`site/latest.json`（随发布提交进仓库的清单）是检查与校验的唯一
+//!   权威——版本、各通道下载地址、每个资产的 SHA-256 都在里面。清单按三源回退读取：
+//!   Gitee raw（静态、无 API 配额、国内首选）→ AtomGit contents API（共享令牌有
+//!   429 限流）→ GitHub raw（海外兜底），任一源拿到即停。清单读不到才退回
+//!   release API（AtomGit → GitHub）。
+//! - **下载**：按发现清单的源选择资产地址（国内 AtomGit、海外 GitHub），
+//!   `curl --retry 2` 容错；不管从哪个源下载，SHA-256 一律对清单校验。
+//!   Gitee 免费版附件单文件上限 100MB（便携包 108MB 超限），故只托管清单，不放安装包。
 //! - **频率控制**：检查结果缓存到用户设置目录（`update-check.json`），默认 24 小时
 //!   内不重复发起网络请求——`update --check` 只读缓存并打印，`--force` 才真正再查。
 //!   升级频率由发布节奏决定，检查频率由缓存决定，两者解耦。
@@ -16,9 +21,9 @@
 //! - **版本比对**：`0.9.0-zh.2` 通道后缀参与比较——`0.9.1` > `0.9.0-zh.9`（主版本
 //!   优先），`0.9.0-zh.2` > `0.9.0-zh.1`（同主版本比通道号）。
 //!
-//! 元数据格式（两个源共用）：GitHub 的 release API JSON；AtomGit 若无等价 API，
-//! 退回解析 release 页面的 HTML `<title>`/asset 链接（`/releases/tag/<tag>` 页）。
-//! 实际部署以 AtomGit 提供的 API 为准，这里做了双格式容错。
+//! 元数据格式：清单读不到时才看 release API——GitHub 的 release API JSON；AtomGit
+//! 的 API 同形（`created_at` 代替 `published_at`），无 API 时退回解析 release 页面
+//! 的 HTML asset 链接（`/releases/tag/<tag>` 页；其页面由 JS 渲染，通常解析不到）。
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -28,7 +33,7 @@ use serde_json::Value;
 use crate::Failure;
 
 const USAGE: &str = "\
-wordcraft-cli update — check for and install updates (AtomGit first, GitHub as fallback)
+wordcraft-cli update — check for and install updates (Gitee manifest first)
 
 USAGE:
   wordcraft-cli update [--check]           print the cached or fresh check result (no install)
@@ -36,8 +41,9 @@ USAGE:
   wordcraft-cli update --download <dir>    download the latest installer into <dir>
   wordcraft-cli update --json              machine-readable result
 
-Sources: https://atomgit.com/matou118/ttwriter (releases) then
-         https://github.com/matou1118/ttwriter (releases).
+Sources: site/latest.json on gitee.com/ttwriter/ttread (raw), then AtomGit's
+         contents API, then raw.githubusercontent.com; release APIs only as a
+         last resort. Downloads come from atomgit.com (China) or github.com.
 The check is cached in the settings folder for 24 hours; --force bypasses the cache.
 ";
 
@@ -92,11 +98,13 @@ fn fetch(url: &str, timeout: u64) -> Option<String> {
 }
 
 /// The release manifest (`site/latest.json`, committed to the repository): the version, the
-/// download URL per channel and the SHA-256 of every asset. AtomGit's contents API reads a
-/// file from the repository (China, direct); GitHub's raw host is the fallback. Both are
-/// plain files, so there is no API rate limit.
-fn manifest_hosts() -> [&'static str; 2] {
+/// download URL per channel and the SHA-256 of every asset. Read, in order: Gitee's raw host
+/// (a static file, no API quota, the reliable path inside China), AtomGit's contents API
+/// (base64 envelope, one shared rate limit), GitHub's raw host (the overseas fallback).
+/// All three serve the same bytes, so any one reachable is enough.
+fn manifest_hosts() -> [&'static str; 3] {
     [
+        "https://gitee.com/ttwriter/ttread/raw/master/site/latest.json",
         "https://atomgit.com/api/v5/repos/matou118/ttwriter/contents/site/latest.json",
         "https://raw.githubusercontent.com/matou1118/ttwriter/master/site/latest.json",
     ]
@@ -274,9 +282,34 @@ fn json_check(c: &Check) -> Value {
     })
 }
 
-/// A fresh check: AtomGit first, GitHub second; the first that answers wins.
+/// What the manifest says about the latest release: `(tag, published_at, asset names)`,
+/// or `None` when the JSON is not a usable manifest (no tag, no assets). Pure — the
+/// network fetching lives in [`manifest_json`], so this is unit-testable.
+fn manifest_release(v: &Value) -> Option<(String, u64, Vec<String>)> {
+    let tag = v.get("tag")?.as_str()?.to_string();
+    let published = v.get("published").and_then(|p| p.as_str()).and_then(|s| s.get(..10)).map(iso_to_epoch).unwrap_or(0);
+    // The manifest lists every asset once per channel (cn/global), so names repeat.
+    let mut assets = v
+        .get("assets")
+        .and_then(|a| a.as_array())
+        .map(|a| a.iter().filter_map(|x| x.get("name").and_then(|n| n.as_str())).map(String::from).collect::<Vec<_>>())
+        .unwrap_or_default();
+    assets.dedup();
+    if assets.is_empty() {
+        return None;
+    }
+    Some((tag, published, assets))
+}
+
+/// A fresh check: the manifest first (Gitee raw / AtomGit API / GitHub raw behind
+/// [`manifest_json`]), then AtomGit's release API, then GitHub's; the first that answers wins.
 fn fresh_check() -> Check {
     let at = now();
+    if let Some(v) = manifest_json()
+        && let Some((tag, published, assets)) = manifest_release(&v)
+    {
+        return Check { tag, source: "manifest".into(), checked_at: at, published_at: published, assets };
+    }
     if let Some((tag, published, assets)) = atomgit_latest() {
         return Check { tag, source: "atomgit".into(), checked_at: at, published_at: published, assets };
     }
@@ -336,7 +369,7 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
     };
 
     if check.source == "none" {
-        let msg = "no update source answered (AtomGit and GitHub both unreachable)";
+        let msg = "no update source answered (the manifest hosts and the release APIs are all unreachable)";
         if json {
             println!("{}", serde_json::to_string(&json_check(&check)).unwrap_or_default());
         }
@@ -367,8 +400,8 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
         if !st.success() {
             return Err(format!("download failed: {url}").into());
         }
-        // 校验：发布清单（site/latest.json，在仓库里）带每个资产的 SHA-256。国内走
-        // raw.atomgit.com，海外走 raw.githubusercontent.com，任一可达即可。清单取不到时
+        // 校验：发布清单（site/latest.json，在仓库里）带每个资产的 SHA-256。三源回退读取：
+        // Gitee raw → AtomGit contents API → GitHub raw，任一可达即可。清单取不到时
         // 只提示"未校验"，不阻塞下载。
         match manifest_hash(asset) {
             Some(want) => {
@@ -457,6 +490,28 @@ mod tests {
         assert_eq!(iso_to_epoch("2026-10-22"), 1_792_627_200);
         assert_eq!(iso(iso_to_epoch("2026-10-22")), "2026-10-22");
         assert_eq!(iso_to_epoch("junk"), 0);
+    }
+
+    #[test]
+    fn manifest_release_reads_the_latest_json_shape() {
+        let v = serde_json::json!({
+            "version": "0.9.0-zh.2",
+            "tag": "v0.9.0-zh.2",
+            "published": "2026-10-22T12:38:24Z",
+            "assets": [
+                {"name": "a.zip", "channel": "cn", "sha256": "x", "size": 1},
+                {"name": "a.zip", "channel": "global", "sha256": "x", "size": 1},
+                {"name": "a.msi", "channel": "cn", "sha256": "y", "size": 2}
+            ]
+        });
+        let (tag, published, assets) = manifest_release(&v).expect("usable manifest");
+        assert_eq!(tag, "v0.9.0-zh.2");
+        assert_eq!(published, iso_to_epoch("2026-10-22"));
+        // One entry per file: the manifest lists cn/global channel copies of the same name.
+        assert_eq!(assets, vec!["a.zip".to_string(), "a.msi".to_string()]);
+        // Anything else is not a usable manifest; the caller falls back to the release APIs.
+        assert!(manifest_release(&serde_json::json!({"tag": "v1", "assets": []})).is_none());
+        assert!(manifest_release(&serde_json::json!({"assets": [{"name": "a.zip"}]})).is_none());
     }
 
     #[test]

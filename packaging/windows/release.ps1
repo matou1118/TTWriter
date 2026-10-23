@@ -62,7 +62,7 @@ Write-Output '  1. commit the version and the manifest'
 Write-Output "       git add Cargo.toml site/latest.json"
 Write-Output "       git commit -m `"release: $Version`""
 Write-Output "       git tag $Tag"
-Write-Output '       git push atomgit master; git push origin master; git push atomgit $Tag; git push origin $Tag'
+Write-Output '       git push atomgit master; git push gitee master; git push origin master; git push atomgit $Tag; git push origin $Tag'
 Write-Output ''
 Write-Output '  2. upload the assets to the release (both hosts)'
 foreach ($a in $assets) {
@@ -71,8 +71,10 @@ foreach ($a in $assets) {
   Write-Output "       # atomgit: POST /api/v5/repos/matou118/ttwriter/releases/$Tag/assets (needs your token)"
 }
 Write-Output ''
-Write-Output '  3. the manifest the updater reads'
-Write-Output "       site/latest.json  ->  https://matou1118.github.io/ttwriter/latest.json"
+Write-Output '  3. the manifest the updater reads (it lands with the master push above)'
+Write-Output "       https://gitee.com/ttwriter/ttread/raw/master/site/latest.json"
+Write-Output "       https://atomgit.com/api/v5/repos/matou118/ttwriter/contents/site/latest.json"
+Write-Output "       https://raw.githubusercontent.com/matou1118/ttwriter/master/site/latest.json"
 Write-Output ''
 Write-Output '     sha256:'
 foreach ($a in $assets) { Write-Output ("       {0,-46} {1}" -f $a.name, $a.sha256) }
