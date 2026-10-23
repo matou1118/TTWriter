@@ -18,7 +18,9 @@
 param(
   [Parameter(Mandatory = $true)] [string] $Version,
   [ValidateSet('x64', 'x86', 'arm64')] [string] $Arch = 'x64',
-  [switch] $SkipBuild
+  [switch] $SkipBuild,
+  # Embed the optional craft-fonts CJK fonts (~+45MB). Off by default; see package.ps1.
+  [switch] $IncludeFonts
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -47,7 +49,7 @@ Write-Output "==> Cargo.toml version: $Version"
 
 # ---- build, sign, pack, manifest -----------------------------------------------------------------
 $env:WORDCRAFT_VERSION = $Version
-& (Join-Path $PSScriptRoot 'package.ps1') -Arch $Arch -SkipBuild:$SkipBuild
+& (Join-Path $PSScriptRoot 'package.ps1') -Arch $Arch -SkipBuild:$SkipBuild -IncludeFonts:$IncludeFonts
 if ($LASTEXITCODE -ne 0) { throw "packaging failed with exit code $LASTEXITCODE" }
 
 # ---- what to publish -----------------------------------------------------------------------------
@@ -62,7 +64,8 @@ Write-Output '  1. commit the version and the manifest'
 Write-Output "       git add Cargo.toml site/latest.json"
 Write-Output "       git commit -m `"release: $Version`""
 Write-Output "       git tag $Tag"
-Write-Output '       git push atomgit master; git push gitee master; git push origin master; git push atomgit $Tag; git push origin $Tag'
+Write-Output '       git push atomgit master; git push gitee master; git push atomgit $Tag'
+Write-Output '       git push origin master; git push origin $Tag    # 可选：GitHub 推不动就跳过，步骤 2 的 gh 会替你建 tag'
 Write-Output ''
 Write-Output '  2. upload the assets to the release (both hosts)'
 foreach ($a in $assets) {

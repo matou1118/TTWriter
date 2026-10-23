@@ -65,6 +65,20 @@ if (-not $env:WORDCRAFT_BUILD_DATE) { $env:WORDCRAFT_BUILD_DATE = (Get-Date).ToU
 
 Write-Output "WordCraft $Version for Windows $Arch ($Target)"
 
+# Embedded CJK fonts (craft-fonts) add ~45MB — about half of each binary. Releases ship without
+# them by default: every Chinese Windows has Song/Microsoft YaHei, so the extra half buys nothing
+# at home, and it is only lost overseas on machines with no CJK font at all. Decided explicitly
+# here because the build input is an environment variable that would otherwise leak in or out of
+# the release silently; the font files themselves never enter the repo.
+if ($IncludeFonts -and (Test-Path (Join-Path $Root 'craft-fonts\fonts\manifest.txt'))) {
+  $env:CRAFT_FONTS_DIR = Join-Path $Root 'craft-fonts'
+  Write-Output '==> fonts: CJK embedded (craft-fonts, ~+45MB)'
+} else {
+  Remove-Item Env:\CRAFT_FONTS_DIR -ErrorAction SilentlyContinue
+  if ($IncludeFonts) { Write-Output '==> fonts: not embedded (craft-fonts\fonts\manifest.txt missing)' }
+  else { Write-Output '==> fonts: not embedded (default; pass -IncludeFonts to embed ~45MB)' }
+}
+
 if (-not $SkipBuild) {
   # Static CRT: no VC++ redistributable needed. Scoped to the target so host build scripts and
   # proc-macros are unaffected.
