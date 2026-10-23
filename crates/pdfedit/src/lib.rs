@@ -7,6 +7,8 @@
 //!
 //! 全部依赖 lopdf（纯 Rust），不下载任何二进制，不引入 C 代码。
 
+pub mod text;
+
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -82,6 +84,11 @@ impl Pdf {
     /// 页码，从 1 到 [`Self::page_count`]。
     pub fn page_numbers(&self) -> Vec<u32> {
         self.doc.get_pages().keys().copied().collect()
+    }
+
+    /// 一页的文本层（按阅读序排好的行）。扫描件没有文字层，返回空——那是 OCR 的活。
+    pub fn text_of(&self, page: u32) -> text::PageText {
+        text::page_text(&self.doc, page).sorted()
     }
 
     /// 一页的宽和高（PostScript 点，1/72 英寸）。批注和水印按它定位。

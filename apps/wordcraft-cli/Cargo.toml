@@ -20,8 +20,9 @@ wordcraft-render = { workspace = true }
 wordcraft-mcp = { workspace = true }
 wordcraft-zotero = { workspace = true }
 wordcraft-pdfedit = { workspace = true }
-# pdf images: a document model with one picture per page, exported through the PDF writer.
+# pdf images / pdf text: the document model and the PDF/docx writers.
 wordcraft-pdf = { workspace = true }
+wordcraft-docx = { workspace = true }
 image = { workspace = true }
 serde_json = { workspace = true }
 # The update check verifies the downloaded installer against the release manifest's SHA-256.

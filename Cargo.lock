@@ -5343,6 +5343,7 @@ dependencies = [
  "sys-locale",
  "wordcraft-control-key",
  "wordcraft-doc",
+ "wordcraft-docx",
  "wordcraft-engine",
  "wordcraft-mcp",
  "wordcraft-pdf",

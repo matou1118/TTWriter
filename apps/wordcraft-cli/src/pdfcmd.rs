@@ -21,6 +21,9 @@ USAGE:
   wordcraft-cli pdf images <out> <img1> [img2…]       each picture becomes one PDF page
                                                        (the page is the picture's own size,
                                                        clamped to A4; jpg/png/gif/bmp/webp/tiff)
+  wordcraft-cli pdf text <in.pdf> [out.docx]          the PDF's text layer rebuilt as a Word
+                                                       document (paragraphs by line position;
+                                                       a scan with no text layer is refused)
 
 --pages takes 1-based page numbers, ranges and commas (\"1-3,5\"); left out it means every page.
 ";
@@ -129,6 +132,65 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
             let pdf_bytes = wordcraft_pdf::export(&doc, &wordcraft_pdf::PdfOptions::default()).map_err(|e| e.to_string())?;
             std::fs::write(output, &pdf_bytes).map_err(|e| format!("{output}: {e}"))?;
             eprintln!("wrote {output} ({} pages, {} images)", imgs.len(), imgs.len());
+            Ok(())
+        }
+        // PDF→Word 的文字层：提取带坐标的行（y 跳变分新段），重建为 docx 段落。
+        "text" => {
+            let files = positional(rest, VALUED);
+            let Some(input) = files.first().cloned() else {
+                return Err(Failure::from("pdf text 需要 <in.pdf> [out.docx]（缺省 .docx 同名）"));
+            };
+            let output = files
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| input.rsplit_once('.').map(|(b, _)| format!("{b}.docx")).unwrap_or_else(|| "out.docx".into()));
+            let mut pdf = Pdf::open(&input).map_err(|e| e.to_string())?;
+            let mut doc = wordcraft_doc::Document::new();
+            let mut first = true;
+            let mut total_lines = 0usize;
+            for page in pdf.page_numbers() {
+                let text = pdf.text_of(page);
+                // y 相近（行距内）的行并一段；y 跳变分新段。
+                let mut para: Vec<&str> = Vec::new();
+                let mut last_y: Option<f64> = None;
+                let mut flush = |para: &mut Vec<&str>,
+                                 doc: &mut wordcraft_doc::Document,
+                                 first: &mut bool,
+                                 page: u32,
+                                 text: &wordcraft_pdfedit::text::PageText| {
+                    if para.is_empty() {
+                        return;
+                    }
+                    let joined = para.join("\n");
+                    if !*first {
+                        // 每页分页符
+                        let mut brk = wordcraft_doc::Paragraph::new();
+                        brk.props.page_break_before = Some(true);
+                        doc.body.push(wordcraft_doc::para_block(brk));
+                    }
+                    *first = false;
+                    doc.body.push(wordcraft_doc::para_block(wordcraft_doc::Paragraph::with_text(&joined, wordcraft_doc::CharProps::default())));
+                    let _ = (page, text);
+                };
+                for line in &text.lines {
+                    let breaks = last_y.is_some_and(|ly| (ly - line.y).abs() > 20.0);
+                    if breaks {
+                        flush(&mut para, &mut doc, &mut first, page, &text);
+                        para.clear();
+                    }
+                    para.push(&line.text);
+                    last_y = Some(line.y);
+                    total_lines += 1;
+                }
+                flush(&mut para, &mut doc, &mut first, page, &text);
+            }
+            if total_lines == 0 {
+                return Err(Failure::from(format!("{input}：没有文字层（扫描件需要 OCR），转换中止")));
+            }
+            doc.ensure_nonempty();
+            let bytes = wordcraft_docx::write(&doc).map_err(|e| e.to_string())?;
+            std::fs::write(&output, bytes).map_err(|e| format!("{output}: {e}"))?;
+            eprintln!("wrote {output} ({} pages, {total_lines} text lines)", pdf.page_count());
             Ok(())
         }
         _ => Err(Failure::from(USAGE)),
