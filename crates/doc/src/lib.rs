@@ -11,6 +11,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod bidi;
+mod byte_store;
 pub mod chart;
 mod cjk_numbers;
 pub mod cluster;
@@ -22,6 +23,7 @@ pub mod effects;
 pub mod encoding;
 pub mod eq;
 pub mod fields;
+pub mod fill;
 pub mod freeform;
 pub mod graphic;
 pub mod legacy_form;
@@ -35,6 +37,7 @@ pub mod math_linear;
 pub mod math_symbols;
 pub mod numbering;
 pub mod para;
+pub mod pinyin;
 pub mod props;
 pub mod resolve;
 pub mod section;
@@ -631,11 +634,40 @@ pub struct Watermark {
     pub color: Rgb,
     pub diagonal: bool,
     pub semitransparent: bool,
+    /// The shape's box (its `style` width and height, points), which the text is stretched to
+    /// fill (`v:textpath fitshape`); `None`: the box Word's Design › Watermark gives
+    /// ([`Watermark::frame`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<[f32; 2]>,
 }
 
 impl Default for Watermark {
     fn default() -> Self {
-        Watermark { text: "DRAFT".into(), font: styles::BODY_FONT.into(), color: Rgb(0xC0, 0xC0, 0xC0), diagonal: true, semitransparent: true }
+        Watermark {
+            text: "DRAFT".into(),
+            font: styles::BODY_FONT.into(),
+            color: Rgb(0xC0, 0xC0, 0xC0),
+            diagonal: true,
+            semitransparent: true,
+            size: None,
+        }
+    }
+}
+
+impl Watermark {
+    /// The box the text fills on a page `page_w` × `page_h` (points): its own size, else half the
+    /// page diagonal across (half the page width when not diagonal), as high as the text's length
+    /// makes it. Centred on the margins and, when diagonal, turned 45° counterclockwise (Word's
+    /// `rotation:315`).
+    pub fn frame(&self, page_w: f32, page_h: f32) -> [f32; 2] {
+        if let Some([w, h]) = self.size.filter(|[w, h]| w.is_finite() && h.is_finite() && *w > 0.0 && *h > 0.0) {
+            return [w.min(4000.0), h.min(4000.0)];
+        }
+        let (pw, ph) = (wordcraft_geom::finite(page_w).clamp(72.0, 4000.0), wordcraft_geom::finite(page_h).clamp(72.0, 4000.0));
+        let across = if self.diagonal { (pw * pw + ph * ph).sqrt() } else { pw };
+        let width = (across * 0.5).clamp(36.0, 2000.0);
+        let chars = self.text.chars().take(200).count().max(1) as f32;
+        [width, (width / (0.55 * chars)).clamp(12.0, 400.0)]
     }
 }
 
@@ -722,11 +754,11 @@ pub struct Document {
     /// The document's own endnote separators and continuation notice.
     #[serde(skip_serializing_if = "NoteSeparators::is_empty")]
     pub endnote_separators: NoteSeparators,
-    /// Embedded media (images) by key.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    /// Embedded media (images) by key. Native JSON writes each as base64 (`byte_store.rs`).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", with = "byte_store")]
     pub media: BTreeMap<String, Arc<Vec<u8>>>,
     /// Source-format parts we keep verbatim for round-trip (e.g. custom XML), by part name.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", with = "byte_store")]
     pub passthrough: BTreeMap<String, Arc<Vec<u8>>>,
     /// The document's own building blocks (its glossary document), in file order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -1079,10 +1111,48 @@ impl Document {
     /// The body, then the text boxes, footnotes and endnotes it shows (nested ones too), in
     /// document order. Headers, footers, comments and stories nothing points at aren't included.
     pub fn counted_stories(&self) -> Vec<StoryRef> {
-        self.reachable(vec![StoryRef::Body], &|o| match o {
-            InlineObject::NoteRef { id, .. } => vec![(*id, &[PartKind::Footnote, PartKind::Endnote][..])],
-            o => o.text_boxes().into_iter().map(|id| (id, &[PartKind::TextBox][..])).collect(),
-        })
+        self.reachable(vec![StoryRef::Body], &notes_and_boxes)
+    }
+
+    /// The stories a reader sees, in reading order: the body, then the headers and footers in
+    /// use, each followed by the notes and text boxes it shows. Hidden stories (a removed header,
+    /// a first-page or even-page header whose option is off, a linked text box's own text) and
+    /// comment text aren't included.
+    pub fn shown_stories(&self) -> Vec<StoryRef> {
+        let followers: std::collections::BTreeSet<u32> = self.text_box_chains().into_iter().flat_map(|c| c.into_iter().skip(1)).collect();
+        let follow = |o: &InlineObject| {
+            let mut v = notes_and_boxes(o);
+            v.retain(|(id, _)| !followers.contains(id));
+            v
+        };
+        let mut out = self.reachable(vec![StoryRef::Body], &follow);
+        let mut seen: std::collections::BTreeSet<StoryRef> = out.iter().copied().collect();
+        let mut roots = Vec::new();
+        let mut root_seen = std::collections::BTreeSet::new();
+        let (mut headers, mut footers) = (section::HeaderSet::default(), section::HeaderSet::default());
+        for (_, sec) in self.sections() {
+            // Unset versions are inherited from the previous section.
+            for (set, own) in [(&mut headers, &sec.headers), (&mut footers, &sec.footers)] {
+                set.default = own.default.or(set.default);
+                set.first = own.first.or(set.first);
+                set.even = own.even.or(set.even);
+                let first = set.first.filter(|_| sec.title_page);
+                let even = set.even.filter(|_| self.settings.even_odd_headers);
+                // By the first page each one shows on: page 1, then page 2 (even), then page 3.
+                let order = if sec.title_page { [first, even, set.default] } else { [set.default, even, None] };
+                for id in order.into_iter().flatten() {
+                    if self.parts.get(&id).is_some_and(|p| matches!(p.kind, PartKind::Header | PartKind::Footer)) && root_seen.insert(id) {
+                        roots.push(StoryRef::Part(id));
+                    }
+                }
+            }
+        }
+        for st in self.reachable(roots, &follow) {
+            if seen.insert(st) {
+                out.push(st);
+            }
+        }
+        out
     }
 
     /// Drop the text box stories no box shows any more (a deleted or cut box's text), nested
@@ -1492,6 +1562,14 @@ fn is_hanzi(c: char) -> bool {
 
 /// How deep in nested tables [`Document::para_paths`] goes: cells below this are skipped.
 pub(crate) const PARA_WALK_DEPTH: usize = 16;
+
+/// The note and text box stories an object shows, for `Document::reachable`.
+fn notes_and_boxes(o: &InlineObject) -> Vec<(u32, &'static [PartKind])> {
+    match o {
+        InlineObject::NoteRef { id, .. } => vec![(*id, &[PartKind::Footnote, PartKind::Endnote][..])],
+        o => o.text_boxes().into_iter().map(|id| (id, &[PartKind::TextBox][..])).collect(),
+    }
+}
 
 fn walk(bl: &Blocks, prefix: &mut Vec<u32>, out: &mut Vec<Path>, depth: usize) {
     if depth > PARA_WALK_DEPTH {

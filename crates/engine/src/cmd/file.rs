@@ -1,6 +1,7 @@
 //! File tab (Backstage): new, open, save, export, print, properties; document inspection.
 
 use serde_json::{Value, json};
+use wordcraft_doc::props::LineSpacing;
 use wordcraft_doc::{Block, Document, StoryRef};
 
 use super::{pos_json, sel_result};
@@ -45,8 +46,16 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(path) = &s.path {
         let mut destination = path.with_file_name(name);
         // The field edits the stem; retain the original format, including macro/template files.
+        // A name that already ends in that extension is taken as the whole file name, since a
+        // script or an agent passes one ("renamed.docx" became "renamed.docx.docx", #2983). The
+        // extension alone (".docx") is a stem, not a file name, so it still gets one.
         if let Some(ext) = path.extension() {
-            destination.set_file_name(format!("{name}.{}", ext.to_string_lossy()));
+            let ext = ext.to_string_lossy();
+            // Split at the name's own last dot rather than counting bytes back from its end: a
+            // name whose characters are more than one byte each ("résumé.docm") would be cut
+            // inside one of them, and slicing there panics (#3128 review).
+            let given = name.rsplit_once('.').is_some_and(|(stem, suffix)| !stem.is_empty() && suffix.eq_ignore_ascii_case(ext.as_ref()));
+            destination.set_file_name(if given { name.to_string() } else { format!("{name}.{ext}") });
         }
         if destination != *path {
             #[cfg(not(target_arch = "wasm32"))]
@@ -54,17 +63,19 @@ fn rename(s: &mut Session, v: &Value) -> CmdResult {
                 crate::io::rename_file(path, &destination).map_err(CmdError::Failed)?;
             }
             s.path = Some(destination);
+            s.relayout();
         }
     } else {
         s.file_name = Some(name.to_string());
+        s.relayout();
     }
     Ok(json!({"name": name, "path": s.path}))
 }
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec::new("file.rename", "Rename Document", "File › Info", rename).params(r#"{"name": string (document name without its extension)}"#).pure(),
-        CommandSpec::new("file.new", "New", "File", new).key("Mod+N").params(r#"{"template"?: "blank|sample|letter|resume|report"}"#).pure(),
+        CommandSpec::new("file.rename", "Rename Document", "File › Info", rename).params(r#"{"name": string (document name; its extension is kept, so the name may be given with or without it)}"#).pure(),
+        CommandSpec::new("file.new", "New", "File", new).key("Mod+N").params(r#"{"template"?: "blank|sample|letter|resume|report (English) | resume-cn|letter-cn|timetable|minutes|memo (中文模板包)"}"#).pure(),
         CommandSpec::new("file.open", "Open", "File", open)
             .key("Mod+O / Mod+F12 / Mod+Alt+F2")
             .params(r#"{"path": string, "data"?: base64 (the file's bytes; `path` then only names it), "password"?: string (for a password-protected Word document)}"#)
@@ -96,6 +107,12 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("file.exportPng", "Export Page as PNG", "File › Export", export_png)
             .params(r#"{"path": string, "page"?: n (1-based), "scale"?: px per pt, "markup"?: bool (the page with its comments in balloons beside it; default file.printMarkup)}"#)
             .pure(),
+        CommandSpec::new("file.exportLongPng", "Export as Long Image", "File › Export", export_long_png)
+            .params(r#"{"path": string, "scale"?: px per pt (default 1.5), "maxPages"?: n (default 50; a taller cap needs a deliberate choice), "markup"?: bool} (every page stacked into one tall image — the share-to-chat flow, offline)"#)
+            .pure(),
+        CommandSpec::new("file.slim", "Slim Document", "File › Info", slim)
+            .params(r#"{"quality"?: 10..100 (default 75; JPEG quality for re-encoding photographs), "maxPixels"?: 32..20000 (default 2000; the longest side kept)} → before/after bytes. Re-encodes the document's photographs as JPEG and drops unreferenced media; undo keeps the originals"#)
+            .when(|s| (s.doc.media.is_empty()).then_some("the document has no pictures")),
         // A print setting, like Word's: not part of the document, so no undo step.
         CommandSpec::new("file.printMarkup", "Print Markup", "File › Print", |s, v| {
             s.prefs.print_markup = p::bool(v, "value").unwrap_or(!s.prefs.print_markup);
@@ -182,12 +199,19 @@ fn privacy(s: &Session) -> Value {
     json!({"removePersonalInfo": s.doc.settings.remove_personal_info, "removeDateTime": s.doc.settings.remove_date_time})
 }
 
+/// Create a blank document in the saved proofing language, or use the requested template.
 fn new(s: &mut Session, v: &Value) -> CmdResult {
     let doc = match p::str(v, "template").unwrap_or("blank") {
         "sample" => crate::sample::sample_document(),
         "letter" => crate::sample::letter(),
         "resume" => crate::sample::resume(),
         "report" => crate::sample::report(),
+        // 中文模板包（占位文本，版式见 sample_cn.rs 的表）。
+        "resume-cn" => crate::sample_cn::resume_cn(),
+        "letter-cn" => crate::sample_cn::letter_cn(),
+        "timetable" => crate::sample_cn::timetable(),
+        "minutes" => crate::sample_cn::minutes(),
+        "memo" => crate::sample_cn::memo(),
         _ => normal_document(s),
     };
     s.set_document(doc);
@@ -196,15 +220,31 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// A blank document on the Normal template: the region's paper (#838), written in the editing
-/// language (the templates' text is English).
+/// language (the templates' text is English). A Chinese editing language (`zh-*`) gets a Chinese
+/// preset: SimSun body / SimHei headings, a 2-character first-line indent and 1.5× line spacing.
 fn normal_document(s: &Session) -> Document {
     let mut d = s.blank_document();
-    if let Some(lang) = &s.editing_lang {
+    if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref()) {
         d.styles.default_chr.lang = Some(lang.clone());
+        if lang.starts_with("zh") {
+            apply_chinese_preset(&mut d);
+        }
     }
     d
 }
 
+/// Apply Chinese typographic defaults to a new document: East Asian fonts (SimSun body, SimHei
+/// headings), a 2-character first-line indent and 1.5× line spacing. Pure preset — only fills
+/// fields that already exist, adds no model. Does not touch the language tag (already set).
+fn apply_chinese_preset(d: &mut Document) {
+    d.styles.default_chr.font_ea = Some("SimSun".into());
+    d.styles.default_para.indent_first_chars = Some(2.0);
+    d.styles.default_para.line_spacing = Some(LineSpacing::Multiple(1.5));
+    d.settings.minor_font = "SimSun".into();
+    d.settings.major_font = "SimHei".into();
+}
+
+/// Open a document, using the saved proofing default only for plain text and Markdown.
 fn open(s: &mut Session, v: &Value) -> CmdResult {
     let Some(path) = p::str(v, "path") else {
         s.ui_requests.push(json!({"open": "openFile"}));
@@ -227,7 +267,7 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     };
     // Plain text and Markdown carry no language: they are in the editing language.
     let ext = std::path::Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    if let Some(lang) = &s.editing_lang
+    if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref())
         && matches!(ext.as_str(), "txt" | "text" | "md" | "markdown")
     {
         doc.styles.default_chr.lang = Some(lang.clone());
@@ -297,15 +337,27 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
             return Err(CmdError::Params(format!("`format` is \"{FORMAT_WORD_2003}\" or \"{FORMAT_FLAT_OPC}\", and only for an .xml file")));
         }
     }
+    // Undone below if the write fails: a failed save (no permission, disk full, a bad path)
+    // must not leave the document's own save stamps — zoom, modified/created, author, revision —
+    // changed, or a later save would persist them for a write that never actually happened.
+    let before_stamp =
+        (s.doc.settings.zoom, s.doc.core.last_modified_by.clone(), s.doc.core.created.clone(), s.doc.core.modified.clone(), s.doc.core.revision);
     s.stamp_save();
     let password = s.password.as_ref().map(crate::io::Password::as_str);
     // A header/footer just made and left empty isn't saved (#960).
     let copy = super::insert::saved_copy(s);
-    crate::io::save_path_with(&path, copy.as_ref().unwrap_or(&s.doc), password, &opts).map_err(CmdError::Failed)?;
+    if let Err(e) = crate::io::save_path_with(&path, copy.as_ref().unwrap_or(&s.doc), password, &opts) {
+        (s.doc.settings.zoom, s.doc.core.last_modified_by, s.doc.core.created, s.doc.core.modified, s.doc.core.revision) = before_stamp;
+        return Err(CmdError::Failed(e));
+    }
     let encrypted = password.is_some() && crate::io::can_encrypt(&path.to_string_lossy());
-    if ["docx", "docm", "dotx", "dotm", "odt", "rtf", "json", "xml"].contains(&ext.as_str()) {
+    // A save in a format that doesn't keep everything (plain text, Markdown, a page image) is a
+    // copy, except over the document's own file: a note.txt opened and saved is saved (#2376).
+    let own_file = s.path.as_deref() == Some(path.as_path());
+    if own_file || ["docx", "docm", "dotx", "dotm", "odt", "rtf", "json", "xml"].contains(&ext.as_str()) {
         s.path = Some(path.clone());
         s.dirty = false;
+        s.relayout();
     }
     Ok(json!({"saved": true, "path": path.to_string_lossy(), "encrypted": encrypted}))
 }
@@ -356,6 +408,141 @@ fn export_png(s: &mut Session, v: &Value) -> CmdResult {
     let png = img.to_png();
     crate::io::write_file(path, &png).map_err(CmdError::Failed)?;
     Ok(json!({"path": path, "width": img.width, "height": img.height, "bytes": png.len()}))
+}
+
+/// `file.exportLongPng`: the whole document as one tall image — every page rendered at the same
+/// width and stacked vertically (the "output as long image" share flow, offline). Pages with a
+/// different width (landscape mixed in) are scaled to the first page's width.
+fn export_long_png(s: &mut Session, v: &Value) -> CmdResult {
+    let Some(path) = p::str(v, "path") else {
+        s.ui_requests.push(json!({"open": "exportLongPng"}));
+        return Ok(json!({"exported": false}));
+    };
+    let scale = p::f32(v, "scale").unwrap_or(1.5).clamp(0.1, 4.0);
+    let max_pages = p::u64(v, "maxPages").unwrap_or(50).clamp(1, 500) as usize;
+    let l = s.export_layout_with(export_options(s, v).markup);
+    if l.pages.is_empty() {
+        return Err(CmdError::Failed("the document has no pages".into()));
+    }
+    let mut opts = wordcraft_render::RenderOptions::default();
+    opts.display.dim_header = false;
+    let pages: Vec<wordcraft_render::Rendered> =
+        l.pages.iter().take(max_pages).map(|pg| wordcraft_render::render_page(&s.doc, pg, scale, &opts)).collect();
+    // The seam between pages: a hairline of the page edge colour (white), 0.25% of the width
+    // capped at 4px, so consecutive pages read as one strip without melting together.
+    let w = pages[0].width;
+    let seam = ((w as f32) * 0.0025).round().clamp(1.0, 4.0) as u32;
+    let total_h: u64 = pages.iter().map(|p| p.height as u64).sum::<u64>() + seam as u64 * (pages.len() as u64 - 1);
+    let total_h = u32::try_from(total_h).map_err(|_| CmdError::Failed("the long image would be too tall".into()))?;
+    let mut out = image::RgbaImage::from_pixel(w, total_h, image::Rgba([255, 255, 255, 255]));
+    let from = |r: &wordcraft_render::Rendered| {
+        image::RgbaImage::from_raw(r.width, r.height, r.to_straight()).unwrap_or_else(|| image::RgbaImage::new(r.width, r.height))
+    };
+    let mut y = 0u32;
+    for p in &pages {
+        let page = if p.width == w {
+            from(p)
+        } else {
+            image::imageops::resize(
+                &from(p),
+                w,
+                ((p.height as f32) * (w as f32 / p.width as f32)).round() as u32,
+                image::imageops::FilterType::Lanczos3,
+            )
+        };
+        image::imageops::overlay(&mut out, &page, 0, y as i64);
+        y += page.height() + seam;
+    }
+    let img = image::DynamicImage::ImageRgba8(out);
+    let mut png = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|e| CmdError::Failed(e.to_string()))?;
+    crate::io::write_file(path, &png).map_err(CmdError::Failed)?;
+    Ok(json!({"path": path, "width": w, "height": total_h, "pages": pages.len(), "bytes": png.len()}))
+}
+
+/// `file.slim`: shrink the document's bytes. Every picture the document still references is
+/// re-encoded as JPEG (photographs shrink several-fold; flat art stays as it was when JPEG
+/// would not win), oversized ones are scaled to `maxPixels`, and media nothing references is
+/// dropped. Undo restores the originals: the edits are ordinary ones on the picture keys.
+fn slim(s: &mut Session, v: &Value) -> CmdResult {
+    let quality = p::u64(v, "quality").unwrap_or(75).clamp(10, 100) as u8;
+    let max = p::u64(v, "maxPixels").unwrap_or(2000).clamp(32, 20000) as u32;
+    let before: usize = s.doc.media.values().map(|b| b.len()).sum();
+
+    // The media keys every live picture still references.
+    let mut used: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    s.doc.objects_in_reading_order(&mut |o| {
+        if let wordcraft_doc::InlineObject::Image { media, .. } = o {
+            used.insert(media.clone());
+        }
+    });
+
+    // Re-encode each referenced picture that JPEG would shrink.
+    let mut new_keys: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let keys: Vec<String> = used.iter().cloned().collect();
+    for key in keys {
+        let Some(bytes) = s.doc.media.get(&key).cloned() else { continue };
+        // A JPEG/PNG/… that is already small, or not an image at all (an OLE package), is left.
+        let Ok(img) = image::load_from_memory(&bytes) else { continue };
+        if (img.width() as u64) * (img.height() as u64) > 80_000_000 {
+            continue;
+        }
+        let mut img = img;
+        if img.width().max(img.height()) > max {
+            img = img.resize(max, max, image::imageops::FilterType::Lanczos3);
+        }
+        let flat = if img.color().has_alpha() {
+            let mut bg = image::RgbaImage::from_pixel(img.width(), img.height(), image::Rgba([255, 255, 255, 255]));
+            image::imageops::overlay(&mut bg, &img.to_rgba8(), 0, 0);
+            image::DynamicImage::ImageRgba8(bg)
+        } else {
+            img
+        };
+        let mut jpg = Vec::new();
+        let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpg, quality);
+        if enc.encode_image(&flat.to_rgb8()).is_err() || jpg.len() >= bytes.len() {
+            continue; // JPEG would not win: keep the original bytes.
+        }
+        let new_key = s.doc.add_media(jpg, "jpeg");
+        s.originals.entry(new_key.clone()).or_insert(key.clone());
+        new_keys.insert(key, new_key);
+    }
+    // Point the pictures at the re-encoded media.
+    if !new_keys.is_empty() {
+        s.doc.objects_mut(&|o| matches!(o, wordcraft_doc::InlineObject::Image { .. }), &mut |o| {
+            if let wordcraft_doc::InlineObject::Image { media, .. } = o
+                && let Some(k) = new_keys.get(media)
+            {
+                *media = k.clone();
+            }
+        });
+    }
+    // Drop the media nothing references (the pre-slim bitmaps, and anything already orphaned).
+    let mut removed = 0usize;
+    let live: std::collections::BTreeSet<String> = {
+        let mut live = std::collections::BTreeSet::new();
+        s.doc.objects_in_reading_order(&mut |o| {
+            if let wordcraft_doc::InlineObject::Image { media, .. } = o {
+                live.insert(media.clone());
+            }
+        });
+        live
+    };
+    let originals: Vec<String> = s.originals.values().cloned().collect();
+    let dead: Vec<String> = s.doc.media.keys().filter(|k| !live.contains(*k) && !originals.contains(k)).cloned().collect();
+    for k in dead {
+        if s.doc.media.remove(&k).is_some() {
+            removed += 1;
+        }
+    }
+    // `media` still holds the pre-slim bitmaps this session (undo needs them); the number that
+    // matters is what a save writes: the live media only.
+    let saved_bytes: usize = live.iter().filter_map(|k| s.doc.media.get(k)).map(|b| b.len()).sum();
+    Ok(json!({
+        "before": before, "after": saved_bytes,
+        "reencoded": new_keys.len(), "removedMedia": removed,
+        "saved": before.saturating_sub(saved_bytes),
+    }))
 }
 
 fn properties(s: &mut Session, v: &Value) -> CmdResult {

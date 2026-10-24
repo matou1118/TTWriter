@@ -13,6 +13,31 @@ metadata:
 
 把**已定稿**的法务文书排成规范的 `.docx` / PDF。
 
+## 文书速查（16 种，按场景路由）
+
+| 场景 | 文书 |
+|---|---|
+| 起诉应诉 | 民事起诉状、民事答辩状、民事上诉状 |
+| 财产与执行 | 财产保全申请书、强制执行申请书、撤诉申请书 |
+| 日常民商 | **借条、欠条、收条**、催款函、和解协议 |
+| 程序配套 | 授权委托书、法定代表人身份证明书、证据目录 |
+| 劳动 | 劳动仲裁申请书、离职协议 |
+| 非诉合同 | 房屋租赁合同、保密协议（NDA） |
+| 律师输出 | 律师函、法律意见书、合同审查报告 |
+
+每种文书的要素顺序与版式表见 [references/format.md](references/format.md)。
+
+借条、欠条、收条是定式文书，可由参数直接生成（九要素内置、利率超 LPR 四倍拒绝生成）：
+`python scripts/jietiao.py --kind jietiao|qiantiao|shoutiao -o 输出.docx --borrower … --lender … --amount …`，
+生成后仍须过 `check_legal.py` 体检与人眼看图。其余文书仍只排版定稿，不起草。
+
+四类高频合同可由参数生成**骨架**（法定必备条款齐全、事实留占位，`contract_gen.py`）：
+`python scripts/contract_gen.py --kind labor|service|sales|lease -o 合同.docx --party-a … --party-b …`，
+劳动合同试用期超《劳动合同法》§19 上限直接拒绝生成；押金超两月租金警告；
+金额数值与大写并存；生成后填齐 `[待补充]` 与 `__` 空格、过 `check_legal.py`、请律师审。
+
+**边界说明**：合同**审查**（理解条款风险）需要法务内容层（WorkMind），本 skill 不做；合同**排版**（定稿后的格式）是纯版式层，做。
+
 ## 边界（重要）
 
 | 层 | 负责 | 不负责 |
@@ -198,6 +223,27 @@ metadata:
 4. **WorkMind 的 `knowledge/` 不复制进本仓库**——它是独立项目的资产，授权和体积要单独确认
 
 ## 版面检查
+
+**借条/欠条/收条用生成器，别手写**——参数进、合规文书出（九要素内置、大写金额自动算、超 LPR 四倍利率直接拒绝生成）：
+
+```bash
+python scripts/jietiao.py --kind jietiao -o 借条.docx \
+    --lender 张三 --lender-id 110101198805052345 \
+    --borrower 李四 --borrower-id 110101199001011234 \
+    --amount 50000 --rate 8 --months 6 --purpose 经营周转
+```
+
+`--kind qiantiao`（欠条，加 `--reason 货款`）/ `--kind shoutiao`（收条，加 `--for 房租`）。
+
+其余文书先自动体检（结构层规则，零 LLM），再人眼看 PNG：
+
+```bash
+python scripts/check_legal.py 借条.docx          # 文书类型识别 + 借条九要素 + 此致格式 + 落款
+python scripts/check_legal.py 起诉状.docx        # 当事人栏、此致、落款
+python scripts/check_legal.py 文书.docx --json   # 机器可读
+```
+
+借条九要素体检是硬价值：双方身份、金额大小写并存、利率上限（LPR 4 倍）、交付方式——**缺一项都可能败诉**，全部可程序化断言。
 
 ```bash
 wordcraft-cli render out.docx page1.png --page 1

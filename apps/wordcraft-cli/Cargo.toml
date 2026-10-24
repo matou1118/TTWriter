@@ -20,5 +20,17 @@ wordcraft-render = { workspace = true }
 wordcraft-mcp = { workspace = true }
 wordcraft-zotero = { workspace = true }
 wordcraft-pdfedit = { workspace = true }
+# pdf images / pdf text: the document model and the PDF/docx writers.
+wordcraft-pdf = { workspace = true }
+wordcraft-docx = { workspace = true }
+image = { workspace = true }
 serde_json = { workspace = true }
+# The update check verifies the downloaded installer against the release manifest's SHA-256.
+sha2 = { workspace = true }
+# update --install unpacks the portable zip (deflate only: our own zips).
+zip = { workspace = true }
+# AtomGit's contents API returns the release manifest base64-encoded.
+base64 = { workspace = true }
+# The update check's cache lives in the settings folder (shared with the control key).
+wordcraft-control-key = { workspace = true }
 sys-locale = "0.3"

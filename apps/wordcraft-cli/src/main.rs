@@ -2,8 +2,11 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod automation_args;
+mod ocrbridge;
 mod pdfcmd;
+mod redhead;
 mod script;
+mod update;
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -37,6 +40,12 @@ USAGE:
                                               No document model and no reflow: turning the pages of
                                               a PDF is not the same as editing what is on them;
                                               `wordcraft-cli pdf` alone prints the details
+  wordcraft-cli redhead <out.docx> [--org 名称] [--docno 文号] [--fenhao 份号]
+                              [--secret 密级] [--urgency 紧急] [--issuer 签发人]
+                              [--title 标题] [--pdf out.pdf]
+                                              generate the GB/T 9704 red-header block (org mark,
+                                              doc number, red rule, optional secret/urgency/
+                                              issuer/title) as a .docx to continue writing in
   wordcraft-cli run [--file F | --template T] [--script FILE|-] --cmd 'id={json}' [--cmd …]
                     [--save OUT] [--print] [--author NAME]
                                               run commands headlessly, then save (--author names
@@ -61,6 +70,12 @@ USAGE:
                                               running): addEditCitation, addEditBibliography,
                                               addNote, refresh, removeCodes, setDocPrefs
                                               (--cmd runs first, e.g. --cmd caret.docEnd)
+  wordcraft-cli update [--check|--force] [--download <dir>] [--install] [--json]
+                                              check for a newer release (AtomGit first, GitHub as
+                                              fallback; cached for 24 hours, --force re-checks),
+                                              --download fetches the installer into a folder,
+                                              --install also installs it (msi silently; the
+                                              portable zip is unpacked and swapped in)
   wordcraft-cli [<command>] -h | --help       this help
   wordcraft-cli --version
 
@@ -76,7 +91,8 @@ same output on every machine.
 ";
 
 /// The subcommands, in `USAGE` order; `--help` or `-h` after any of them prints `USAGE` (#968).
-const SUBCOMMANDS: &[&str] = &["convert", "info", "text", "inspect", "render", "pdf", "run", "commands", "parity", "mcp", "zotero"];
+const SUBCOMMANDS: &[&str] =
+    &["convert", "info", "text", "inspect", "render", "pdf", "redhead", "run", "commands", "parity", "mcp", "zotero", "update"];
 
 fn wants_help(cmd: &str, rest: &[String]) -> bool {
     SUBCOMMANDS.contains(&cmd) && rest.iter().any(|a| a == "--help" || a == "-h")
@@ -400,6 +416,8 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
     }
     match cmd {
         "pdf" => crate::pdfcmd::run(&rest),
+        "redhead" => crate::redhead::run(&rest).map_err(Failure::from),
+        "update" => crate::update::run(&rest),
         "convert" => {
             validate_options("convert", &rest, CONVERT_OPTIONS)?;
             // `--format wordml2003` (or `flatopc`) picks the kind of `.xml` file; its value isn't a path.
@@ -481,12 +499,13 @@ fn run<S: AsRef<OsStr>>(args: &[S]) -> Result<(), Failure> {
             }
             let mut s = match (from_file, from_template) {
                 (Some(f), _) => open(&f, password.as_deref())?,
-                (None, Some(t)) => {
+                // Both go through `file.new`, which puts a blank document on the region's paper (#3152).
+                (None, t) => {
                     let mut s = session(wordcraft_doc::Document::new());
-                    s.run("file.new", &json!({"template": t})).map_err(|e| e.to_string())?;
+                    let params = t.map_or_else(|| json!({}), |t| json!({"template": t}));
+                    s.run("file.new", &params).map_err(|e| e.to_string())?;
                     s
                 }
-                _ => session(wordcraft_doc::Document::new()),
             };
             if let Some(name) = arg_value(&rest, "--author") {
                 set_author(&mut s, &name)?;

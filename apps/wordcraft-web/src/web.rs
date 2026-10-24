@@ -79,6 +79,27 @@ pub fn start() {
                     if !sample {
                         app.start_screen();
                     }
+                    // Phones and tablets: the desktop chrome (title bar + ribbon + status bar +
+                    // panes) is designed for ≥ ~600pt of width and clips badly on a narrow
+                    // viewport. Focus mode (#1678) is the mobile-shaped surface already: the
+                    // document on black with a slim bar, the ribbon available as an overlay
+                    // ("⋯"). Start in it on narrow screens; the user can leave via the bar.
+                    // `?wide` overrides for testing; a URL flag of `focus` also enters it.
+                    // The canvas's CSS size is egui's screen rectangle on the web, and reading
+                    // it from the DOM avoids chasing egui's context API across versions.
+                    let narrow = (|| -> Option<bool> {
+                        let el = web_sys::window()?.document()?.get_element_by_id(CANVAS_ID)?;
+                        let html = el.dyn_into::<web_sys::HtmlElement>().ok()?;
+                        let w = html.client_width();
+                        Some(w > 0 && (w as f32) < 600.0)
+                    })()
+                    .unwrap_or(false);
+                    let want_focus = if query().contains("wide") { false } else { narrow || query().contains("focus") };
+                    if want_focus {
+                        if let Err(e) = app.run("view.focus", serde_json::json!({"value": true})) {
+                            log::warn!("narrow-viewport focus mode: {e}");
+                        }
+                    }
                     Ok(Box::new(WebShell { app, inbox, messages, prefs }))
                 }),
             )

@@ -5,7 +5,7 @@
 use std::cell::Cell;
 use std::collections::BTreeMap;
 
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::pseudo;
 use crate::WordApp;
@@ -147,6 +147,11 @@ impl Exempt {
         for m in crate::credits::MODELS {
             names.extend([m.company, m.model, m.version].map(str::to_string));
         }
+        // The spelling/grammar suggestions popup (#3340): dictionary and grammar-rule words, not
+        // interface text.
+        if let Some(sugg) = app.canvas.context_issue.as_ref().and_then(|i| i.get("suggestions")).and_then(Value::as_array) {
+            names.extend(sugg.iter().filter_map(Value::as_str).map(str::to_string));
+        }
         Exempt { body: app.session.doc.plain_text(wordcraft_doc::StoryRef::Body), names }
     }
 
@@ -176,6 +181,7 @@ impl Exempt {
             || matches!(plain, "WordCraft" | "WordCraft User" | "Discord" | "https://" | "auto" | "I. II. III." | "i. ii. iii.")
             // This edition's product name: a proper noun, the same in every interface language.
             || plain == crate::APP_NAME
+            || matches!(plain, "WordCraft" | "WordCraft User" | "Discord" | "https://" | "auto" | "I. II. III." | "i. ii. iii." | "I, II, III, …" | "i, ii, iii, …")
             || plain == "CONFIDENTIAL" // the watermark dialog's text: document content, kept as typed
             || plain == "Figure 1" // the caption dialog's sample: the label goes into the document as is
     }
@@ -221,6 +227,7 @@ fn untranslated_interface_text() {
         "goto",
         "insertTable",
         "pageSetup",
+        "pageNumbers",
         "link",
         "bookmark",
         "wordCount",
@@ -241,6 +248,7 @@ fn untranslated_interface_text() {
         "index",
         "markEntry",
         "toc",
+        "tableOfFigures",
         "sourceManager",
         "createSource",
     ];
@@ -336,9 +344,9 @@ fn untranslated_interface_text() {
     complete_catalogs_have_every_string_the_interface_looked_up(pseudo::looked_up());
 }
 
-/// Russian, Hungarian, Turkish, Bulgarian, Italian, Swedish, Croatian and Polish cover everything the
-/// audit saw translated, plus the equation gallery's labels (shown in menus the audit doesn't open
-/// one by one). Numbered style names go through a template.
+/// Russian, Hungarian, Turkish, Bulgarian, Italian, Swedish, Croatian, Polish and Slovenian cover
+/// everything the audit saw translated, plus the equation gallery's labels (shown in menus the
+/// audit doesn't open one by one). Numbered style names go through a template.
 fn complete_catalogs_have_every_string_the_interface_looked_up(mut keys: std::collections::BTreeSet<String>) {
     use wordcraft_engine::math_gallery::{BUILT_INS, STRUCTURES, SYMBOL_SETS};
     keys.extend(BUILT_INS.iter().map(|(_, label, _)| label.to_string()));
@@ -384,7 +392,7 @@ fn complete_catalogs_have_every_string_the_interface_looked_up(mut keys: std::co
     // translate: its placeholder names aren't words the interface shows.
     let words = |s: &str| english_words(&s.split('{').map(|p| p.split_once('}').map_or(p, |(_, rest)| rest)).collect::<String>());
     let mut report = String::new();
-    for code in ["ru", "hu", "tr", "bg", "it", "sv", "hr", "pl"] {
+    for code in ["ru", "hu", "tr", "bg", "it", "sv", "hr", "pl", "sl"] {
         let lang = super::Lang::from_code(code).unwrap_or(super::Lang::EN);
         let missing: Vec<&String> =
             keys.iter().filter(|s| words(s) && !super::has(lang, s) && !numbered(s) && !same(s) && !script_error(s)).collect();

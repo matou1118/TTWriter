@@ -5,10 +5,14 @@ formats that WordCraft does not ship.
 
 | Skill | What it is | License |
 |---|---|---|
+| **[`gongwen/`](gongwen/SKILL.md)** | **主打：公文排版** per GB/T 9704—2012 — 5 场景 preset（党政/企业/学校/医院/社区）、红头/联合发文、双层体检（版式 + GB/T 15834 文本规范）+ `--fix` 自动修复、文种路由决策树、批量发文（名单 → 逐单位版记）。各行各业刚需。 | Apache-2.0 |
+| **[`legal-docs/`](legal-docs/SKILL.md)** | **主打：法务文书排版**（纯格式层，零 LLM）— 16 种文书四档（诉讼/日常民商/程序/非诉合同）、借条/欠条/收条**生成器**（大写金额算法、九要素内置、超 LPR 四倍利率拒绝生成）、`check_legal.py` 体检（借条九要素/利率上限/此致格式）。合同审查需内容层，放一放。 | Apache-2.0 |
 | [`wordcraft/`](wordcraft/SKILL.md) | The core skill: build, edit, format, verify and export `.docx` with WordCraft. Includes Chinese-document conventions. | Apache-2.0 |
-| [`gongwen/`](gongwen/SKILL.md) | 公文排版 per GB/T 9704—2012: 版心, 仿宋/黑体/楷体 styles, fixed 28pt line spacing, page numbers, and a script that applies the whole layout to a finished document. | Apache-2.0 |
-| [`thesis/`](thesis/SKILL.md) | 论文排版 per GB/T 7713 / 7714: 封面, 页眉, 目录, 图表编号, 参考文献悬挂缩进. | Apache-2.0 |
-| [`legal-docs/`](legal-docs/SKILL.md) | 法务文书排版: 起诉状, 律师函, 法律意见书, 合同审查报告; 脱敏版标注. Bridges to WorkMind's legal content layer. | Apache-2.0 |
+| [`review/`](review/SKILL.md) | 审阅协作: 批注, 修订跟踪, 接受/拒绝, 两版对比 (`review.compare`), 限制编辑 — the document lifecycle after it exists. | Apache-2.0 |
+| [`mailmerge/`](mailmerge/SKILL.md) | 批量套打: Excel/CSV 名单 + 模板 → N 份文书 (工资条, 录取通知, 证书, 信封, 标签). | Apache-2.0 |
+| [`thesis/`](thesis/SKILL.md) | 论文排版 per GB/T 7713 / 7714: 封面, 页眉, 目录, 图表编号, 参考文献悬挂缩进. `scripts/check_thesis.py` audits figure/table numbering and citation↔bibliography correspondence. | Apache-2.0 |
+| [`exam/`](exam/SKILL.md) | 试卷排版: A3 双栏, 密封线, 答题留白, 数学公式 (`equation.set` LaTeX), 题号选项排列. | Apache-2.0 |
+| [`accessibility/`](accessibility/SKILL.md) | 无障碍发布检查 per GB/T 37668 / WCAG: alt text, heading structure, table headers, language, contrast — every issue has a fix command. | Apache-2.0 |
 
 ## The architecture: content layer vs layout layer
 

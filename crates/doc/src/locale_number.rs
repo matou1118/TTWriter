@@ -8,7 +8,7 @@ pub fn decimal_separator(lang: Option<&str>) -> char {
     let tag = lang.unwrap_or("").trim().to_ascii_lowercase().replace('_', "-");
     // Regions that write a decimal point where the language usually writes a comma.
     const POINT_REGIONS: &[&str] =
-        &["de-ch", "de-li", "it-ch", "es-mx", "es-us", "es-419", "es-pr", "es-do", "es-gt", "es-hn", "es-ni", "es-pa", "es-sv"];
+        &["de-ch", "de-li", "it-ch", "es-mx", "es-us", "es-419", "es-pr", "es-do", "es-gt", "es-hn", "es-ni", "es-pa", "es-sv", "es-cu", "es-pe"];
     if POINT_REGIONS.iter().any(|r| tag == *r || tag.starts_with(&format!("{r}-"))) {
         return '.';
     }
@@ -149,6 +149,17 @@ mod tests {
         assert_eq!(format_number(5.75, pl), "5,75");
         assert_eq!(format_number(1350.0, pl), "1350");
         assert_eq!(format_number(-0.001, pl), "0,00", "a rounded zero has no sign");
+    }
+
+    #[test]
+    fn cuban_and_peruvian_numbers_use_decimal_points() {
+        for lang in [Some("es-CU"), Some("es-PE")] {
+            assert_eq!(parse_number("1.234", lang), Some(1.234));
+            assert_eq!(parse_number("1,234.50", lang), Some(1234.5));
+            assert_eq!(format_number(5.75, lang), "5.75");
+        }
+        assert_eq!(parse_number("1.234,50", Some("es-ES")), Some(1234.5));
+        assert_eq!(format_number(5.75, Some("es-ES")), "5,75");
     }
 
     #[test]

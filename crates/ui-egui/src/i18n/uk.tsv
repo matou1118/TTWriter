@@ -17,6 +17,18 @@
 	A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team.	Безкоштовний текстовий процесор із відкритим кодом, написаний з нуля мовою Rust.\nЧастина Crafting Apps від команди ArtCraft.
 	About	Про програму
 	About WordCraft	Про WordCraft
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (сортування за ім'ям)
+	GOST (title sort)	GOST (сортування за назвою)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (автор-дата)
+	ISO 690 (numerical)	ISO 690 (числовий)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	Прийняти
 	Accept All Changes	Прийняти всі зміни
 	Accept This Change	Прийняти цю зміну
@@ -87,6 +99,7 @@
 	Click level to modify:	Виберіть рівень для змінення:
 	Click to switch back to inserting	Клацніть, щоб повернутися до вставлення
 	Color only	Лише колір
+	Continue from previous section	Продовжити з попереднього розділу
 	Custom dictionary	Власний словник
 	Define New Multilevel List	Визначити новий багаторівневий список
 	Define New Multilevel List…	Визначити новий багаторівневий список…
@@ -131,6 +144,8 @@
 	Outside border	Зовнішня межа
 	Overtype	Заміна
 	Overtype (typing replaces the characters after the caret)	Заміна (введений текст замінює символи після курсора)
+	Page Number Format	Формат номерів сторінок
+	Page numbering	Нумерація сторінок
 	Show alignment guides when moving pictures and shapes	Показувати напрямні вирівнювання під час переміщення зображень і фігур
 	Moved objects snap to the page's edges and centre, the margins and other objects. Hold Alt to move freely.	Переміщувані об'єкти прилипають до країв і центру сторінки, полів та інших об'єктів. Утримуйте Alt, щоб переміщувати вільно.
 	Page display	Відображення сторінки
@@ -388,6 +403,8 @@
 	Edit\nRecipient List	Редагувати\nсписок одержувачів
 	Edited	Відредаговано
 	Editing	Редагування
+	Editing endnote	Редагування кінцевої виноски
+	Editing footnote	Редагування виноски
 	Editing header/footer	Редагування колонтитула
 	Editing — edit the document directly	Редагування — безпосередні зміни в документі
 	Editor	Редактор
@@ -425,6 +442,9 @@
 	First line:	Перший рядок:
 	Fixed Column Width	Фіксована ширина стовпця
 	Focus	Зосередження
+	Full Screen View	Повноекранний режим
+	Show the ribbon	Показати стрічку
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	Старі клавіші меню: Alt, {keys}. Продовжуйте вводити або натисніть Esc, щоб скасувати.
 	Font	Шрифт
 	Font Color	Колір шрифту
 	Font color:	Колір шрифту:
@@ -1386,6 +1406,9 @@
 	{cols}×{rows} Table	Таблиця {cols}×{rows}
 	AaBbYyZz	AaBbYyZz ЄєЇї
 	pt	пт
+	cm	см
+	mm	мм
+	pi	pi
 	Document1	Документ1
 	Username	Ім'я користувача
 	Display name	Відображуване ім'я
@@ -1762,7 +1785,14 @@
 	Reading Line Spacing	Міжрядковий інтервал для читання
 	Reading Text Size	Розмір тексту для читання
 	English (United Kingdom)	Англійська (Велика Британія)
+	English (Australia)	Англійська (Австралія)
+	English (Canada)	Англійська (Канада)
+	English (India)	Англійська (Індія)
+	English (Ireland)	Англійська (Ірландія)
+	English (New Zealand)	Англійська (Нова Зеландія)
+	English (South Africa)	Англійська (Південна Африка)
 	Polish	Польська
+	Chinese	Chinese
 	Do Not Check Spelling or Grammar	Не перевіряти правопис і граматику
 
 # Built-in file browser when the system file dialog is unavailable (#576)
@@ -2228,6 +2258,7 @@
 	Submitting print job…	Надсилання завдання на друк…
 	Print job submitted.	Завдання на друк надіслано.
 	Print job submitted: {receipt}	Завдання на друк надіслано: {receipt}
+	Print job submitted: spooled {count} sheet(s)	Завдання друку надіслано: у чергу передано аркушів: {count}
 	Print failed: the printing worker stopped.	Друк не вдався: процес друку зупинився.
 	Print settings	Параметри друку
 	Submit print job	Надіслати завдання на друк
@@ -2261,6 +2292,9 @@
 # Reading Mode column widths (#1040)
 	Narrow	Вузька
 	Medium	Середня
+	Dot-dot-dash	Штрихпунктирна з двома крапками
+	More Underlines…	Інші підкреслення…
+	Underline Color	Колір підкреслення
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	Об'єднати клітинки перед розділенням
 	Table size	Розмір таблиці
@@ -2300,3 +2334,69 @@
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Введіть розмір у будь-яких одиницях, наприклад 5 cm або 300 px. Інша сторона зміниться разом із нею, тож зображення збереже пропорції.
 
 	Import…	Імпортувати…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image
+
+# Personal templates (#2852)
+	Personal	Особисті
+	Personal Templates	Особисті шаблони
+	Templates you save in your templates folder show up here.	Тут з’являються шаблони, які ви зберігаєте в теці шаблонів.
+	Save as Word Template…	Зберегти як шаблон Word…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	Зберігає шаблон .dotx у вашій теці шаблонів. Він з’являється в розділі Файл › Новий, у групі «Особисті».
+	File locations	Розташування файлів
+	User templates:	Шаблони користувача:
+	Not set	Не задано
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	Файл › Новий показує звідси шаблони .dotx і .dotm у групі «Особисті»; «Зберегти як шаблон Word» починає тут.
+	Format Shape Pane	Область «Формат фігури»
+	Format Shape	Формат фігури
+	Format Shape…	Формат фігури…
+	No fill	Без заливки
+	Solid fill	Суцільна заливка
+	Gradient fill	Градієнтна заливка
+	Preset gradients	Готові градієнти
+	Radial	Радіальний
+	Rectangular	Прямокутний
+	Path	Контур
+	Direction	Напрямок
+	Angle	Кут
+	Gradient stops	Точки градієнта
+	Add gradient stop	Додати точку градієнта
+	Remove gradient stop	Видалити точку градієнта
+	Rotate with shape	Обертати разом із фігурою
+	Gradient	Градієнт
+	No Gradient	Без градієнта
+	Light Variations	Світлі варіанти
+	Dark Variations	Темні варіанти
+	More Gradients…	Інші градієнти…
+	Select a shape, text box or drawing canvas to format its fill.	Виберіть фігуру, текстове поле або полотно, щоб налаштувати заливку.
+	Linear Right	Лінійний праворуч
+	Linear Diagonal - Top Left to Bottom Right	Лінійний по діагоналі — зліва вгорі → справа внизу
+	Linear Down	Лінійний вниз
+	Linear Diagonal - Top Right to Bottom Left	Лінійний по діагоналі — справа вгорі → зліва внизу
+	Linear Left	Лінійний ліворуч
+	Linear Diagonal - Bottom Right to Top Left	Лінійний по діагоналі — справа внизу → зліва вгорі
+	Linear Up	Лінійний вгору
+	Linear Diagonal - Bottom Left to Top Right	Лінійний по діагоналі — зліва внизу → справа вгорі
+	From Top Left Corner	Із кута зліва вгорі
+	From Top Right Corner	Із кута справа вгорі
+	From Bottom Left Corner	Із кута зліва внизу
+	From Bottom Right Corner	Із кута справа внизу
+	From Center	Із центру
+	Soft	М'який
+	Lit from Top	Освітлення згори
+	Deep	Глибокий
+	Lit from Bottom	Освітлення знизу
+	Center Glow	Сяйво з центру
+# File › Home greeting
+	Good morning	Доброго ранку
+	Good afternoon	Добрий день
+	Good evening	Добрий вечір
+	More tabs	Інші вкладки
+# #3013: Insert Table of Figures
+	Include label and number	Додавати мітку й номер

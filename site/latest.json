@@ -1,0 +1,22 @@
+{
+    "version":  "0.11.0",
+    "tag":  "v0.11.0",
+    "published":  "2026-10-24T02:52:45Z",
+    "notes":  "",
+    "assets":  [
+                   {
+                       "name":  "wordcraft-0.11.0-windows-x64-portable.zip",
+                       "channel":  "cn",
+                       "url":  "https://atomgit.com/matou118/ttwriter/releases/download/v0.11.0/wordcraft-0.11.0-windows-x64-portable.zip",
+                       "sha256":  "a2bb38afab6827e556d0617de40d05fa49ab6decfcacc5c9aa2f1fa68efa6650",
+                       "size":  44972308
+                   },
+                   {
+                       "name":  "wordcraft-0.11.0-windows-x64-portable.zip",
+                       "channel":  "global",
+                       "url":  "https://github.com/matou1118/ttwriter/releases/download/v0.11.0/wordcraft-0.11.0-windows-x64-portable.zip",
+                       "sha256":  "a2bb38afab6827e556d0617de40d05fa49ab6decfcacc5c9aa2f1fa68efa6650",
+                       "size":  44972308
+                   }
+               ]
+}

@@ -7,6 +7,9 @@
 //!
 //! 全部依赖 lopdf（纯 Rust），不下载任何二进制，不引入 C 代码。
 
+pub mod images;
+pub mod text;
+
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -82,6 +85,16 @@ impl Pdf {
     /// 页码，从 1 到 [`Self::page_count`]。
     pub fn page_numbers(&self) -> Vec<u32> {
         self.doc.get_pages().keys().copied().collect()
+    }
+
+    /// 一页的文本层（按阅读序排好的行）。扫描件没有文字层，返回空——那是 OCR 的活。
+    pub fn text_of(&self, page: u32) -> text::PageText {
+        text::page_text(&self.doc, page).sorted()
+    }
+
+    /// 一页里嵌入的位图（JPEG 原样字节；Flate 图带宽高与分量数）。OCR 桥从这拿图。
+    pub fn images_of(&self, page: u32) -> images::PageImages {
+        images::page_images(&self.doc, page)
     }
 
     /// 一页的宽和高（PostScript 点，1/72 英寸）。批注和水印按它定位。
@@ -192,6 +205,91 @@ impl Pdf {
         Ok(())
     }
 
+    /// 双层 PDF：给每页叠一层**隐形文本**（渲染模式 3），让扫描件可搜索、可复制。
+    ///
+    /// `layers` 是每页的文本（下标 0 对应第 1 页；短的按缺省处理——没有文本的页跳过）。
+    /// 文本按 12pt 行距排在页面左侧自上而下；坐标只是让它落在页内，视觉上完全不可见
+    /// （`3 Tr` 是 PDF 的隐形渲染模式，选择/搜索照常工作）。
+    pub fn overlay_text(&mut self, layers: &[String]) -> Result<()> {
+        if layers.is_empty() {
+            return Err(Error::Bad("没有可叠的文本层".into()));
+        }
+        let n = self.page_count();
+        if layers.len() > n {
+            return Err(Error::Bad(format!("给了 {} 页的文本，但 PDF 只有 {n} 页", layers.len())));
+        }
+        // 一个共享的简单字体（Helvetica，WinAnsi 可直出 ASCII；非 ASCII 转成 '?'——
+        // 双层 PDF 的搜索层以可检索为先，字形保真交给页面图像层）。
+        let font = self.doc.add_object(Object::Dictionary(lopdf::Dictionary::from_iter([
+            ("Type", Object::Name(b"Font".to_vec())),
+            ("Subtype", Object::Name(b"Type1".to_vec())),
+            ("BaseFont", Object::Name(b"Helvetica".to_vec())),
+        ])));
+        for (i, text) in layers.iter().enumerate() {
+            if text.trim().is_empty() {
+                continue;
+            }
+            let page_no = u32::try_from(i + 1).map_err(|_| Error::Bad("页数溢出".into()))?;
+            let id = self.id_of(page_no)?;
+            // 页面尺寸（文字排进页内；拿不到就用 A4）。
+            let (w, h) = self.page_size(page_no).unwrap_or((595.0, 842.0));
+            let _ = w;
+            let mut body = String::with_capacity(text.len() + 64);
+            body.push_str("BT\n3 Tr\n/F1 12 Tf\n");
+            let mut y = h - 24.0;
+            for line in text.lines() {
+                if y < 24.0 {
+                    break; // 页满即止（剩余文本丢弃：搜索层不是重排版）
+                }
+                body.push_str(&format!("1 0 0 1 14 {:.1} Tm ({}) Tj\n", y, escape_simple(line)));
+                y -= 14.0;
+            }
+            body.push_str("ET");
+            let content = self.doc.add_object(Object::Stream(lopdf::Stream::new(
+                lopdf::Dictionary::from_iter([("Length", Object::Integer(body.len() as i64))]),
+                body.into_bytes(),
+            )));
+            // 页字典取快照改完写回（借用一次一收）。
+            let mut page = match self.doc.get_object(id)? {
+                Object::Dictionary(d) => d.clone(),
+                _ => return Err(Error::Pdf(format!("{id:?} 不是页面字典"))),
+            };
+            // 页资源里挂 F1；已有 Font 字典就并入，没有就新建。
+            match page.get(b"Resources").cloned().unwrap_or(Object::Dictionary(lopdf::Dictionary::new())) {
+                Object::Reference(rid) => {
+                    let Object::Dictionary(mut rd) = self.doc.get_object(rid)?.clone() else {
+                        return Err(Error::Pdf("Resources 不是字典".into()));
+                    };
+                    merge_font(&mut rd, font);
+                    *self.doc.get_object_mut(rid)? = Object::Dictionary(rd);
+                }
+                Object::Dictionary(mut rd) => {
+                    merge_font(&mut rd, font);
+                    let rid = self.doc.add_object(Object::Dictionary(rd));
+                    page.set("Resources", Object::Reference(rid));
+                }
+                _ => return Err(Error::Pdf("Resources 不是字典".into())),
+            }
+            // 内容流：已有 Contents（数组或单流）就追加为多流。
+            let contents = page.get(b"Contents").cloned().ok();
+            let new_contents = match contents {
+                Some(Object::Reference(existing)) => {
+                    let arr = Object::Array(vec![Object::Reference(existing), Object::Reference(content)]);
+                    self.doc.add_object(arr)
+                }
+                Some(Object::Array(existing)) => {
+                    let mut a = existing.clone();
+                    a.push(Object::Reference(content));
+                    self.doc.add_object(a)
+                }
+                _ => content,
+            };
+            page.set("Contents", Object::Reference(new_contents));
+            *self.doc.get_object_mut(id)? = Object::Dictionary(page);
+        }
+        Ok(())
+    }
+
     /// 存成内存里的 PDF 字节。
     pub fn to_bytes(&mut self) -> Result<Vec<u8>> {
         let mut out = Vec::new();
@@ -246,11 +344,152 @@ fn reference_of(o: &Object) -> Result<lopdf::ObjectId> {
     }
 }
 
+/// 简单字体字符串里的字符转义（`(`、`)`、`\`；其余非 ASCII 降为 `?`——搜索层够用）。
+fn escape_simple(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '(' | ')' | '\\' => {
+                out.push('\\');
+                out.push(c);
+            }
+            '\n' | '\r' => out.push(' '),
+            c if (c as u32) < 0x80 => out.push(c),
+            _ => out.push('?'),
+        }
+    }
+    out
+}
+
+/// 资源字典里并入 `/F1 → font`（已有 Font 字典就改，没有就建）。
+fn merge_font(rd: &mut lopdf::Dictionary, font: lopdf::ObjectId) {
+    match rd.get_mut(b"Font") {
+        Ok(Object::Dictionary(fd)) => {
+            fd.set(b"F1", Object::Reference(font));
+        }
+        _ => {
+            let fd = lopdf::Dictionary::from_iter([(b"F1".to_vec(), Object::Reference(font))]);
+            rd.set(b"Font", Object::Dictionary(fd));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use flate2::write::ZlibEncoder;
     use lopdf::{Dictionary, Stream};
 
     use super::*;
+    use images::Kind;
+
+    /// 双层 PDF：叠的隐形文本层要能被（我们自己的）提取器读回来。
+    #[test]
+    fn overlay_text_makes_a_searchable_layer() {
+        let mut pdf = blank(1);
+        pdf.overlay_text(&["Searchable layer 42".into()]).expect("overlay");
+        let out = pdf.text_of(1);
+        let text: String = out.lines.iter().map(|l| l.text.clone()).collect();
+        assert!(text.contains("Searchable layer 42"), "the layer reads back: {text:?}");
+    }
+
+    /// 嵌入位图提取：DCT（JPEG 原样字节）和 Flate（原始像素 + 分量数）两种都认。
+    #[test]
+    fn images_of_extracts_jpeg_and_flate_bmps() {
+        let mut doc = Document::with_version("1.5");
+        // 一张 3×2 的假 JPEG（DCTDecode：内容即文件字节）。
+        let jpeg_bytes: Vec<u8> = [0xFF, 0xD8, 0xFF, 0xE0, b'J', b'F', b'I', b'F', 0xFF, 0xD9].to_vec();
+        let dct = doc.add_object(Stream::new(
+            Dictionary::from_iter([
+                ("Type", Object::Name(b"XObject".to_vec())),
+                ("Subtype", Object::Name(b"Image".to_vec())),
+                ("Width", Object::Integer(3)),
+                ("Height", Object::Integer(2)),
+                ("ColorSpace", Object::Name(b"DeviceRGB".to_vec())),
+                ("BitsPerComponent", Object::Integer(8)),
+                ("Filter", Object::Name(b"DCTDecode".to_vec())),
+            ]),
+            jpeg_bytes.clone(),
+        ));
+        // 一张 2×2 的 Flate RGB 图：解出 12 字节像素（zlib 包好）。
+        let pixels: Vec<u8> = (0..12u8).collect();
+        let mut enc = ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut enc, &pixels).unwrap();
+        let zipped = enc.finish().unwrap();
+        let flate = doc.add_object(Stream::new(
+            Dictionary::from_iter([
+                ("Type", Object::Name(b"XObject".to_vec())),
+                ("Subtype", Object::Name(b"Image".to_vec())),
+                ("Width", Object::Integer(2)),
+                ("Height", Object::Integer(2)),
+                ("ColorSpace", Object::Name(b"DeviceRGB".to_vec())),
+                ("BitsPerComponent", Object::Integer(8)),
+                ("Filter", Object::Name(b"FlateDecode".to_vec())),
+            ]),
+            zipped,
+        ));
+        let xobjs = Dictionary::from_iter([
+            (b"Im0".to_vec(), Object::Reference(dct)),
+            (b"Im1".to_vec(), Object::Reference(flate)),
+            // 不是图的东西不收。
+            (
+                b"Fm0".to_vec(),
+                Object::Reference(
+                    doc.add_object(Dictionary::from_iter([("Type", Object::Name(b"XObject".to_vec())), ("Subtype", Object::Name(b"Form".to_vec()))])),
+                ),
+            ),
+        ]);
+        let resources = Dictionary::from_iter([("XObject", Object::Dictionary(xobjs))]);
+        let contents = doc.add_object(Stream::new(Dictionary::new(), b"".to_vec()));
+        let parent = doc.add_object(Dictionary::new());
+        let page = doc.add_object(Dictionary::from_iter([
+            ("Type", Object::Name(b"Page".to_vec())),
+            ("Parent", Object::Reference(parent)),
+            ("MediaBox", Object::Array(vec![Object::Integer(0), Object::Integer(0), Object::Integer(595), Object::Integer(842)])),
+            ("Resources", Object::Dictionary(resources)),
+            ("Contents", Object::Reference(contents)),
+        ]));
+        let pages_id = doc.add_object(Dictionary::from_iter([
+            ("Type", Object::Name(b"Pages".to_vec())),
+            ("Kids", Object::Array(vec![Object::Reference(page)])),
+            ("Count", Object::Integer(1)),
+        ]));
+        let catalog = doc.add_object(Dictionary::from_iter([("Type", Object::Name(b"Catalog".to_vec())), ("Pages", Object::Reference(pages_id))]));
+        doc.trailer.set("Root", Object::Reference(catalog));
+        let pdf = Pdf { doc };
+
+        let imgs = pdf.images_of(1);
+        assert_eq!(imgs.images.len(), 2, "Form XObject 不是图，不收");
+        let im0 = &imgs.images[0];
+        assert_eq!((im0.name.as_str(), im0.w, im0.h), ("Im0", 3, 2));
+        assert!(matches!(&im0.kind, Kind::Jpeg(b) if b == &jpeg_bytes), "JPEG 原样字节");
+        let im1 = &imgs.images[1];
+        assert_eq!((im1.name.as_str(), im1.w, im1.h), ("Im1", 2, 2));
+        match &im1.kind {
+            Kind::Raw { components, bytes } => {
+                assert_eq!(*components, 3, "DeviceRGB");
+                assert_eq!(bytes.len(), 12, "2×2×3 = 12 字节像素");
+                assert_eq!(bytes, &(0..12).collect::<Vec<u8>>(), "Flate 解出的像素");
+            }
+            other => panic!("应是 Raw：{other:?}"),
+        }
+        // 没有图的页：空列表，不是错误。
+        assert!(pdf.images_of(2).images.is_empty());
+    }
+
+    /// 转义与多页：括号文本不破坏流，多余的层报错，中文降级为问号但流仍合法。
+    #[test]
+    fn overlay_text_escapes_and_validates() {
+        let mut pdf = blank(2);
+        pdf.overlay_text(&["with (parens) and \\slash".into(), "page two".into()]).expect("overlay");
+        let one: String = pdf.text_of(1).lines.iter().map(|l| l.text.clone()).collect();
+        assert!(one.contains("(parens)"), "{one:?}");
+        let two: String = pdf.text_of(2).lines.iter().map(|l| l.text.clone()).collect();
+        assert!(two.contains("page two"), "{two:?}");
+        // 层数超过页数是错误，不是 panic。
+        assert!(blank(1).overlay_text(&["a".into(), "b".into()]).is_err());
+        // 空层报错。
+        assert!(blank(1).overlay_text(&[]).is_err());
+    }
 
     /// 一份 n 页的 A4 空白 PDF，测试自己生成，仓库里不留 PDF 文件。
     fn blank(pages: u32) -> Pdf {

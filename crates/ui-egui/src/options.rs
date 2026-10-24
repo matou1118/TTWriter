@@ -35,9 +35,44 @@ pub fn decimal() -> char {
     DECIMAL.get()
 }
 
-/// `pt` in [`unit`], written the region's way (`2,54 cm`).
+/// `pt` in [`unit`], written the region's way (`2,54 cm`), with the unit in the interface
+/// language (`2,54 см` in Russian).
 pub fn length(pt: f32) -> String {
-    unit().format_with(pt, decimal())
+    length_in(unit(), pt)
+}
+
+/// [`length`] in a given unit.
+pub fn length_in(unit: Unit, pt: f32) -> String {
+    format!("{}{}", unit.number(pt, decimal()), unit_suffix(unit))
+}
+
+/// The unit's suffix as the interface shows it: ` cm`, ` mm`, ` pt` and ` pi` go through the
+/// catalog (` см` in Russian, #1734); inches keep `"`.
+pub fn unit_suffix(unit: Unit) -> String {
+    match unit {
+        Unit::Inches => unit.suffix().to_string(),
+        Unit::Centimeters => format!(" {}", tl!("cm")),
+        Unit::Millimeters => format!(" {}", tl!("mm")),
+        Unit::Points => format!(" {}", tl!("pt")),
+        Unit::Picas => format!(" {}", tl!("pi")),
+    }
+}
+
+/// A length typed into a field in `unit`, as a number of that unit: either decimal separator,
+/// another unit (`1 in` in a centimetre field), and the units' names in the interface language
+/// as well as in English (`3 см`).
+pub fn parse_length(text: &str, unit: Unit) -> Option<f64> {
+    let mut text: String = text.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase();
+    for (english, translated) in [("cm", tl!("cm")), ("mm", tl!("mm")), ("pt", tl!("pt")), ("pi", tl!("pi"))] {
+        let translated = translated.to_lowercase();
+        if translated != english
+            && let Some(number) = text.strip_suffix(translated.as_str())
+        {
+            text = format!("{number}{english}");
+            break;
+        }
+    }
+    wordcraft_geom::parse_measure(&text, unit).map(|pt| f64::from(pt / unit.pt_per_unit()))
 }
 
 /// Copy the session's settings the UI reads without the app.
@@ -59,7 +94,7 @@ pub trait MeasureExt {
 impl MeasureExt for egui::DragValue<'_> {
     fn measure(self, unit: Unit) -> Self {
         let sep = decimal();
-        self.suffix(unit.suffix())
+        self.suffix(unit_suffix(unit))
             .custom_formatter(move |n, decimals| {
                 let s = egui::emath::format_with_decimals_in_range(n, decimals);
                 if sep == '.' { s } else { s.replace('.', &sep.to_string()) }
@@ -69,12 +104,6 @@ impl MeasureExt for egui::DragValue<'_> {
     fn measure_blank(self, unit: Unit) -> Self {
         self.custom_formatter(|_, _| String::new()).custom_parser(move |text| parse_length(text, unit))
     }
-}
-
-/// A length typed in a field, in `unit`s.
-fn parse_length(text: &str, unit: Unit) -> Option<f64> {
-    let text: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-    wordcraft_geom::parse_measure(&text, unit).map(|pt| f64::from(pt / unit.pt_per_unit()))
 }
 
 /// Regions offered in File › Options › Advanced › Region (any locale tag works through
@@ -351,8 +380,9 @@ fn language_name(lang: wordcraft_engine::proof::ProofLang) -> &'static str {
         ProofLang::Ru => tl!("Russian"),
         ProofLang::Cs => tl!("Czech"),
         ProofLang::Id => tl!("Indonesian"),
-        // English uses its bundled word list; Bulgarian has no dictionary yet.
-        ProofLang::En | ProofLang::Bg | ProofLang::Other => "",
+        ProofLang::Zh => tl!("Chinese"),
+        // English uses its bundled word list; Bulgarian and German have no dictionary yet.
+        ProofLang::En | ProofLang::EnGb | ProofLang::EnCa | ProofLang::Bg | ProofLang::De | ProofLang::Other => "",
     }
 }
 
@@ -429,7 +459,9 @@ fn language(app: &mut WordApp, ui: &mut Ui) {
     // #414 (detect the document's language) goes here.
     ui.add_space(8.0);
     section(ui, "Proofing language");
-    note(ui, "Spelling and grammar are checked in English (United States).");
+    // The document's default language (Review › Language › Set As Default changes it).
+    let tag = app.session.doc.styles.default_chr.lang.clone();
+    note(ui, &crate::ribbon::language_name(tag.as_deref()));
 }
 
 fn accessibility(app: &mut WordApp, ui: &mut Ui) {
@@ -528,6 +560,12 @@ fn advanced(app: &mut WordApp, ui: &mut Ui) {
     {
         let _ = app.run("ui.caretAnimation", json!({"value": caret}));
     }
+    // The web app has no folders to name.
+    if !cfg!(target_arch = "wasm32") {
+        ui.add_space(8.0);
+        section(ui, "File locations");
+        templates_folder(app, ui);
+    }
     ui.add_space(8.0);
     section(ui, "Customize");
     ui.horizontal(|ui| {
@@ -542,6 +580,36 @@ fn advanced(app: &mut WordApp, ui: &mut Ui) {
             let _ = app.run("tools.customizeRibbon", json!({}));
         }
     });
+}
+
+/// The user templates folder (#2852): where File › New finds personal templates and Save as Word
+/// Template starts. Empty is the app's own folder, shown as the hint.
+fn templates_folder(app: &mut WordApp, ui: &mut Ui) {
+    let saved = app.session.prefs.user_templates_folder.clone().unwrap_or_default();
+    let id = egui::Id::new("options_user_templates_folder");
+    let mut folder = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| saved.clone());
+    let default = app.services.templates_dir.as_ref().map(|d| d.to_string_lossy().into_owned());
+    ui.label(tl!("User templates:"));
+    ui.horizontal(|ui| {
+        let hint = default.clone().unwrap_or_else(|| tl!("Not set").to_string());
+        let r = ui.add(egui::TextEdit::singleline(&mut folder).desired_width(320.0).hint_text(hint));
+        let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+        let changed = folder.trim() != saved;
+        if ui.add_enabled(changed, egui::Button::new(tl!("Apply"))).clicked() || (enter && changed) {
+            let value = if folder.trim().is_empty() { "auto" } else { folder.trim() };
+            match app.run("file.options", json!({"userTemplatesFolder": value})) {
+                Ok(_) => folder = app.session.prefs.user_templates_folder.clone().unwrap_or_default(),
+                Err(e) => app.status(e),
+            }
+        }
+        if ui.add_enabled(!saved.is_empty(), egui::Button::new(tl!("Clear"))).clicked()
+            && app.run("file.options", json!({"userTemplatesFolder": "auto"})).is_ok()
+        {
+            folder.clear();
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(id, folder));
+    note(ui, "File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.");
 }
 
 fn agents(ui: &mut Ui) {
@@ -633,7 +701,7 @@ fn language_picker(app: &mut WordApp, ui: &mut Ui) {
             if ui.selectable_label(app.ui.language == AUTO, auto_label.as_str()).clicked() {
                 let _ = app.run("ui.language", json!({"value": AUTO}));
             }
-            for lang in Lang::all() {
+            for lang in Lang::for_picker() {
                 if ui.selectable_label(app.ui.language == lang.code(), lang.name()).clicked() {
                     let _ = app.run("ui.language", json!({"value": lang.code()}));
                 }
@@ -732,7 +800,7 @@ mod tests {
     use serde_json::json;
     use wordcraft_geom::Unit;
 
-    use super::{decimal, length, unit};
+    use super::{decimal, length, parse_length, unit};
 
     use crate::theme::Appearance;
     use crate::{Services, UiState, WordApp};
@@ -897,6 +965,20 @@ mod tests {
         b.apply_prefs(UiState::from_json(&saved).unwrap());
         assert_eq!(b.session.prefs.dictionaries_folder.as_deref(), Some(dir.to_string_lossy().as_ref()));
         assert_eq!(wordcraft_engine::proof::hunspell::search_dirs(None).first(), Some(&dir), "searched first");
+    }
+
+    /// #1792: Check spelling as you type is saved with the other proofing choices, so after a
+    /// restart the box comes back the way the user left it.
+    #[test]
+    fn check_spelling_survives_a_restart() {
+        let mut a = app();
+        a.run("file.options", json!({"checkSpelling": false})).unwrap();
+        assert!(!a.session.view.proofing, "off right away");
+        let saved = serde_json::to_value(a.prefs()).unwrap();
+        assert_eq!(saved["editing"]["checkSpelling"], false, "saved in ui.json");
+        let mut b = app();
+        b.apply_prefs(UiState::from_json(&serde_json::to_vec(&saved).unwrap()).unwrap());
+        assert!(!b.session.view.proofing, "spelling stays off after a restart");
     }
 
     /// Settings saved before #838 kept the unit under `editing.units` (default inches): a unit
@@ -1120,5 +1202,41 @@ mod tests {
         h.state_mut().run("file.options", json!({"units": "auto", "region": "en-US"})).unwrap();
         h.run_steps(4);
         assert_eq!(length(72.0), "1\"");
+    }
+
+    /// #1734: a Russian interface shows centimetres as `см`, as Word does, and a length field
+    /// takes the unit typed either way.
+    #[test]
+    fn length_units_follow_the_interface_language() {
+        let mut a = app();
+        a.run("ui.language", json!({"value": "ru"})).unwrap();
+        a.run("file.options", json!({"region": "ru-RU"})).unwrap();
+        a.run("file.new", json!({})).unwrap();
+        let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1440.0, 900.0)).build_ui_state(
+            |ui, app: &mut WordApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            a,
+        );
+        h.run_steps(2);
+        h.state_mut().run("ui.dialog", json!({"name": "pageSetup"})).unwrap();
+        h.run_steps(4);
+        assert_eq!((unit(), decimal()), (Unit::Centimeters, ','));
+        assert_eq!(length(72.0), "2,54 см");
+        assert_eq!(h.query_all_by_value("2,54 см").count(), 4, "four margins in centimetres, named in Russian");
+        assert_eq!(h.query_all_by_value("2,54 cm").count(), 0);
+        assert_eq!(parse_length("3 см", Unit::Centimeters), Some(3.0));
+        assert_eq!(parse_length("3cm", Unit::Centimeters), Some(3.0));
+        assert_eq!(parse_length("10 мм", Unit::Centimeters).map(|v| (v * 100.0).round() / 100.0), Some(1.0));
+        assert_eq!(parse_length("72 пт", Unit::Centimeters).map(|v| (v * 100.0).round() / 100.0), Some(2.54));
+
+        h.state_mut().run("file.options", json!({"units": "millimeters"})).unwrap();
+        h.run_steps(4);
+        assert_eq!(length(72.0), "25,4 мм");
+        h.state_mut().run("ui.language", json!({"value": "en"})).unwrap();
+        h.run_steps(4);
+        assert_eq!(length(72.0), "25,4 mm", "English keeps the English names");
     }
 }

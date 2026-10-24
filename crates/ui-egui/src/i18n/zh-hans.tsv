@@ -18,6 +18,18 @@
 	A free, open-source word processor written from scratch in Rust.\nPart of the Crafting Apps from the ArtCraft team.	一款用 Rust 从零编写的免费开源文字处理软件。\n属于 ArtCraft 团队的 Crafting Apps 系列。
 	About	关于
 	About WordCraft	关于 WordCraft
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (按名称排序)
+	GOST (title sort)	GOST (按标题排序)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (作者-日期)
+	ISO 690 (numerical)	ISO 690 (数字)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	接受
 	Accept All Changes	接受所有修订
 	Accept This Change	接受此修订
@@ -89,6 +101,7 @@
 	Click to switch back to inserting	单击以切换回插入模式
 	Color only	仅颜色
 	Compress punctuation at the start of a line	压缩行首标点
+	Continue from previous section	续前节
 	Couldn't make WordCraft the default: {error}	无法将 WordCraft 设为默认应用：{error}
 	Custom dictionary	自定义词典
 	Dark page (white text on black)	深色页面（黑底白字）
@@ -147,6 +160,8 @@
 	Opens Settings › Default apps, where you choose WordCraft for .docx and the other document types.	打开“设置 › 默认应用”，在其中为 .docx 及其他文档类型选择 WordCraft。
 	Overtype	改写
 	Overtype (typing replaces the characters after the caret)	改写（键入的内容替换插入点后的字符）
+	Page Number Format	页码格式
+	Page numbering	页码编号
 	Show alignment guides when moving pictures and shapes	移动图片和形状时显示对齐参考线
 	Moved objects snap to the page's edges and centre, the margins and other objects. Hold Alt to move freely.	移动的对象会吸附到页面的边缘和中心、页边距以及其他对象。按住 Alt 可自由移动。
 	Page display	页面显示
@@ -390,6 +405,8 @@
 	Edit\nRecipient List	编辑收件人列表
 	Edited	已编辑
 	Editing	编辑
+	Editing endnote	正在编辑尾注
+	Editing footnote	正在编辑脚注
 	Editing header/footer	正在编辑页眉/页脚
 	Editing — edit the document directly	编辑 — 直接编辑文档
 	Editor	编辑器
@@ -427,6 +444,9 @@
 	First line:	首行：
 	Fixed Column Width	固定列宽
 	Focus	专注
+	Full Screen View	全屏视图
+	Show the ribbon	显示功能区
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	旧菜单键: Alt, {keys}。继续输入，或按 Esc 取消。
 	Font	字体
 	Font Color	字体颜色
 	Font color:	字体颜色：
@@ -1386,6 +1406,9 @@
 	{cols}×{rows} Table	{cols}×{rows} 表格
 	AaBbYyZz	AaBbYyZz 中文
 	pt	磅
+	cm	厘米
+	mm	毫米
+	pi	派卡
 	Document1	文档1
 	Username	用户名
 	Display name	显示名称
@@ -1762,7 +1785,14 @@
 	Reading Line Spacing	阅读行距
 	Reading Text Size	阅读字号
 	English (United Kingdom)	英语（英国）
+	English (Australia)	英语（澳大利亚）
+	English (Canada)	英语（加拿大）
+	English (India)	英语（印度）
+	English (Ireland)	英语（爱尔兰）
+	English (New Zealand)	英语（新西兰）
+	English (South Africa)	英语（南非）
 	Polish	波兰语
+	Chinese	中文
 	Do Not Check Spelling or Grammar	不检查拼写和语法
 
 # Built-in file browser when the system file dialog is unavailable (#576)
@@ -2228,6 +2258,7 @@
 	Submitting print job…	正在提交打印作业…
 	Print job submitted.	打印作业已提交。
 	Print job submitted: {receipt}	打印作业已提交：{receipt}
+	Print job submitted: spooled {count} sheet(s)	打印作业已发送：已将 {count} 张纸送入后台处理
 	Print failed: the printing worker stopped.	打印失败：打印工作线程已停止。
 	Print settings	打印设置
 	Submit print job	提交打印作业
@@ -2261,6 +2292,9 @@
 # Reading Mode column widths (#1040)
 	Narrow	窄
 	Medium	中等
+	Dot-dot-dash	双点划线
+	More Underlines…	其他下划线…
+	Underline Color	下划线颜色
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	拆分前合并单元格
 	Table size	表格尺寸
@@ -2300,3 +2334,69 @@
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	可用任意单位输入大小，例如 5 cm 或 300 px。另一边随之调整，图片保持原有比例。
 
 	Import…	导入…
+	Simplify Chinese	转为简体
+	Traditional Chinese	转为繁体
+	Sort by Pinyin	按拼音排序
+	Erase Area	擦除区域
+	Enhance	一键增强
+	ID Photo	证件照
+	Slim Document	文档瘦身
+	Export as Long Image	导出为长图
+
+# Personal templates (#2852)
+	Personal	个人
+	Personal Templates	个人模板
+	Templates you save in your templates folder show up here.	保存到模板文件夹中的模板会显示在这里。
+	Save as Word Template…	另存为 Word 模板…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	将 .dotx 模板保存到你的模板文件夹。它会显示在“文件 › 新建”的“个人”下。
+	File locations	文件位置
+	User templates:	用户模板：
+	Not set	未设置
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	“文件 › 新建”在“个人”下列出此处的 .dotx 和 .dotm 模板；“另存为 Word 模板”从这里开始。
+	Format Shape Pane	设置形状格式窗格
+	Format Shape	设置形状格式
+	Format Shape…	设置形状格式…
+	No fill	无填充
+	Solid fill	纯色填充
+	Gradient fill	渐变填充
+	Preset gradients	预设渐变
+	Radial	径向
+	Rectangular	矩形
+	Path	路径
+	Direction	方向
+	Angle	角度
+	Gradient stops	渐变光圈
+	Add gradient stop	添加渐变光圈
+	Remove gradient stop	删除渐变光圈
+	Rotate with shape	与形状一起旋转
+	Gradient	渐变
+	No Gradient	无渐变
+	Light Variations	浅色变体
+	Dark Variations	深色变体
+	More Gradients…	其他渐变…
+	Select a shape, text box or drawing canvas to format its fill.	请选择一个形状、文本框或绘图画布来设置其填充格式。
+	Linear Right	线性 向右
+	Linear Diagonal - Top Left to Bottom Right	线性对角 - 左上到右下
+	Linear Down	线性 向下
+	Linear Diagonal - Top Right to Bottom Left	线性对角 - 右上到左下
+	Linear Left	线性 向左
+	Linear Diagonal - Bottom Right to Top Left	线性对角 - 右下到左上
+	Linear Up	线性 向上
+	Linear Diagonal - Bottom Left to Top Right	线性对角 - 左下到右上
+	From Top Left Corner	从左上角
+	From Top Right Corner	从右上角
+	From Bottom Left Corner	从左下角
+	From Bottom Right Corner	从右下角
+	From Center	从中心
+	Soft	柔和
+	Lit from Top	顶部照亮
+	Deep	深沉
+	Lit from Bottom	底部照亮
+	Center Glow	中心光晕
+# File › Home greeting
+	Good morning	早上好
+	Good afternoon	下午好
+	Good evening	晚上好
+	More tabs	更多选项卡
+# #3013: Insert Table of Figures
+	Include label and number	包含标签和编号

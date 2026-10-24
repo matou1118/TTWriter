@@ -83,8 +83,11 @@
 	Bold	Pogrubienie
 	Bookmark	Zakładka
 	Bookmark name:	Nazwa zakładki:
+	Continue from previous section	Kontynuuj od poprzedniej sekcji
 	Delete Bookmark	Usuń zakładkę
 	Hidden bookmarks	Ukryte zakładki
+	Page Number Format	Format numerów stron
+	Page numbering	Numeracja stron
 	Sort by:	Sortuj według:
 	Border Painter	Pędzel krawędzi
 	Border\nPainter	Pędzel\nkrawędzi
@@ -236,6 +239,8 @@
 	Edit\nRecipient List	Edytuj listę\nadresatów
 	Edited	Zmieniony
 	Editing	Edytowanie
+	Editing endnote	Edycja przypisu końcowego
+	Editing footnote	Edycja przypisu dolnego
 	Editing header/footer	Edycja nagłówka/stopki
 	Editing — edit the document directly	Edytowanie — zmiany trafiają wprost do dokumentu
 	Editor	Edytor
@@ -271,6 +276,9 @@
 	First line:	Pierwszy wiersz:
 	Fixed Column Width	Stała szerokość kolumn
 	Focus	Skupienie
+	Full Screen View	Widok pełnoekranowy
+	Show the ribbon	Pokaż wstążkę
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	Stare klawisze menu: Alt, {keys}. Pisz dalej lub naciśnij Esc, aby anulować.
 	Font	Czcionka
 	Font Color	Kolor czcionki
 	Font Dialog	Okno dialogowe Czcionka
@@ -1059,7 +1067,14 @@
 	Preview	Podgląd
 	getartcraft.com/apps/wordcraft	getartcraft.com/apps/wordcraft
 	English (United Kingdom)	Angielski (Wielka Brytania)
+	English (Australia)	Angielski (Australia)
+	English (Canada)	Angielski (Kanada)
+	English (India)	Angielski (Indie)
+	English (Ireland)	Angielski (Irlandia)
+	English (New Zealand)	Angielski (Nowa Zelandia)
+	English (South Africa)	Angielski (Republika Południowej Afryki)
 	Polish	Polski
+	Chinese	Chinese
 	Do Not Check Spelling or Grammar	Nie sprawdzaj pisowni ani gramatyki
 	Possible spelling mistake	Możliwy błąd pisowni
 	Extra space	Zbędna spacja
@@ -1356,6 +1371,9 @@
 	Width and spacing	Szerokość i odstępy
 	from Unicode (hex)	z Unicode (szesnastkowo)
 	pt	pt
+	cm	cm
+	mm	mm
+	pi	pi
 	{cols}×{rows} Table	Tabela {cols}×{rows}
 	{contributors} contributors · {commits} commits	Współtwórcy: {contributors} · commity: {commits}
 	Copyright Sign	Znak praw autorskich
@@ -2616,6 +2634,7 @@ preview	Title	Tytuł
 	Submitting print job…	Wysyłanie zadania drukowania…
 	Print job submitted.	Zadanie drukowania wysłane.
 	Print job submitted: {receipt}	Zadanie drukowania wysłane: {receipt}
+	Print job submitted: spooled {count} sheet(s)	Zadanie drukowania wysłane: liczba arkuszy przekazanych do spoolera: {count}
 	Print failed: the printing worker stopped.	Drukowanie nie powiodło się: proces drukowania został zatrzymany.
 	Print settings	Ustawienia drukowania
 	Submit print job	Wyślij zadanie drukowania
@@ -2654,6 +2673,9 @@ preview	Title	Tytuł
 # Reading Mode column widths (#1040)
 	Narrow	Wąska
 	Medium	Średnia
+	Dot-dot-dash	Kreska-kropka-kropka
+	More Underlines…	Więcej podkreśleń…
+	Underline Color	Kolor podkreślenia
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	Scal komórki przed podziałem
 	Table size	Rozmiar tabeli
@@ -2704,3 +2726,80 @@ preview	Title	Tytuł
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Wpisz rozmiar w dowolnej jednostce, np. 5 cm lub 300 px. Druga strona dopasuje się, więc obraz zachowa proporcje.
 
 	Import…	Importuj…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image
+
+# Personal templates (#2852)
+	Personal	Osobiste
+	Personal Templates	Szablony osobiste
+	Templates you save in your templates folder show up here.	Tutaj pojawiają się szablony zapisane w folderze szablonów.
+	Save as Word Template…	Zapisz jako szablon programu Word…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	Zapisuje szablon .dotx w folderze szablonów. Pojawia się w Plik › Nowy w sekcji Osobiste.
+	File locations	Lokalizacje plików
+	User templates:	Szablony użytkownika:
+	Not set	Nie ustawiono
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	Plik › Nowy pokazuje stąd szablony .dotx i .dotm w sekcji Osobiste; Zapisz jako szablon programu Word zaczyna tutaj.
+	Format Shape Pane	Okienko Formatowanie kształtu
+	Format Shape	Formatowanie kształtu
+	Format Shape…	Formatuj kształt…
+	No fill	Brak wypełnienia
+	Solid fill	Wypełnienie pełne
+	Gradient fill	Wypełnienie gradientowe
+	Preset gradients	Gotowe gradienty
+	Radial	Radialny
+	Rectangular	Prostokątny
+	Path	Ścieżka
+	Direction	Kierunek
+	Angle	Kąt
+	Gradient stops	Punkty gradientu
+	Add gradient stop	Dodaj punkt gradientu
+	Remove gradient stop	Usuń punkt gradientu
+	Rotate with shape	Obracaj z kształtem
+	Gradient	Gradient
+	No Gradient	Bez gradientu
+	Light Variations	Jasne warianty
+	Dark Variations	Ciemne warianty
+	More Gradients…	Więcej gradientów…
+	Select a shape, text box or drawing canvas to format its fill.	Zaznacz kształt, pole tekstowe lub kanwę rysunku, aby sformatować wypełnienie.
+	Linear Right	Liniowy w prawo
+	Linear Diagonal - Top Left to Bottom Right	Liniowy ukośny – z: lewy górny do: prawy dolny
+	Linear Down	Liniowy w dół
+	Linear Diagonal - Top Right to Bottom Left	Liniowy ukośny – z: prawy górny do: lewy dolny
+	Linear Left	Liniowy w lewo
+	Linear Diagonal - Bottom Right to Top Left	Liniowy ukośny – z: prawy dolny do: lewy górny
+	Linear Up	Liniowy w górę
+	Linear Diagonal - Bottom Left to Top Right	Liniowy ukośny – z: lewy dolny do: prawy górny
+	From Top Left Corner	Z narożnika: lewy górny
+	From Top Right Corner	Z narożnika: prawy górny
+	From Bottom Left Corner	Z narożnika: lewy dolny
+	From Bottom Right Corner	Z narożnika: prawy dolny
+	From Center	Ze środka
+	Soft	Miękki
+	Lit from Top	Oświetlony z góry
+	Deep	Głęboki
+	Lit from Bottom	Oświetlony z dołu
+	Center Glow	Blask ze środka
+	More tabs	Więcej kart
+# #3013: Insert Table of Figures
+	Include label and number	Dołącz etykietę i numer
+# English text until translated (keys the Italian catalog has)
+	B4 (JIS)   10.12" × 14.33"	B4 (JIS)   10.12" × 14.33"
+	B5 (JIS)   7.17" × 10.12"	B5 (JIS)   7.17" × 10.12"
+	Enter bookmark name:	Enter bookmark name:
+	Envelope #10   4.12" × 9.50"	Envelope #10   4.12" × 9.50"
+	Envelope DL   4.33" × 8.66"	Envelope DL   4.33" × 8.66"
+	Executive   7.25" × 10.50"	Executive   7.25" × 10.50"
+	Find “{text}” in the document	Find “{text}” in the document
+	Legal   8.50" × 14.00"	Legal   8.50" × 14.00"
+	Letter   8.50" × 11.00"	Letter   8.50" × 11.00"
+	Statement   5.50" × 8.50"	Statement   5.50" × 8.50"
+	Tabloid   11.00" × 17.00"	Tabloid   11.00" × 17.00"
+	This document has no bookmarks.	This document has no bookmarks.
+	Type a page number, or +2 / -1.	Type a page number, or +2 / -1.
+	Wait for the print job to finish submitting before closing.	Wait for the print job to finish submitting before closing.

@@ -40,10 +40,11 @@ fn html_converts_onto_the_region_paper() {
 
 #[test]
 fn every_run_session_follows_the_region() {
-    // `run --file`, `run --template` and a bare `run` all start a session in the system region,
+    // `run --file`, `run --template` and a bare `run` (with or without `file.new`) all start a session in the system region,
     // so `file.new` gives the same paper whichever way the session began.
     for args in [
         &["run", "--cmd", "file.new", "--save", "{out}"][..],
+        &["run", "--cmd", "text.insert={\"text\":\"x\"}", "--save", "{out}"][..],
         &["run", "--template", "blank", "--save", "{out}"][..],
         &["run", "--file", "{src}", "--cmd", "file.new", "--save", "{out}"][..],
     ] {

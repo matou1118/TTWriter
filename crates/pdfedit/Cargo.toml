@@ -8,7 +8,14 @@ description = "PDF page operations and annotations: open, rotate, delete, extrac
 [lints]
 workspace = true
 
+[dev-dependencies]
+flate2 = "1"
+
 [dependencies]
 lopdf = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
+
+# lopdf pulls getrandom 0.4 (PDF encryption); the browser needs crypto.getRandomValues.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }

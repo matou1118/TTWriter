@@ -5,11 +5,21 @@
 /// A language WordCraft can proof, or [`ProofLang::Other`] for one it can't.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ProofLang {
-    /// English, any region (`en`, `en-US`, `en-GB`…): the public-domain Moby word list, the
-    /// English grammar rules and the English hyphenation dictionary and patterns. Also text with
-    /// no language at all (WordCraft's default editing language is US English, like Word's).
+    /// American English (`en`, `en-US`, and every region not listed for [`ProofLang::EnGb`] or
+    /// [`ProofLang::EnCa`]): the public-domain Moby word list, the English grammar rules and the
+    /// English hyphenation dictionary and patterns. British spellings (`colour`, `centre`,
+    /// `organise`) are flagged, with the American form suggested ([`crate::en_variants`]). Also
+    /// text with no language at all (WordCraft's default editing language is US English, like
+    /// Word's).
     #[default]
     En,
+    /// English with British spelling (`en-GB`, `en-AU`, `en-NZ`, `en-IE`, `en-ZA`, `en-IN`…):
+    /// [`ProofLang::En`]'s tools, but American spellings (`color`, `center`, `analyze`) are
+    /// flagged and `-ize` and `-ise` are both right, as in Oxford spelling.
+    EnGb,
+    /// Canadian English (`en-CA`): British `-our`, `-re` and `-ence` (`colour`, `centre`,
+    /// `defence`) with American `-ize` (`organize`), `tire` and `program`.
+    EnCa,
     /// Polish (`pl`, `pl-PL`): the installed Hunspell dictionary (when there is one), the Polish grammar rules and the Polish
     /// hyphenation patterns.
     Pl,
@@ -39,6 +49,14 @@ pub enum ProofLang {
     /// `id_ID` dictionary, dictionary-driven suggestions and generic checks with Indonesian
     /// messages. Hyphenation keeps the fallback English patterns.
     Id,
+    /// Chinese (`zh`, `zh-CN`, `zh-Hans`, `zh-Hant`…): no spelling dictionary (Chinese doesn't
+    /// spell-check word-by-word), but grammar rules catch repeated characters and spacing issues
+    /// around CJK punctuation. Hyphenation keeps the fallback English patterns.
+    Zh,
+    /// German (`de`, `de-DE`, `de-AT`, `de-CH`…): hyphenation by the German patterns (reformed
+    /// spelling). There is no German dictionary or grammar yet, so, as for [`ProofLang::Other`],
+    /// no spelling or grammar marks.
+    De,
     /// A language without proofing tools here (`fr-FR`, `ja-JP`, `x-none`…). Like Word without
     /// the language's proofing tools: no spelling or grammar marks, so its words are never
     /// flagged as English misspellings. Hyphenation keeps using the English patterns, as before
@@ -48,16 +66,28 @@ pub enum ProofLang {
 
 impl ProofLang {
     /// Every language with a spelling dictionary, in display order.
-    pub const PROOFED: [ProofLang; 9] =
-        [ProofLang::En, ProofLang::Pl, ProofLang::Pt, ProofLang::It, ProofLang::Hr, ProofLang::Tr, ProofLang::Ru, ProofLang::Cs, ProofLang::Id];
+    pub const PROOFED: [ProofLang; 11] = [
+        ProofLang::En,
+        ProofLang::EnGb,
+        ProofLang::EnCa,
+        ProofLang::Pl,
+        ProofLang::Pt,
+        ProofLang::It,
+        ProofLang::Hr,
+        ProofLang::Tr,
+        ProofLang::Ru,
+        ProofLang::Cs,
+        ProofLang::Id,
+    ];
 
-    /// The proofing language of a BCP 47 tag (`pl-PL`, `en_GB`, `PL`…). Only the primary subtag
-    /// counts. No tag (or an empty one) is English, WordCraft's default editing language.
+    /// The proofing language of a BCP 47 tag (`pl-PL`, `en_GB`, `PL`…). The primary subtag
+    /// counts, and for English the region too ([`ProofLang::english`]). No tag (or an empty one)
+    /// is English, WordCraft's default editing language.
     pub fn from_tag(tag: Option<&str>) -> ProofLang {
         let Some(tag) = tag.map(str::trim).filter(|t| !t.is_empty()) else { return ProofLang::En };
         let primary = tag.split(['-', '_']).next().unwrap_or("");
         if primary.eq_ignore_ascii_case("en") || primary.eq_ignore_ascii_case("eng") {
-            ProofLang::En
+            ProofLang::english(tag)
         } else if primary.eq_ignore_ascii_case("pl") || primary.eq_ignore_ascii_case("pol") {
             ProofLang::Pl
         } else if primary.eq_ignore_ascii_case("bg") || primary.eq_ignore_ascii_case("bul") {
@@ -76,15 +106,43 @@ impl ProofLang {
             ProofLang::Cs
         } else if primary.eq_ignore_ascii_case("id") || primary.eq_ignore_ascii_case("ind") || primary.eq_ignore_ascii_case("in") {
             ProofLang::Id
+        } else if primary.eq_ignore_ascii_case("zh") || primary.eq_ignore_ascii_case("zho") || primary.eq_ignore_ascii_case("chi") {
+            ProofLang::Zh
+        } else if ["de", "deu", "ger"].iter().any(|c| primary.eq_ignore_ascii_case(c)) {
+            ProofLang::De
         } else {
             ProofLang::Other
         }
     }
 
-    /// The primary language subtag (`en`, `pl`, `bg`, `tr`, `ru`, `cs`, `id`); empty for [`ProofLang::Other`].
+    /// The English of an English tag, by its region (the first two-letter or three-digit subtag
+    /// after the language and script, before any singleton; a POSIX `.UTF-8` or `@…` tail is ignored): Canada is
+    /// [`ProofLang::EnCa`], regions that spell the British way are [`ProofLang::EnGb`], and the
+    /// United States, any other region and no region are [`ProofLang::En`].
+    fn english(tag: &str) -> ProofLang {
+        let tag = tag.split(['.', '@']).next().unwrap_or("");
+        // Subtags after a singleton (`x-…` private use, `u-…` extensions) aren't regions.
+        let region = tag
+            .split(['-', '_'])
+            .skip(1)
+            .take_while(|p| p.len() != 1)
+            .find(|p| (p.len() == 2 && p.chars().all(|c| c.is_ascii_alphabetic())) || (p.len() == 3 && p.chars().all(|c| c.is_ascii_digit())));
+        match region {
+            Some(r) if r.eq_ignore_ascii_case("CA") => ProofLang::EnCa,
+            Some(r) if BRITISH_SPELLING.iter().any(|b| b.eq_ignore_ascii_case(r)) => ProofLang::EnGb,
+            _ => ProofLang::En,
+        }
+    }
+
+    /// Is this one of the Englishes ([`ProofLang::En`], [`ProofLang::EnGb`], [`ProofLang::EnCa`])?
+    pub fn is_english(self) -> bool {
+        matches!(self, ProofLang::En | ProofLang::EnGb | ProofLang::EnCa)
+    }
+
+    /// The primary language subtag (`en`, `pl`, `bg`, `tr`, `ru`, `cs`, `id`, `de`); empty for [`ProofLang::Other`].
     pub fn code(self) -> &'static str {
         match self {
-            ProofLang::En => "en",
+            ProofLang::En | ProofLang::EnGb | ProofLang::EnCa => "en",
             ProofLang::Pl => "pl",
             ProofLang::Bg => "bg",
             ProofLang::Pt => "pt",
@@ -94,6 +152,8 @@ impl ProofLang {
             ProofLang::Ru => "ru",
             ProofLang::Cs => "cs",
             ProofLang::Id => "id",
+            ProofLang::Zh => "zh",
+            ProofLang::De => "de",
             ProofLang::Other => "",
         }
     }
@@ -103,6 +163,14 @@ impl ProofLang {
         Self::PROOFED.contains(&self)
     }
 }
+
+/// Regions whose English uses British spelling ([`ProofLang::EnGb`]): the United Kingdom (and
+/// the non-standard `UK`), Ireland, Australia, New Zealand, South Africa, India and other
+/// Commonwealth countries, the Crown dependencies and Europe (`150`).
+const BRITISH_SPELLING: [&str; 26] = [
+    "GB", "UK", "IE", "AU", "NZ", "ZA", "IN", "SG", "HK", "MY", "MT", "CY", "GI", "IM", "JE", "GG", "JM", "TT", "BS", "BB", "BZ", "KE", "NG", "GH",
+    "PK", "150",
+];
 
 /// A BCP 47 tag in canonical case (`pl-PL`, `en-GB`, `zh-Hant-TW`, `x-none`), or `None` when
 /// `tag` isn't shaped like one: 1–35 ASCII letters, digits and `-`/`_` separators, starting with
@@ -183,16 +251,49 @@ mod tests {
         }
         assert_eq!(ProofLang::Id.code(), "id");
         assert!(ProofLang::Id.is_proofed() && ProofLang::PROOFED.contains(&ProofLang::Id));
-        for t in ["en", "en-US", "en-GB", "EN_au", "en-Latn-US"] {
+        for t in ["en", "en-US", "EN_us", "en-Latn-US", "en-PH", "en-001", "eng", "en_US.UTF-8", "en-x-gb"] {
             assert_eq!(ProofLang::from_tag(Some(t)), ProofLang::En, "{t}");
         }
+        for t in [
+            "en-GB",
+            "EN_gb",
+            "en_GB.UTF-8",
+            "en-AU",
+            "en_AU",
+            "en-NZ",
+            "en-IE",
+            "en-ZA",
+            "en-IN",
+            "en-Latn-GB",
+            "en-UK",
+            "en-150",
+            "eng-GB",
+            "en_GB@euro",
+        ] {
+            assert_eq!(ProofLang::from_tag(Some(t)), ProofLang::EnGb, "{t}");
+        }
+        for t in ["en-CA", "en_CA", "EN-ca", "en_CA.UTF-8", "en-Latn-CA"] {
+            assert_eq!(ProofLang::from_tag(Some(t)), ProofLang::EnCa, "{t}");
+        }
+        for l in [ProofLang::En, ProofLang::EnGb, ProofLang::EnCa] {
+            assert!(l.is_english() && l.is_proofed() && ProofLang::PROOFED.contains(&l), "{l:?}");
+            assert_eq!(l.code(), "en");
+        }
+        assert!(!ProofLang::Pl.is_english() && !ProofLang::Other.is_english());
+        // The region is the first two-letter or three-digit subtag: a script or variant isn't one.
+        assert_eq!(ProofLang::from_tag(Some("en-Brai")), ProofLang::En);
+        assert_eq!(ProofLang::from_tag(Some("en-GB-oxendict")), ProofLang::EnGb);
         for t in ["bg", "bg-BG", "BG_bg", "bg_BG.UTF-8", "bul"] {
             assert_eq!(ProofLang::from_tag(Some(t)), ProofLang::Bg, "{t}");
         }
         for t in ["tr", "tr-TR", "tr-CY", "TR_tr", "tur"] {
             assert_eq!(ProofLang::from_tag(Some(t)), ProofLang::Tr, "{t}");
         }
-        for t in ["fr-FR", "de", "x-none", "ja-JP", "plx", "bgx", "trx", "csx", "idx", "inx", "e", "-"] {
+        for t in ["de", "de-DE", "de-CH", "DE_at", "deu", "ger"] {
+            assert_eq!(ProofLang::from_tag(Some(t)), ProofLang::De, "{t}");
+        }
+        assert!(!ProofLang::De.is_proofed());
+        for t in ["fr-FR", "dex", "x-none", "ja-JP", "plx", "bgx", "trx", "csx", "idx", "inx", "e", "-"] {
             assert_eq!(ProofLang::from_tag(Some(t)), ProofLang::Other, "{t}");
         }
         assert_eq!(ProofLang::from_tag(None), ProofLang::En);

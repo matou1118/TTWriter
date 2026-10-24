@@ -28,6 +28,42 @@ metadata:
 ① 确认内容已定稿  →  ② 设版心  →  ③ 套样式  →  ④ 加页码/版记  →  ⑤ 版面检查
 ```
 
+### 0. 一键套版（scripts/）
+
+内容定稿后先跑套版脚本，比手工逐条发命令稳：
+
+```bash
+python scripts/format_gongwen.py content.docx -o gongwen.docx            # 党政机关全要素
+python scripts/format_gongwen.py content.docx -o q.docx --preset company # 企业版
+python scripts/format_gongwen.py content.docx -o q.docx --preset school  # 学校版
+python scripts/format_gongwen.py content.docx -o q.docx --pdf            # 同时出 PDF
+```
+
+### 0b. 红头版头（wordcraft-cli redhead）
+
+文档还没有红头版头时，一条命令生成（要素齐全的 GB/T 9704 版头，正文接在后面写，
+写完再跑上面的套版脚本排全文）：
+
+```bash
+wordcraft-cli redhead head.docx --org "××市人民政府" --docno "×政发〔2026〕12号" \
+  --fenhao 000001 --secret "秘密★1年" --urgency 特急 --issuer 张三 \
+  --title "关于印发……的通知" --pdf head.pdf
+```
+
+参数全部可选；缺的要素留 `[发文机关]` / `[发文字号]` 占位（不猜、不编——补齐是
+写作环节的事）。红色分隔线是文号段的段落下边框，真边框不是图形。生成后**渲染看一眼**
+（`wordcraft-cli render head.docx head.png --page 1`）。
+
+preset：`gb`（默认，国标全要素）/ `company`（版心稍松、14pt 紧凑商务）/ `school`（三号字、26 磅行距阅读友好）/ `hospital`（国标版心、版记从简）。
+
+批量发文（一份定稿 + 收文单位名单 → 每单位一份版记）：
+
+```bash
+python scripts/batch_issue.py 公文.docx 名单.xlsx -o out/ [--field 单位] [--pdf]
+```
+
+版记抄送行留 `抄送：______` 占位；正文一字不动。
+
 ### ① 确认内容已定稿
 
 先问清楚（或从用户材料里读出）这几项，缺了就标 `[待补充]`：
@@ -101,6 +137,49 @@ metadata:
 > **方正小标宋简体不是**系统字体，需自行安装（不装则由程序兜底为宋体）。
 > `font` 设拉丁字体、`fontEa` 设中文字体，两个都要设。
 
+### ③b 红头（发文机关标志）
+
+红头是公文的门面，**只出现在下行文/平行文的版头**（上行文不冠）：
+
+| 要素 | 规格 | 实现 |
+|---|---|---|
+| 机关标志 | 红色小标宋，居中，不大于上白边 | 「XX 市人民政府文件」一段：红色（RRGGBB `FF0000`）、居中、字号 22-36pt 视机关名长度 |
+| 分隔红线 | 红色，版心宽 | 段落下框线（红色、粗 1.5-2pt），**不要**用图片或空格下划线 |
+| 发文字号 | 红线下方居中（上行文居左） | 见下 |
+
+```json
+{ "command": "text.insert", "params": { "text": "××市人民政府文件" } },
+{ "command": "format.color", "params": { "color": "FF0000" } },
+{ "command": "format.bold", "params": {} },
+```
+
+红线（发文机关标志段落下框线）：
+
+```json
+{ "command": "para.borders", "params": { "sides": { "bottom": { "style": "single", "width": 2, "color": "FF0000" } } } }
+```
+
+**信函格式**（无红头的平件）：机关标志 + 虚线分隔（不排红线），发文字号在武文线下方右侧。
+
+**联合发文**（多机关同发）：
+- 机关标志并排（主办机关在前，「文件」二字共用于末位机关之后）
+- 发文字号只标**主办机关**的一个
+- 版记署全部联合行文机关
+
+**企业版**（不套党政机关全要素）：
+- 机关标志「XX 公司文件」，红色、字距可稍宽
+- 不设份号、密级（除非确有）；紧急程度按需
+- 版记从简：抄送 + 印发日期两行即可
+- 文种以通知/函/决定为主，请示报告多用于对股东/董事会
+
+### ③c 发文字号、份号、密级
+
+发文字号 `〔2026〕15 号`（六角括号——**体检脚本会查**）排在标题下、主送机关上：
+- 下行文：居中排布
+- 上行文：居左空一字，右侧同排签发人
+
+份号（6 位数字）与密级（如 `秘密★1 年`）在版心左上角，顶格。
+
 ### ④ 页码、版记
 
 **页码**：4 号半角宋体，单页码居右空一字，双页码居左空一字。
@@ -119,6 +198,16 @@ metadata:
 用表格或段落下框线实现，**不要**用图片。
 
 ### ⑤ 版面检查（必做）
+
+先自动体检（快、免人眼），再人眼看 PNG（终审）：
+
+```bash
+python scripts/check_gongwen.py gongwen.docx        # 版式 + 文本规范双层核对
+python scripts/check_gongwen.py gongwen.docx --fix -o 修.docx   # 修掉确定性错误再复查
+python scripts/check_gongwen.py gongwen.docx --layout-only      # 只查版式
+```
+
+`--fix` 只修无歧义项（【】→〔〕、015→15、其它→其他、二、三个→二三个）；日期、层次跳级、易混词需要语境判断，仍报告人工定。
 
 ```bash
 wordcraft-cli render gongwen.docx page1.png --page 1

@@ -1,11 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>WordCraft</title>
+  <title>蜻蜓文档 TTWriter</title>
   <link data-trunk rel="icon" href="../../assets/app-icon/wordcraft.ico" />
-  <link data-trunk rel="rust" data-bin="wordcraft-web" data-wasm-opt="z" data-weak-refs />
+  <!-- PWA 资产（manifest/sw/图标）不进 trunk 管线：trunk 0.21 的 copy-file +
+       data-target-path 会写出 1 字节的坏文件。固定文件名在这里引用，拷贝由
+       pages.yml 的 assemble 步骤与本地脚本做（cp 一条命令）。 -->
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./wordcraft-icon-512.png" />
+  <!-- wasm-opt "z": smallest. binaryen 123 does not infer Rust's target features, so
+       --all-features lets it validate bulk-memory / saturating-float / reference types.
+       (One Windows machine's trunk-cached wasm-opt v123 crashes on this wasm; locally
+       pass a patched copy without these attributes - CI is fine.) -->
+  <link data-trunk rel="rust" data-bin="wordcraft-web" data-wasm-opt="z" data-wasm-opt-params="--all-features" data-weak-refs />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e6e6e6; }
     #wordcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -15,6 +24,104 @@
 </head>
 <body>
   <canvas id="wordcraft_canvas"></canvas>
-  <div id="wordcraft_loading">Loading WordCraft&hellip;</div>
+  <div id="wordcraft_loading">正在加载蜻蜓文档&hellip;<div id="wordcraft_progress"></div><div id="wordcraft_error" style="color:#b00;margin-top:12px;max-width:80%;text-align:center"></div></div>
+  <script>
+    // 加载反馈（classic script，一定先于 trunk 的 module script 执行）：
+    // ① 浏览器能力检测（WebAssembly / WebGL2）——国产浏览器内核过旧时给明确指引
+    // ② wasm 下载进度（monkey-patch fetch：wasm-bindgen 的 init 内部走 fetch）
+    // ③ 失败显示原因（module script 的 await 失败只会挂住 loading——这里把它亮出来）
+    // ④ 超时诊断：60 秒还没起来，提示网络或换浏览器
+    (function () {
+      var progress = document.getElementById("wordcraft_progress");
+      var errorBox = document.getElementById("wordcraft_error");
+      var loading = document.getElementById("wordcraft_loading");
+
+      function fail(msg) {
+        if (errorBox) { errorBox.textContent = msg; }
+        if (progress) { progress.textContent = ""; }
+      }
+
+      // ① 能力检测
+      if (!("WebAssembly" in window)) {
+        fail("此浏览器不支持 WebAssembly，无法运行蜻蜓文档。请改用较新的 Chrome / Edge / Safari（微信内请点右上角「在浏览器打开」）。");
+        return;
+      }
+      try {
+        var c = document.createElement("canvas");
+        // eframe 走 wgpu：有 WebGPU 就用 WebGPU，没有才退回 WebGL2。只查 WebGL2 会误杀
+        // 那些关了 WebGL 但 WebGPU 正常的浏览器。
+        if (!navigator.gpu && !c.getContext("webgl2")) {
+          fail("此浏览器不支持 WebGL2（渲染必需）。请改用较新的 Chrome / Edge / Safari，或在系统设置里开启硬件加速。");
+          return;
+        }
+      } catch (e) { /* 上下文创建异常按无 WebGL2 处理过了 */ }
+
+      // ② wasm 下载进度：流式计量，边下边报。不能把分片攒起来再拼 Response——
+      //    62MB 攒进 JS 内存，手机上正好会 OOM（本意是诊断失败，别自己制造失败）。
+      var origFetch = window.fetch ? window.fetch.bind(window) : null;
+      if (origFetch && typeof TransformStream !== "undefined") {
+        window.fetch = function (url, opts) {
+          var p = origFetch(url, opts);
+          if (typeof url === "string" && url.indexOf("_bg.wasm") >= 0) {
+            p = p.then(function (r) {
+              if (!r.ok || !r.body) { return r; }
+              var total = parseInt(r.headers.get("Content-Length") || "0", 10);
+              var loaded = 0;
+              var meter = new TransformStream({
+                transform: function (chunk, ctl) {
+                  loaded += chunk.byteLength;
+                  // gzip 的 Content-Length 是压缩前口径，可能比实际字节大——只在没超时显示总量
+                  var mb = (loaded / 1048576).toFixed(1);
+                  var tail = total > 0 && loaded <= total ? " / " + (total / 1048576).toFixed(1) + " MB" : " MB";
+                  if (progress) { progress.textContent = "下载中 " + mb + tail + "（首次约 40-60 MB，之后走缓存）"; }
+                  ctl.enqueue(chunk);
+                }
+              });
+              // 长度/编码已由解压后的流作废，留着会让 instantiateStreaming 读到错的元数据
+              var h = new Headers(r.headers);
+              h.delete("content-length");
+              h.delete("content-encoding");
+              return new Response(r.body.pipeThrough(meter), { headers: h, status: r.status });
+            });
+          }
+          return p;
+        };
+      }
+
+      // ③ 失败亮出来（module script 顶层 await 失败 → unhandledrejection）
+      window.addEventListener("unhandledrejection", function (ev) {
+        var reason = ev.reason && (ev.reason.message || ev.reason) || "未知错误";
+        fail("加载失败：" + reason + "。多为网络中断或内存不足——请重试；反复失败请换 Chrome / Edge。");
+      });
+      window.addEventListener("error", function (ev) {
+        if (ev.message && ev.message.indexOf("wasm") >= 0) {
+          fail("加载失败：" + ev.message);
+        }
+      });
+
+      // ④ 超时诊断：界面还没撤掉才算没起来（wasmBindings 只有 --no-modules 才有，别拿它判断）
+      window.setTimeout(function () {
+        if (loading && loading.style.display !== "none") {
+          fail("60 秒还没加载完：多半是网络太慢（GitHub Pages 在国内不稳定）或浏览器内核过旧。建议：① 用 Chrome/Edge 重试；② 换网络；③ 微信内请点「在浏览器打开」。");
+        }
+      }, 60000);
+
+      // eframe 起来后隐藏 loading（原逻辑不动，这里兜底：字体/界面挂载后再撤提示）。
+      window.addEventListener("TrunkApplicationStarted", function () {
+        if (loading) { loading.style.display = "none"; }
+      });
+    })();
+  </script>
+  <script>
+    // 注册 Service Worker（PWA：离线可用 + 42MB wasm 走缓存二次秒开）。
+    // 安全条件：https 或 localhost（file:// 与 http 内网不支持 SW，静默跳过）。
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch((err) => {
+          console.warn("service worker 注册失败（不影响使用，只是没有离线缓存）:", err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

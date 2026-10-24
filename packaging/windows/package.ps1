@@ -35,16 +35,23 @@ function Invoke-Native([string] $What, [scriptblock] $Block) {
   if ($LASTEXITCODE -ne 0) { throw "$What failed with exit code $LASTEXITCODE" }
 }
 
-# The version lives in one place: [workspace.package] version in the root Cargo.toml.
+# The version lives in one place: [workspace.package] version in the root Cargo.toml. The release
+# version (WORDCRAFT_VERSION, e.g. 0.9.0-zh.2) must be that same version: it is what the binary
+# reports and what the updater compares the release tag against, so the two may not drift.
 $Version = $env:WORDCRAFT_VERSION
-if (-not $Version) {
-  $inPkg = $false
-  foreach ($line in Get-Content (Join-Path $Root 'Cargo.toml')) {
-    if ($line -match '^\s*\[') { $inPkg = ($line.Trim() -eq '[workspace.package]'); continue }
-    if ($inPkg -and $line -match '^\s*version\s*=\s*"([^"]+)"') { $Version = $Matches[1]; break }
-  }
+$CargoVersion = $null
+$inPkg = $false
+foreach ($line in Get-Content (Join-Path $Root 'Cargo.toml')) {
+  if ($line -match '^\s*\[') { $inPkg = ($line.Trim() -eq '[workspace.package]'); continue }
+  if ($inPkg -and $line -match '^\s*version\s*=\s*"([^"]+)"') { $CargoVersion = $Matches[1]; break }
 }
-if (-not $Version) { throw 'could not read [workspace.package] version from Cargo.toml' }
+if (-not $CargoVersion) { throw 'could not read [workspace.package] version from Cargo.toml' }
+if (-not $Version) { $Version = $CargoVersion }
+elseif ($Version -ne $CargoVersion) {
+  throw "WORDCRAFT_VERSION is $Version but [workspace.package] version in Cargo.toml is $CargoVersion.`n" +
+    "The binary would report the Cargo.toml version, and the updater compares it with the release tag.`n" +
+    "Set the Cargo.toml version to the release version (and commit it) before packaging."
+}
 # MSI ProductVersion is numeric (major.minor.build); pre-release tags are dropped there.
 $MsiVersion = ($Version -split '-')[0]
 
@@ -57,6 +64,20 @@ if (-not $env:WORDCRAFT_BUILD_SHA) { $env:WORDCRAFT_BUILD_SHA = (git -C $Root re
 if (-not $env:WORDCRAFT_BUILD_DATE) { $env:WORDCRAFT_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd') }
 
 Write-Output "WordCraft $Version for Windows $Arch ($Target)"
+
+# Embedded CJK fonts (craft-fonts) add ~45MB — about half of each binary. Releases ship without
+# them by default: every Chinese Windows has Song/Microsoft YaHei, so the extra half buys nothing
+# at home, and it is only lost overseas on machines with no CJK font at all. Decided explicitly
+# here because the build input is an environment variable that would otherwise leak in or out of
+# the release silently; the font files themselves never enter the repo.
+if ($IncludeFonts -and (Test-Path (Join-Path $Root 'craft-fonts\fonts\manifest.txt'))) {
+  $env:CRAFT_FONTS_DIR = Join-Path $Root 'craft-fonts'
+  Write-Output '==> fonts: CJK embedded (craft-fonts, ~+45MB)'
+} else {
+  Remove-Item Env:\CRAFT_FONTS_DIR -ErrorAction SilentlyContinue
+  if ($IncludeFonts) { Write-Output '==> fonts: not embedded (craft-fonts\fonts\manifest.txt missing)' }
+  else { Write-Output '==> fonts: not embedded (default; pass -IncludeFonts to embed ~45MB)' }
+}
 
 if (-not $SkipBuild) {
   # Static CRT: no VC++ redistributable needed. Scoped to the target so host build scripts and
@@ -166,4 +187,11 @@ if ($Arch -ne 'arm64' -or $HostArch -eq 'arm64') {
 } else {
   Write-Output "skipping wordcraft-cli --version: an $Arch build doesn't run on this $HostArch machine"
 }
+
+# ---- update manifest -----------------------------------------------------------------------------
+# latest.json tells an updater that a new version exists (and carries the SHA-256 of every
+# asset). It is a few hundred bytes served from the site, so checking costs no bandwidth worth
+# measuring; the download points at the release assets on GitHub and AtomGit.
+& (Join-Path $PSScriptRoot 'manifest.ps1') -Version $Version
+
 Get-Item $Msi, $Zip | Format-Table Name, Length

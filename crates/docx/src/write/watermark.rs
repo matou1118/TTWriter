@@ -19,15 +19,10 @@ pub(super) fn text(wm: &Watermark) -> Option<String> {
 }
 
 /// A `w:r` holding the watermark shape (and its shape type), for the first paragraph of header
-/// part number `n`. Sized like the renderers draw it: half the page width across, or half the
-/// page diagonal when diagonal; the height follows the text's length.
+/// part number `n`, in its box ([`Watermark::frame`]: its own, or Word's default for the page).
 pub(super) fn run(wm: &Watermark, n: usize, page: &SectionProps) -> Option<String> {
     let text = text(wm)?;
-    let (pw, ph) = (page.page_w.clamp(72.0, 4000.0), page.page_h.clamp(72.0, 4000.0));
-    let across = if wm.diagonal { (pw * pw + ph * ph).sqrt() } else { pw };
-    let width = (across * 0.5).clamp(36.0, 2000.0);
-    let chars = text.chars().count().clamp(1, 200) as f32;
-    let height = (width / (0.55 * chars)).clamp(12.0, 400.0);
+    let [width, height] = wm.frame(page.page_w, page.page_h);
     // A font name can't break out of the textpath's CSS-like style.
     let font: String = wm.font.chars().filter(|c| !matches!(c, '"' | '\'' | ';' | ':')).take(100).collect();
     let font = if font.trim().is_empty() { Watermark::default().font } else { font };

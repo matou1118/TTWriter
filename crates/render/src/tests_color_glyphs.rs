@@ -1,6 +1,7 @@
 //! Colour glyphs (#1269): emoji from colour fonts (bitmap strikes, COLR) are drawn in colour.
 
 use super::*;
+use wordcraft_layout::display::page_display;
 use wordcraft_layout::{LayoutCache, LayoutOptions, layout};
 
 /// Colour emoji families the system fallback may pick.

@@ -21,7 +21,7 @@ commands:
   assets          check that every icon/image/font/asset is attributed in ATTRIBUTION.md
   layers          enforce the crate dependency layering (plan/architecture.md §3)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
-  ci              fmt --check, clippy -D warnings, test, assets, layers, wasm (stops at first failure)
+  ci              fmt --check, clippy -D warnings, test, assets, layers, wasm, skills (stops at first failure)
   corpus [--download]
                   show where test corpora live; --download fetches PngSuite into corpus/pngsuite
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
@@ -183,6 +183,16 @@ fn cmd_ci() -> Result<(), String> {
         ("assets", Box::new(|| assets::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
+        // Skills lint: structure / references / script safety / metadata (the 12 skills
+        // are shipped product, not docs). WARN doesn't fail the build; FAIL does.
+        (
+            "skills",
+            Box::new(|| {
+                let mut c = std::process::Command::new("python");
+                c.arg(root().join("skills").join("lint_skills.py"));
+                run(c, "python skills/lint_skills.py")
+            }),
+        ),
     ];
     let mut done = Vec::new();
     for (name, f) in &steps {

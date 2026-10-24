@@ -1,0 +1,50 @@
+[
+  {
+    "id": "151888b90d4c429bb58244fd2c9850d4",
+    "userID": "matou7980",
+    "domainID": "matou7980",
+    "type": "Language preference",
+    "content": "prefers interacting in native Chinese (Simplified), mixing in English technical terms such as review, mailmerge, exam, accessibility, skill, LLM, atomgit, github when referring to specific tools or features",
+    "remark": "new",
+    "namespace": "DevMate",
+    "createTime": "2026-10-22T11:09:00.555Z",
+    "updateTime": "2026-10-22T14:10:10.450Z",
+    "isDeleted": false
+  },
+  {
+    "id": "f8ce98f7e1714338ae24ce1d2ce420c4",
+    "userID": "matou7980",
+    "domainID": "matou7980",
+    "type": "Explanation preference",
+    "content": "Prefers action-oriented, execution-focused responses; issues short directives like 'do all of them', 'continue', 'do it all together' rather than asking for detailed principle explanations, indicating preference for direct implementation results over lengthy explanatory text",
+    "remark": "new",
+    "namespace": "DevMate",
+    "createTime": "2026-10-22T11:09:00.563Z",
+    "updateTime": "2026-10-22T11:09:00.563Z",
+    "isDeleted": false
+  },
+  {
+    "id": "e7bcac04f90a43838692ddf95c062812",
+    "userID": "matou7980",
+    "domainID": "matou7980",
+    "type": "Backend framework",
+    "content": "Prefers an offline-first architecture; cloud features are explicitly deferred, and new capabilities must be verified through actual testing before being adopted",
+    "remark": "new",
+    "namespace": "DevMate",
+    "createTime": "2026-10-22T22:39:24.669Z",
+    "updateTime": "2026-10-22T22:39:24.669Z",
+    "isDeleted": false
+  },
+  {
+    "id": "a97e0e41579e41308aa8a6f4ceed6cb6",
+    "userID": "matou7980",
+    "domainID": "matou7980",
+    "type": "Programming language",
+    "content": "Prefers packaging the application as a Windows desktop executable (.exe), indicating a locally installed desktop tool with an offline-capable tech stack rather than a web/cloud deployment",
+    "remark": "new",
+    "namespace": "DevMate",
+    "createTime": "2026-10-22T22:39:24.678Z",
+    "updateTime": "2026-10-22T22:39:24.678Z",
+    "isDeleted": false
+  }
+]

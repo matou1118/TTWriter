@@ -175,3 +175,71 @@ fn section_break_keeps_an_explicit_range_and_toc_prefix_is_not_a_toc() {
         );
     }
 }
+
+/// The paragraph's characters other than objects, each with the link it carries.
+fn linked_chars(p: &wordcraft_doc::Paragraph) -> Vec<(char, Option<String>)> {
+    p.text.char_indices().filter(|(_, c)| *c != wordcraft_doc::para::OBJ).map(|(i, c)| (c, p.props_of_char(i).link.clone())).collect()
+}
+
+/// #2174: Word for the web writes each table of contents entry as a `HYPERLINK` complex field
+/// around the heading's text, a tab and a `PAGEREF` field. The entry reads as linked text, as a
+/// `w:hyperlink` would: the tab is a tab (it reaches the dotted right tab stop) and the page
+/// number stays a field of its own, through a save.
+#[test]
+fn hyperlink_field_entries_read_as_linked_text_with_their_page_field() {
+    let entry = |anchor: &str, text: &str, page: &str| {
+        format!(
+            r#"{}<w:r><w:t>{text}</w:t></w:r><w:r><w:tab/></w:r>{}<w:r><w:t>{page}</w:t></w:r>{END}{END}"#,
+            start(&format!(r#"HYPERLINK  \l  "{anchor}" "#)),
+            start(&format!(r#"PAGEREF {anchor} \h"#))
+        )
+    };
+    let ppr = r#"<w:pPr><w:pStyle w:val="TOC1"/><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="9015"/></w:tabs></w:pPr>"#;
+    let body = format!(
+        r#"<w:p>{ppr}{}{}</w:p><w:p>{ppr}{}{END}</w:p><w:p><w:r><w:t>After.</w:t></w:r></w:p>"#,
+        start(r#"TOC \o \z \u \h"#),
+        entry("_Toc1", "Intro", "1"),
+        entry("_Toc2", "Title 2", "2")
+    );
+    let doc = wordcraft_docx::read(&package(&body)).unwrap();
+    let saved = wordcraft_docx::read(&wordcraft_docx::write(&doc).unwrap()).unwrap();
+    for d in [&doc, &saved] {
+        for (i, anchor, text, page) in [(0, "_Toc1", "Intro", "1"), (1, "_Toc2", "Title 2", "2")] {
+            let p = d.body[i].as_para().unwrap();
+            assert_eq!(p.plain_text(), format!("{text}\t{page}"));
+            let link = Some(format!("#{anchor}"));
+            assert_eq!(linked_chars(p), format!("{text}\t").chars().map(|c| (c, link.clone())).collect::<Vec<_>>());
+            assert!(p.objects.iter().all(|o| !matches!(o, InlineObject::Field { instr, .. } if instr.starts_with("HYPERLINK"))));
+            let pageref = format!(r#"PAGEREF {anchor} \h"#);
+            assert!(p.objects.iter().any(|o| matches!(o, InlineObject::Field { instr, result, .. } if *instr == pageref && result == page)));
+        }
+        assert_eq!(d.field_ranges(StoryRef::Body).len(), 1);
+        assert_eq!(d.body[2].as_para().unwrap().plain_text(), "After.");
+    }
+}
+
+/// A `HYPERLINK` field's target, whatever the field's spelling: a web address with a bookmark,
+/// quoted words with spaces, a tooltip or target frame before it, and a simple field. One with
+/// no target stays a field.
+#[test]
+fn hyperlink_field_targets_follow_the_field_code() {
+    let simple = |code: &str| format!(r#"<w:p><w:fldSimple w:instr="{code}"><w:r><w:t>Go</w:t></w:r></w:fldSimple></w:p>"#);
+    let complex = |code: &str| format!(r#"<w:p>{}<w:r><w:t>Go</w:t></w:r>{END}</w:p>"#, start(code));
+    for (para, link) in [
+        (complex(r#"HYPERLINK "https://example.org/a" \l "sec""#), Some("https://example.org/a#sec")),
+        (complex(r#"hyperlink \o "A tip" \t "_blank" "https://example.org/""#), Some("https://example.org/")),
+        (complex(r#"HYPERLINK "C:\\Docs\\My file.docx""#), Some(r"C:\Docs\My file.docx")),
+        (simple(r#"HYPERLINK \l &quot;Sec&quot; \m"#), Some("#Sec")),
+        (simple("HYPERLINK https://example.org/b"), Some("https://example.org/b")),
+        (complex("HYPERLINK"), None),
+        (complex(r#"HYPERLINKS "https://example.org/""#), None),
+    ] {
+        let doc = wordcraft_docx::read(&package(&para)).unwrap();
+        let p = doc.body[0].as_para().unwrap();
+        assert_eq!(p.plain_text(), "Go");
+        match link {
+            Some(l) => assert_eq!(linked_chars(p), "Go".chars().map(|c| (c, Some(l.to_string()))).collect::<Vec<_>>(), "{para}"),
+            None => assert!(matches!(p.objects.as_slice(), [InlineObject::Field { result, .. }] if result == "Go"), "{para}"),
+        }
+    }
+}

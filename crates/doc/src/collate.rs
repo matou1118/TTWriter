@@ -150,6 +150,8 @@ const HU: &[Tailor] = &[
 const SV: &[Tailor] = &[t("å", 'z', 1), t("ä", 'z', 2), ts("æ", 'z', 2, 16), t("ö", 'z', 3), ts("ø", 'z', 3, 11)];
 const DA: &[Tailor] = &[t("æ", 'z', 1), ts("ä", 'z', 1, 4), t("ø", 'z', 2), ts("ö", 'z', 2, 4), t("å", 'z', 3)];
 const ES: &[Tailor] = &[t("ñ", 'n', 1)];
+// Russian ё shares е's primary weight; the diaeresis breaks ties (CLDR Russian standard).
+const RU: &[Tailor] = &[ts("ё", 'е', 0, 4)];
 const TR: &[Tailor] = &[t("ç", 'c', 1), t("ğ", 'g', 1), t("ı", 'h', 1), t("ö", 'o', 1), t("ş", 's', 1), t("ü", 'u', 1)];
 const HR: &[Tailor] =
     &[t("č", 'c', 1), t("ć", 'c', 2), t("dž", 'd', 1), t("đ", 'd', 2), t("lj", 'l', 1), t("nj", 'n', 1), t("š", 's', 1), t("ž", 'z', 1)];
@@ -184,6 +186,7 @@ fn tailoring(lang: Option<&str>) -> &'static [Tailor] {
         "sv" | "fi" => SV,
         "da" | "nb" | "nn" | "no" => DA,
         "es" | "gl" => ES,
+        "ru" => RU,
         "tr" | "az" => TR,
         "hr" | "bs" | "sr" => HR,
         "ro" => RO,
@@ -196,7 +199,7 @@ fn tailoring(lang: Option<&str>) -> &'static [Tailor] {
     }
 }
 
-/// A lowercase Latin letter followed by a combining mark, and the single letter Unicode
+/// A lowercase Latin or Russian letter followed by a combining mark, and the single letter Unicode
 /// composes them to (NFC; generated from the Unicode Character Database). Text pasted from
 /// decomposed sources (macOS file names: `z` + U+0307) collates like the composed letter.
 const COMPOSE: &[(char, char, char)] = &[
@@ -329,6 +332,8 @@ const COMPOSE: &[(char, char, char)] = &[
     ('z', '\u{302}', 'ẑ'),
     ('z', '\u{307}', 'ż'),
     ('z', '\u{30c}', 'ž'),
+    ('е', '\u{308}', 'ё'),
+    ('и', '\u{306}', 'й'),
 ];
 
 /// `s` lowercased, with each letter + combining mark that has a single-letter form composed.
@@ -391,6 +396,15 @@ pub struct SortKey {
 /// The sort key of `s` for language `lang` (a BCP 47 tag such as `pl-PL`; `None` sorts like
 /// English).
 pub fn sort_key(s: &str, lang: Option<&str>) -> SortKey {
+    // Chinese: sort by pinyin. Each CJK character maps to its pinyin syllable; the syllable
+    // bytes become the primary weights. Unknown characters fall back to their code point, so
+    // they sort after all known pinyin syllables (ASCII < CJK in the weight function).
+    if language(lang) == "zh" {
+        let py = crate::pinyin::pinyin_sort_key(s);
+        let mut key = SortKey { primary: py.bytes().map(|b| b as u32).collect(), ..Default::default() };
+        key.text = lower_composed(s);
+        return key;
+    }
     let text = lower_composed(s);
     let rules = tailoring(lang);
     let mut key = SortKey::default();
@@ -477,6 +491,25 @@ mod tests {
     }
 
     #[test]
+    fn russian_yo_sorts_with_e_instead_of_after_ya() {
+        for lang in ["ru", "ru-RU", "RU_ru"] {
+            assert_eq!(sorted(&["яблоко", "ёлка", "жук", "ель", "ёж", "еж"], lang), ["еж", "ёж", "ёлка", "ель", "жук", "яблоко"]);
+            assert_eq!(collate("ЁЛКА", "ёлка", Some(lang)), Ordering::Equal);
+            assert_eq!(heading_letter("Ёлка", Some(lang)).as_deref(), Some("Ё"));
+        }
+    }
+
+    #[test]
+    fn russian_decomposed_letters_match_their_composed_forms() {
+        for (composed, decomposed) in [("ёлка", "е\u{308}лка"), ("Ёлка", "Е\u{308}лка"), ("йод", "и\u{306}од"), ("Йод", "И\u{306}од")]
+        {
+            assert_eq!(collate(composed, decomposed, Some("ru-RU")), Ordering::Equal);
+            assert_eq!(heading_letter(composed, Some("ru")), heading_letter(decomposed, Some("ru")));
+        }
+        assert_eq!(sorted(&["к", "и\u{306}", "и"], "ru"), ["и", "и\u{306}", "к"]);
+    }
+
+    #[test]
     fn spanish_n_tilde_after_n() {
         assert_eq!(sorted(&["oso", "ñu", "nube"], "es-ES"), ["nube", "ñu", "oso"]);
     }
@@ -515,6 +548,18 @@ mod tests {
                 let _ = sort_key(s, l);
                 let _ = heading_letter(s, l);
             }
+        }
+    }
+
+    #[test]
+    fn chinese_sorts_by_pinyin() {
+        assert_eq!(sorted(&["上海", "北京", "广州", "深圳"], "zh-CN"), ["北京", "广州", "上海", "深圳"]);
+        assert_eq!(sorted(&["苹果", "香蕉", "西瓜"], "zh"), ["苹果", "西瓜", "香蕉"]);
+        // Unknown CJK characters keep a deterministic order after all known syllables.
+        let _ = sort_key("\u{9fff}", Some("zh"));
+        // Hostile input with zh never panics.
+        for s in ["", "\u{301}", "a\u{301}", "\u{10FFFF}"] {
+            let _ = sort_key(s, Some("zh"));
         }
     }
 }

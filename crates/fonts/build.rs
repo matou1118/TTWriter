@@ -1,8 +1,10 @@
 //! Optional craft-fonts build input (https://github.com/storytold/craft-fonts, recipe from its
 //! `docs/integration.md`). With `CRAFT_FONTS_DIR=<checkout>` the fonts in its
 //! `fonts/manifest.txt` are embedded as `CRAFT_FONTS`; unset, `CRAFT_FONTS` is empty. Web
-//! (wasm32) builds embed only the UI face, BIZ UDPGothic Regular, to stay within the web size
-//! budget. With `CRAFT_FONTS_REQUIRED` (releases), a native build also fails when the checkout
+//! (wasm32) builds embed the UI faces — BIZ UDPGothic Regular plus the Hans (Simplified
+//! Chinese) Regular/Bold faces — to stay within the web size budget while keeping the
+//! Chinese interface readable (the Chinese edition's primary audience). With
+//! `CRAFT_FONTS_REQUIRED` (releases), a native build also fails when the checkout
 //! has no font for a CJK interface language (Japanese, Simplified Chinese), as an outdated pin
 //! once did (#241). It only reads the local checkout: no network.
 use std::fmt::Write as _;
@@ -55,7 +57,17 @@ fn craft_fonts(dir: &std::path::Path) -> Result<(String, Vec<String>), String> {
         let [family, style, file, scripts, ..] = f.as_slice() else {
             return Err(format!("malformed manifest line: {line}"));
         };
-        if wasm && !(*family == "BIZ UDPGothic" && *style == "Regular") {
+        // Web (wasm32) size budget: the UI faces only — the Japanese UI face and the
+        // Simplified-Chinese ones. Without a Hans face the Chinese menus render as tofu
+        // boxes (queryLocalFonts is rarely granted), which for the Chinese edition is the
+        // primary audience; 13MB of PuHuiTi beats a broken interface. Document fonts
+        // (Fangsong/WenKai, 33MB more) stay native-only — the browser falls back for
+        // those and the UI stays readable.
+        if wasm
+            && !(*family == "BIZ UDPGothic" && *style == "Regular")
+            && !scripts.split(',').any(|s| s.trim() == "Hans" && *style == "Regular")
+            && !scripts.split(',').any(|s| s.trim() == "Hans" && *style == "Bold")
+        {
             continue;
         }
         let path = dir.join(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;

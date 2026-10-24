@@ -2597,7 +2597,11 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 ui.ctx().input_mut(|i| i.events.retain(|e| !swallow_shortcut_text(swallow, e)));
             }
             let r = ui.add(egui::TextEdit::singleline(query).hint_text(tl!("Type a command, e.g. \"insert table\"")).desired_width(380.0));
-            r.request_focus();
+            // Only when it lacks focus: `request_focus` always interrupts IME, and on X11 that
+            // recreates the XIM context, so asking every frame left fcitx taking no keys (#2986).
+            if !r.has_focus() {
+                r.request_focus();
+            }
             let reg = app.session.registry.clone();
             // An empty box suggests a few common commands, as Word's Search does.
             let mut hits: Vec<&wordcraft_engine::CommandSpec> = if query.trim().is_empty() {
@@ -3821,7 +3825,10 @@ fn goto_body(app: &mut WordApp, ui: &mut Ui, what: &mut GoToWhat, target: &mut S
         ui.vertical(|ui| match what {
             GoToWhat::Page => {
                 ui.label(tl!("Enter page number:"));
-                ui.add(egui::TextEdit::singleline(target).desired_width(220.0)).request_focus();
+                let r = ui.add(egui::TextEdit::singleline(target).desired_width(220.0));
+                if !r.has_focus() {
+                    r.request_focus();
+                }
                 ui.label(egui::RichText::new(tl!("Type +2 or -1 to move from the page you are on.")).weak());
             }
             GoToWhat::Bookmark => {
@@ -3898,7 +3905,10 @@ fn icons_body(app: &mut WordApp, ui: &mut Ui, query: &mut String, category: &mut
     let t = Tokens::get(ui.ctx());
     ui.set_width(560.0);
     // Typing goes to the search box (never to the document behind the dialog).
-    ui.add(egui::TextEdit::singleline(query).hint_text(tl!("Search icons")).desired_width(560.0)).request_focus();
+    let r = ui.add(egui::TextEdit::singleline(query).hint_text(tl!("Search icons")).desired_width(560.0));
+    if !r.has_focus() {
+        r.request_focus();
+    }
     ui.add_space(4.0);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(4.0, 4.0);
@@ -4228,6 +4238,77 @@ mod tests {
         let reg = h.state().session.registry.clone();
         assert!(command_matches(reg.get("insert.table").unwrap(), "INSERT"), "tr: INSERT finds Table");
         crate::i18n::set_current(crate::i18n::Lang::EN);
+    }
+
+    /// #2986: a box that keeps the keyboard asks for focus only while it lacks it. `request_focus`
+    /// always interrupts IME; on X11 that recreates the XIM context, and Search asking every frame
+    /// left fcitx taking no keys at all. Once the box has focus, no frame interrupts, and typing lands;
+    /// after Tab takes the keyboard away, the box takes it back with one reset, not one per frame.
+    #[test]
+    fn boxes_that_keep_focus_do_not_interrupt_ime_every_frame() {
+        fn typed(d: Option<&Dialog>) -> Option<&str> {
+            match d? {
+                Dialog::Commands { query, .. } | Dialog::Icons { query, .. } => Some(query.as_str()),
+                Dialog::Find { goto_target, .. } => Some(goto_target.as_str()),
+                Dialog::Refs(r) => match r.as_ref() {
+                    crate::dialogs_refs::RefsDialog::NewLabel(f) => Some(f.new_label.as_str()),
+                    _ => None,
+                },
+                _ => None,
+            }
+        }
+        let key = |key| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        for name in ["commands", "icons", "goto", "newLabel"] {
+            let mut app = app_with("Unchanged document");
+            let dialog = match name {
+                "newLabel" => Dialog::Refs(Box::new(crate::dialogs_refs::RefsDialog::NewLabel(crate::dialogs_refs::CaptionForm::read(&app)))),
+                _ => Dialog::open(name, &mut app).unwrap(),
+            };
+            app.dialog = Some(dialog);
+            let mut h = app_harness(app);
+            // The box takes the keyboard from the page in the first frames.
+            h.run_steps(4);
+            let interrupted =
+                |h: &egui_kittest::Harness<'_, WordApp>| h.output().platform_output.ime.as_ref().map(|i| i.should_interrupt_composition);
+            for frame in 0..6 {
+                h.step();
+                assert_eq!(interrupted(&h), Some(false), "{name}: frame {frame} resets the input method");
+            }
+            for (k, t) in [(egui::Key::A, "a"), (egui::Key::B, "b")] {
+                h.event(key(k));
+                h.event(egui::Event::Text(t.into()));
+                h.step();
+                assert_eq!(interrupted(&h), Some(false), "{name}: typing {t} resets the input method");
+            }
+            assert_eq!(typed(h.state().dialog.as_ref()), Some("ab"), "{name}: the keys reach the box");
+
+            // Tab moves the keyboard to the dialog's next control and the box takes it back. As
+            // egui-winit does, count a reset when IME comes back on or is interrupted while on (each
+            // recreates the XIM context): one or two for the round trip, then none, and the next
+            // key reaches the box.
+            let reset = |h: &egui_kittest::Harness<'_, WordApp>, on: &mut bool| {
+                let ime = h.output().platform_output.ime.as_ref();
+                let reset = ime.is_some_and(|i| !*on || i.should_interrupt_composition);
+                *on = ime.is_some();
+                reset
+            };
+            let mut on = true;
+            h.event(key(egui::Key::Tab));
+            let mut back = 0;
+            for _ in 0..4 {
+                h.step();
+                back += usize::from(reset(&h, &mut on));
+            }
+            assert!((1..=2).contains(&back), "{name}: Tab and back reset the input method {back} times");
+            for frame in 0..4 {
+                h.step();
+                assert!(!reset(&h, &mut on), "{name}: frame {frame} after Tab resets the input method");
+            }
+            h.event(key(egui::Key::C));
+            h.event(egui::Event::Text("c".into()));
+            h.step();
+            assert_eq!(typed(h.state().dialog.as_ref()), Some("abc"), "{name}: the box has the keyboard back after Tab");
+        }
     }
 
     /// Open the Paragraph dialog and press OK without changing anything.
@@ -5024,5 +5105,56 @@ mod tests {
         let pages = &s.layout().pages;
         assert!(pages[0].footer_story.is_none(), "the title page shows no page number");
         assert!(pages[1].footer_story.is_some(), "the next page keeps its number");
+    }
+
+    /// #2701: in the SmartArt Text Pane, Tab demotes and Shift+Tab promotes the focused item, as
+    /// Word's pane does; the row keeps its focus, so the next Tab acts on the same item. An item
+    /// that can't go down a level (the one before it isn't deeper) is left as it is.
+    #[test]
+    fn text_pane_tab_demotes_and_shift_tab_promotes_the_focused_item() {
+        use egui_kittest::kittest::Queryable;
+        let mut app = WordApp::new(Session::new(wordcraft_doc::Document::new()), crate::Services::default());
+        app.run("insert.smartArt", json!({"layout": "hierarchy"})).unwrap();
+        app.run("smartArt.textPane", json!({"value": true})).unwrap();
+        let levels = |app: &WordApp| {
+            wordcraft_engine::cmd::smart_art::selected_smart_art(&app.session).map(|g| g.items.iter().map(|i| i.level).collect::<Vec<u8>>())
+        };
+        assert_eq!(levels(&app), Some([0, 1, 2, 1, 2, 2].to_vec()), "Lead, Design, Sketches, Build, Code, Tests");
+        let mut h = app_harness(app);
+        h.run_steps(2);
+        // Focus a pane row: the text box with this value (the graphic drawn on the page shows the
+        // same words as shape names, so match by role).
+        let focus_row = |h: &mut egui_kittest::Harness<'static, WordApp>, text: &str| {
+            let node = h
+                .query_all(egui_kittest::kittest::By::new().role(egui::accesskit::Role::TextInput).value(text))
+                .next()
+                .unwrap_or_else(|| panic!("no text box for {text}"));
+            node.focus();
+            h.run_steps(2);
+        };
+        let tab = |h: &mut egui_kittest::Harness<'static, WordApp>, shift: bool| {
+            if shift {
+                h.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::Tab);
+            } else {
+                h.key_press(egui::Key::Tab);
+            }
+            h.run_steps(2);
+        };
+        // Focus "Design" (the second top-level item, at level 1): Tab can't demote it, because
+        // the item before it ("Lead") is shallower — Word leaves the level alone.
+        focus_row(&mut h, "Design");
+        assert_eq!(h.state().smart_art_item, Some(1), "the pane remembers the focused row");
+        tab(&mut h, false);
+        assert_eq!(levels(h.state()), Some([0, 1, 2, 1, 2, 2].to_vec()), "Tab on an item that can't go down changes nothing");
+        assert_eq!(h.state().smart_art_item, Some(1), "the row keeps focus after a refused demote");
+        // Focus "Build" (level 1 after the deeper "Sketches"): Tab demotes it and its sub-items,
+        // and the next Tab (the row stayed focused) demotes them again; Shift+Tab promotes back.
+        focus_row(&mut h, "Build");
+        tab(&mut h, false);
+        assert_eq!(levels(h.state()), Some([0, 1, 2, 2, 3, 3].to_vec()), "Tab demotes the focused item");
+        tab(&mut h, false);
+        assert_eq!(levels(h.state()), Some([0, 1, 2, 3, 4, 4].to_vec()), "the same row takes the next Tab");
+        tab(&mut h, true);
+        assert_eq!(levels(h.state()), Some([0, 1, 2, 2, 3, 3].to_vec()), "Shift+Tab promotes them back");
     }
 }

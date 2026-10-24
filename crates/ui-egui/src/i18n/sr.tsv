@@ -23,6 +23,18 @@
 	A password is required to open this document.	За отварање овог документа потребна је лозинка.
 	About	О програму
 	About WordCraft	О WordCraft-у
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (сортирање по имену)
+	GOST (title sort)	GOST (сортирање по наслову)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (аутор-датум)
+	ISO 690 (numerical)	ISO 690 (нумеричко)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	Прихвати
 	Accept All Changes	Прихвати све измене
 	Accept This Change	Прихвати ову измену
@@ -108,6 +120,7 @@
 	Color: {color}	Боја: {color}
 	Compress punctuation at the start of a line	Сажми интерпункцију на почетку реда
 	Confirm password:	Потврдите лозинку:
+	Continue from previous section	Настави од претходног одељка
 	Couldn't make WordCraft the default: {error}	WordCraft није могао да постане подразумевана апликација: {error}
 	Custom dictionary	Прилагођени речник
 	Dark page (white text on black)	Тамна страница (бео текст на црном)
@@ -162,6 +175,8 @@
 	Opens Settings › Default apps, where you choose WordCraft for .docx and the other document types.	Отвара Подешавања › Подразумеване апликације, где бирате WordCraft за .docx и друге врсте докумената.
 	Overtype	Преписивање
 	Overtype (typing replaces the characters after the caret)	Преписивање (откуцано замењује знакове после курсора)
+	Page Number Format	Формат броја странице
+	Page numbering	Нумерација страница
 	Show alignment guides when moving pictures and shapes	Приказуј водиље за поравнање при померању слика и облика
 	Moved objects snap to the page's edges and centre, the margins and other objects. Hold Alt to move freely.	Померени објекти се приањају уз ивице и средину странице, маргине и друге објекте. Држите Alt да бисте померали слободно.
 	Page display	Приказ стране
@@ -430,6 +445,8 @@
 	Edit\nRecipient List	Уреди\nлисту прималаца
 	Edited	Измењено
 	Editing	Уређивање
+	Editing endnote	Уређивање ендноте
+	Editing footnote	Уређивање фусноте
 	Editing header/footer	Уређивање заглавља/подножја
 	Editing — edit the document directly	Уређивање — мењајте документ директно
 	Editor	Уредник
@@ -467,6 +484,9 @@
 	First line:	Први ред:
 	Fixed Column Width	Фиксна ширина колоне
 	Focus	Фокус
+	Full Screen View	Приказ преко целог екрана
+	Show the ribbon	Прикажи траку
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	Стари тастери менија: Alt, {keys}. Наставите да куцате или притисните Esc да откажете.
 	Font	Фонт
 	Font Color	Боја фонта
 	Font color:	Боја фонта:
@@ -1311,6 +1331,9 @@
 	{cols}×{rows} Table	Табела {cols}×{rows}
 	AaBbYyZz	AaBbYyZz ЂђЋћ
 	pt	пт
+	cm	цм
+	mm	мм
+	pi	pi
 	Document1	Документ1
 	Username	Корисничко име
 	Display name	Име за приказ
@@ -1764,7 +1787,14 @@
 	Reading Line Spacing	Проређеност при читању
 	Reading Text Size	Величина текста за читање
 	English (United Kingdom)	Енглески (Велика Британија)
+	English (Australia)	Енглески (Аустралија)
+	English (Canada)	Енглески (Канада)
+	English (India)	Енглески (Индија)
+	English (Ireland)	Енглески (Ирска)
+	English (New Zealand)	Енглески (Нови Зеланд)
+	English (South Africa)	Енглески (Јужна Африка)
 	Polish	Пољски
+	Chinese	Chinese
 	Do Not Check Spelling or Grammar	Не проверавај правопис и граматику
 
 # Built-in file browser when the system file dialog is unavailable (#576)
@@ -2230,6 +2260,7 @@
 	Submitting print job…	Слање задатка за штампање…
 	Print job submitted.	Задатак за штампање је послат.
 	Print job submitted: {receipt}	Задатак за штампање је послат: {receipt}
+	Print job submitted: spooled {count} sheet(s)	Задатак за штампу је послат: у ред за штампу послато листова: {count}
 	Print failed: the printing worker stopped.	Штампање није успело: процес штампања је заустављен.
 	Print settings	Подешавања штампања
 	Submit print job	Пошаљи задатак за штампање
@@ -2263,6 +2294,9 @@
 # Reading Mode column widths (#1040)
 	Narrow	Уска
 	Medium	Средња
+	Dot-dot-dash	Тачка-тачка-црта
+	More Underlines…	Још подвлачења…
+	Underline Color	Боја подвлачења
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	Споји ћелије пре дељења
 	Table size	Величина табеле
@@ -2302,3 +2336,69 @@
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Унесите величину у било којој јединици, на пример 5 cm или 300 px. Друга страна се прилагођава, па слика задржава своје пропорције.
 
 	Import…	Увези…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image
+
+# Personal templates (#2852)
+	Personal	Лични
+	Personal Templates	Лични шаблони
+	Templates you save in your templates folder show up here.	Овде се приказују шаблони које сачувате у фасцикли шаблона.
+	Save as Word Template…	Сачувај као Word шаблон…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	Чува .dotx шаблон у фасцикли шаблона. Приказује се у Фајл › Ново под Лични.
+	File locations	Локације датотека
+	User templates:	Кориснички шаблони:
+	Not set	Није постављено
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	Фајл › Ново приказује .dotx и .dotm шаблоне одавде под Лични; Сачувај као Word шаблон почиње овде.
+	Format Shape Pane	Окно „Формат облика“
+	Format Shape	Формат облика
+	Format Shape…	Форматирај облик…
+	No fill	Без попуне
+	Solid fill	Једнобојна попуна
+	Gradient fill	Преливајућа попуна
+	Preset gradients	Унапред задати преливи
+	Radial	Радијални
+	Rectangular	Правоугаони
+	Path	Путања
+	Direction	Смер
+	Angle	Угао
+	Gradient stops	Тачке прелива
+	Add gradient stop	Додај тачку прелива
+	Remove gradient stop	Уклони тачку прелива
+	Rotate with shape	Ротирај са обликом
+	Gradient	Прелив
+	No Gradient	Без прелива
+	Light Variations	Светле варијанте
+	Dark Variations	Тамне варијанте
+	More Gradients…	Још прелива…
+	Select a shape, text box or drawing canvas to format its fill.	Изаберите облик, оквир за текст или платно за цртање да бисте форматирали попуну.
+	Linear Right	Линеарни удесно
+	Linear Diagonal - Top Left to Bottom Right	Линеарни дијагонални – горе лево ка доле десно
+	Linear Down	Линеарни надоле
+	Linear Diagonal - Top Right to Bottom Left	Линеарни дијагонални – горе десно ка доле лево
+	Linear Left	Линеарни улево
+	Linear Diagonal - Bottom Right to Top Left	Линеарни дијагонални – доле десно ка горе лево
+	Linear Up	Линеарни нагоре
+	Linear Diagonal - Bottom Left to Top Right	Линеарни дијагонални – доле лево ка горе десно
+	From Top Left Corner	Из угла горе лево
+	From Top Right Corner	Из угла горе десно
+	From Bottom Left Corner	Из угла доле лево
+	From Bottom Right Corner	Из угла доле десно
+	From Center	Из средине
+	Soft	Мек
+	Lit from Top	Осветљен одозго
+	Deep	Дубок
+	Lit from Bottom	Осветљен одоздо
+	Center Glow	Сјај из средине
+# File › Home greeting
+	Good morning	Добро јутро
+	Good afternoon	Добар дан
+	Good evening	Добро вече
+	More tabs	Још картица
+# #3013: Insert Table of Figures
+	Include label and number	Укључи ознаку и број

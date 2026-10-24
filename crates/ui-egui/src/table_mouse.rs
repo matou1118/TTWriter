@@ -160,6 +160,15 @@ pub fn paint(app: &WordApp, painter: &egui::Painter, t: &Tokens, layout: &DocLay
     if !available(app) {
         return;
     }
+    // The caret's table shows its move handle wherever the pointer is, as in Word.
+    for (page, h, _) in crate::table_resize::caret_handles(app, painter, layout, rects) {
+        if let Some(h) = h
+            && let (Some(a), Some(b)) =
+                (to_screen(rects, layout, scale, page, h.x, h.y), to_screen(rects, layout, scale, page, h.right(), h.bottom()))
+        {
+            move_handle(painter, Rect::from_two_pos(a, b), t);
+        }
+    }
     let Some(p) = hover else { return };
     let Some((page, x, y)) = crate::canvas::page_at(rects, layout, scale, p) else { return };
     let Some(sc) = page_scale(rects, layout, scale, page) else { return };

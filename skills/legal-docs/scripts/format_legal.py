@@ -29,6 +29,7 @@ It drives wordcraft-cli; it never touches the text.
 """
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -51,9 +52,9 @@ MASK_BANNER = "【对外脱敏版本，内部底稿保留完整主体信息】"
 
 
 def cli() -> str:
-    exe = shutil.which("wordcraft-cli")
+    exe = shutil.which("wordcraft-cli") or os.environ.get("WORDCRAFT_CLI")
     if not exe:
-        sys.exit("wordcraft-cli not found on PATH")
+        sys.exit("wordcraft-cli not found on PATH (or set WORDCRAFT_CLI)")
     return exe
 
 

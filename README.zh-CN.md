@@ -48,7 +48,21 @@ WordCraft 是一个 Rust 从零写的开源文字处理器，目标是对齐 Mic
 
 ### 用预编译版本
 
-从 [Releases](https://github.com/matou1118/TTWriter/releases) 下载对应平台的可执行文件，直接运行 `wordcraft`。
+三条路，按顺手程度排：
+
+**网页版（免安装）**：浏览器直接开 GitHub Pages 上的 [/app/](https://matou1118.github.io/TTWriter/app/)——完整界面编译成 WebAssembly 在本地跑，中文字体内置，文档存在浏览器 IndexedDB 里，不上传服务器。首次加载约 58MB（wasm，页面有下载进度提示），之后走缓存秒开；**可安装为 PWA**（电脑 Chrome/Edge 地址栏安装图标，手机「添加到主屏幕」），装好后**离线可用**。加载慢多为网络（GitHub Pages 国内不稳），页面会在 60 秒无进展时给出具体建议。
+
+**便携包**：从 [Releases](https://github.com/matou1118/TTWriter/releases)（国内镜像：[AtomGit](https://atomgit.com/matou118/ttwriter/releases)）下载解压即用：双击 `ttwriter.exe` 打开主程序，`wordcraft-cli.exe` 是命令行工具。界面语言（31 种）和文档技能（13 个）都编译在程序里，无需另配。
+
+**保持更新**（离线检查、双源下载、SHA-256 校验）：
+
+```bash
+wordcraft-cli update --check                        # 看有没有新版（24 小时缓存）
+wordcraft-cli update --install                      # 下载并安装（便携包换目录、MSI 静默装）
+wordcraft-cli update --install --install-dir <目录>  # 指定要替换的安装目录
+```
+
+便携包的安装方式是**旁路换目录**：新版装到旧版旁边（`wordcraft-<新版>-windows-x64-portable`），旧目录原样保留，确认新版没问题后手动删——绝不自动删用户的东西。
 
 ### 从源码构建
 
@@ -97,6 +111,20 @@ wordcraft-cli mcp                                   # 以 MCP 服务器方式跑
 | [`skills/legal-docs`](skills/legal-docs/) | 民事起诉状、律师函、法律意见书、合同审查报告 | — |
 
 四个技能都只做**排版**：内容必须是已经定稿的文本，技能不会替你写、编或改一个字。写内容的活交给写作技能。
+
+### 中文模板包（内置）
+
+`file.new` 的 `template` 参数直接认（`wordcraft-cli run --template ×× --save out.docx` 一步出稿），全是占位文本——版式先行，事实你填：
+
+| 模板 id | 用途 | 版式要点 |
+|---|---|---|
+| `resume-cn` | 中文简历 | 姓名居中、求职意向、教育/工作/技能/自我评价四节 |
+| `letter-cn` | 中文信纸 | 称呼顶格、正文缩进两字、此致敬礼、落款右对齐 |
+| `timetable` | 课程表 | 6 节次 × 周一到周五表格 + 午休行 |
+| `minutes` | 会议纪要 | 标题 + 会议信息表 + 议题四节 |
+| `memo` | 便笺 | 标题 + 日期 + 事项 + 底部分隔线 |
+
+另有英文模板 `sample` / `letter` / `resume` / `report`（上游自带）。红头文件用 `wordcraft-cli redhead`（见上文命令行节）。
 
 ### 预设（presets）
 

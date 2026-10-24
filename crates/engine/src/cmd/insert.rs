@@ -65,11 +65,13 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("insert.createFooter", "Footer", "Insert › Header & Footer", |s, v| create_hf(s, v, false))
             .params(r#"{"page"?: number (0-based; default: the caret's section)} — the footer that page shows, created if it has none, with the caret in it"#),
         CommandSpec::new("insert.closeHeader", "Close Header and Footer", "Header & Footer", |s, _| {
+            // Back where the caret was in the body, as Word does, not on page 1.
+            let back = s.hf_return.take().filter(|_| s.in_header_footer());
             if !new_empty_headers(s).is_empty() {
                 // Its own undo step; a protected document keeps it, and the caret still leaves.
                 let _ = s.run("insert.removeEmptyHeaders", &json!({}));
             }
-            s.sel = Selection::caret(s.doc.start_of(StoryRef::Body));
+            s.sel = back.unwrap_or_else(|| Selection::caret(s.doc.start_of(StoryRef::Body)));
             sel_result(s)
         })
         .pure(),
@@ -340,8 +342,19 @@ fn shape(s: &mut Session, v: &Value) -> CmdResult {
         Float { wrap: Wrap::Inline, ..Default::default() }
     };
     let stroke = p::str(v, "stroke").and_then(Rgb::parse).or(Some(Rgb(0x0E, 0x40, 0x5A)));
-    let obj =
-        InlineObject::Shape { kind, w, h, fill, stroke, stroke_width: 1.0, float, story: None, freeform: None, effects: Default::default(), extra };
+    let obj = InlineObject::Shape {
+        kind,
+        w,
+        h,
+        fill: fill.map(wordcraft_doc::fill::Fill::solid),
+        stroke,
+        stroke_width: 1.0,
+        float,
+        story: None,
+        freeform: None,
+        effects: Default::default(),
+        extra,
+    };
     // A selected Drawing Canvas takes it in (and stays selected for the next one).
     if super::canvas::add_member(s, obj.clone())?.is_some() {
         return sel_result(s);
@@ -365,7 +378,7 @@ fn text_box(s: &mut Session, v: &Value) -> CmdResult {
         kind: ShapeKind::TextBox,
         w,
         h,
-        fill: Some(Rgb::WHITE),
+        fill: Some(wordcraft_doc::fill::Fill::solid(Rgb::WHITE)),
         stroke: Some(Rgb::BLACK),
         stroke_width: 0.75,
         float: Float::default(),
@@ -456,9 +469,11 @@ fn link(s: &mut Session, v: &Value) -> CmdResult {
     sel_result(s)
 }
 
-/// Whether `name` can name a bookmark: no spaces, at most 40 characters, not starting with a digit.
+/// Whether `name` can name a bookmark: starts with a letter or underscore, contains only alphanumeric characters
+/// or underscores, and is at most 40 characters (#3491). Word allows leading underscores for hidden bookmarks (_Toc, _Ref).
 pub fn bookmark_name_ok(name: &str) -> bool {
-    !name.is_empty() && !name.contains(' ') && name.len() <= 40 && !name.chars().next().is_some_and(|c| c.is_ascii_digit())
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_alphabetic() || c == '_') && chars.all(|c| c.is_alphanumeric() || c == '_') && name.chars().count() <= 40
 }
 
 /// Where bookmark `name` is: see [`bookmark_span`]. `None` when there is no such bookmark.
@@ -842,18 +857,19 @@ pub fn format_date_parts(fmt: &str, y: i64, m: usize, d: u32, (hh, mm, ss): (u32
             n += 1;
         }
         match (c, n) {
-            ('y', 4..) => out.push_str(&format!("{y:04}")),
-            ('y', _) => out.push_str(&format!("{:02}", y % 100)),
+            ('y' | 'Y', 4..) => out.push_str(&format!("{y:04}")),
+            ('y' | 'Y', _) => out.push_str(&format!("{:02}", y % 100)),
             ('M', 4..) => out.push_str(month),
             ('M', 3) => out.push_str(month.get(..3).unwrap_or(month)),
             ('M', 2) => out.push_str(&format!("{m:02}")),
             ('M', 1) => out.push_str(&m.to_string()),
-            ('d', 4..) => out.push_str(day),
-            ('d', 3) => out.push_str(day.get(..3).unwrap_or(day)),
-            ('d', 2) => out.push_str(&format!("{d:02}")),
-            ('d', 1) => out.push_str(&d.to_string()),
+            ('d' | 'D', 4..) => out.push_str(day),
+            ('d' | 'D', 3) => out.push_str(day.get(..3).unwrap_or(day)),
+            ('d' | 'D', 2) => out.push_str(&format!("{d:02}")),
+            ('d' | 'D', 1) => out.push_str(&d.to_string()),
             ('H', 2..) => out.push_str(&format!("{hh:02}")),
             ('H', _) => out.push_str(&hh.to_string()),
+            ('h', 2..) => out.push_str(&format!("{:02}", if hh.is_multiple_of(12) { 12 } else { hh % 12 })),
             ('h', _) => out.push_str(&(if hh.is_multiple_of(12) { 12 } else { hh % 12 }).to_string()),
             ('m', 2..) => out.push_str(&format!("{mm:02}")),
             ('m', _) => out.push_str(&mm.to_string()),
@@ -966,6 +982,28 @@ fn cover_page(s: &mut Session, v: &Value) -> CmdResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Closing the header or footer (Esc, the ribbon) puts the caret back where it was in the
+    /// body, not on page 1 (#3331).
+    #[test]
+    fn close_header_returns_to_the_body_selection() {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        s.run("text.insert", &json!({"text": "One"})).unwrap();
+        s.run("insert.pageBreak", &json!({})).unwrap();
+        s.run("text.insert", &json!({"text": "Two words here"})).unwrap();
+        s.run("select.text", &json!({"text": "words"})).unwrap();
+        let before = s.sel.clone();
+        // A header written to stays.
+        s.run("insert.editHeader", &json!({})).unwrap();
+        s.run("text.insert", &json!({"text": "Head"})).unwrap();
+        s.run("insert.closeHeader", &json!({})).unwrap();
+        assert_eq!(s.sel, before);
+        // An empty one made by a double-click on page 2 is taken away again.
+        s.run("insert.editFooter", &json!({"page": 1})).unwrap();
+        s.run("insert.closeHeader", &json!({})).unwrap();
+        assert_eq!(s.sel, before);
+        assert_eq!(s.doc.last_section.footers, Default::default());
+    }
 
     /// #960: editing the header of a page that has none creates the one that page shows (first
     /// page, even page or default); typing goes into it, and closing an unwritten one takes it
@@ -1173,6 +1211,47 @@ mod tests {
         assert_eq!(crate::cmd::references::bookmark_text(&s.doc, "Spot").as_deref(), Some("delta"));
     }
 
+    /// #3491: Bookmark names are validated by Unicode character count and character classes.
+    #[test]
+    fn bookmark_name_validation_rules() {
+        // Valid names:
+        assert!(bookmark_name_ok("Mark1"));
+        assert!(bookmark_name_ok("A"));
+        assert!(bookmark_name_ok("Alpha_Beta_123"));
+        // Valid leading underscore (Word hidden bookmarks, e.g. _Toc, _Ref, _Hidden):
+        assert!(bookmark_name_ok("_Hidden"));
+        assert!(bookmark_name_ok("_foo"));
+        // Valid 27-character Unicode Cyrillic name (51 UTF-8 bytes):
+        assert!(bookmark_name_ok("быстрый_доступ_к_документам"));
+        // Valid 40-character name:
+        let exactly_40 = "a".repeat(40);
+        assert!(bookmark_name_ok(&exactly_40));
+        let exactly_40_unicode = "я".repeat(40);
+        assert!(bookmark_name_ok(&exactly_40_unicode));
+
+        // Invalid: empty
+        assert!(!bookmark_name_ok(""));
+        // Invalid: leading digit
+        assert!(!bookmark_name_ok("1mark"));
+        // Invalid: symbols / punctuation
+        assert!(!bookmark_name_ok("a&b"));
+        assert!(!bookmark_name_ok("a!b"));
+        assert!(!bookmark_name_ok("a-b"));
+        assert!(!bookmark_name_ok("a.b"));
+        assert!(!bookmark_name_ok("foo bar"));
+        // Invalid: more than 40 characters
+        assert!(!bookmark_name_ok(&"a".repeat(41)));
+        assert!(!bookmark_name_ok(&"я".repeat(41)));
+
+        // Verification through `insert.bookmark` command
+        let mut s = Session::new(wordcraft_doc::Document::from_text("Test content"));
+        assert!(s.run("insert.bookmark", &json!({"name": "быстрый_доступ_к_документам"})).is_ok());
+        assert!(s.run("insert.bookmark", &json!({"name": "_Hidden"})).is_ok());
+        assert!(s.run("insert.bookmark", &json!({"name": "1mark"})).is_err());
+        assert!(s.run("insert.bookmark", &json!({"name": "a&b"})).is_err());
+        assert!(s.run("insert.bookmark", &json!({"name": "a!b"})).is_err());
+    }
+
     /// Insert › Symbol with a font: only the symbol takes it, the caret's font carries on after.
     #[test]
     fn a_mixed_symbol_string_keeps_symbols_and_text_apart() {
@@ -1210,6 +1289,13 @@ mod tests {
 
     #[test]
     fn date_pictures() {
+        // Word accepts either case for the day and year instructions.
+        assert_eq!(format_date_parts("MM/DD/YYYY", 2026, 10, 21, (17, 27, 3), 0), "10/21/2026");
+        assert_eq!(format_date_parts("D MMMM YYYY", 2026, 10, 21, (17, 27, 3), 0), "21 October 2026");
+        // Both 12-hour instructions pad a single-digit hour; only the 12-hour one wraps at noon.
+        assert_eq!(format_date_parts("hh:mm", 2026, 10, 21, (17, 27, 3), 0), "05:27");
+        assert_eq!(format_date_parts("h:mm", 2026, 10, 21, (17, 27, 3), 0), "5:27");
+        assert_eq!(format_date_parts("HH:mm", 2026, 10, 21, (5, 7, 3), 0), "05:07");
         let d = format_date("yyyy-MM-dd");
         assert_eq!(d.len(), 10);
         assert!(format_date("MMMM d, yyyy").contains(", "));

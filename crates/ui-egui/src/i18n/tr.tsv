@@ -18,6 +18,18 @@
 	AaBbCcDd	AaBbCcÇç
 	About	Hakkında
 	About WordCraft	WordCraft Hakkında
+	APA	APA
+	Chicago	Chicago
+	GB/T 7714	GB/T 7714
+	GOST (name sort)	GOST (ada göre sırala)
+	GOST (title sort)	GOST (başlığa göre sırala)
+	Harvard (Anglia)	Harvard (Anglia)
+	IEEE	IEEE
+	ISO 690 (author-date)	ISO 690 (yazar-tarih)
+	ISO 690 (numerical)	ISO 690 (sayısal)
+	MLA	MLA
+	SIST02	SIST02
+	Turabian	Turabian
 	Accept	Kabul Et
 	Accept All Changes	Tüm Değişiklikleri Kabul Et
 	Accept This Change	Bu Değişikliği Kabul Et
@@ -84,8 +96,11 @@
 	Book Title	Kitap Başlığı
 	Bookmark	Yer İşareti
 	Bookmark name:	Yer işareti adı:
+	Continue from previous section	Önceki bölümden devam et
 	Delete Bookmark	Yer İşaretini Sil
 	Hidden bookmarks	Gizli yer işaretleri
+	Page Number Format	Sayfa numarası biçimi
+	Page numbering	Sayfa numaralandırma
 	Sort by:	Sıralama ölçütü:
 	Border Painter	Kenarlık Fırçası
 	Border\nPainter	Kenarlık\nFırçası
@@ -232,6 +247,8 @@
 	Edit\nRecipient List	Alıcı Listesini\nDüzenle
 	Edited	Düzenlendi
 	Editing	Düzenleme
+	Editing endnote	Sonnot düzenleniyor
+	Editing footnote	Dipnot düzenleniyor
 	Editing header/footer	Üstbilgi/altbilgi düzenleniyor
 	Editing — edit the document directly	Düzenleme — belgeyi doğrudan düzenleyin
 	Editor	Düzenleyici
@@ -274,6 +291,9 @@
 	First line:	İlk satır:
 	Fixed Column Width	Sabit Sütun Genişliği
 	Focus	Odak
+	Full Screen View	Tam Ekran Görünümü
+	Show the ribbon	Şeridi göster
+	Old menu keys: Alt, {keys}. Keep typing, or press Esc to cancel.	Eski menü tuşları: Alt, {keys}. Yazmaya devam edin ya da iptal etmek için Esc tuşuna basın.
 	Font	Yazı Tipi
 	Font Color	Yazı Tipi Rengi
 	Font color:	Yazı tipi rengi:
@@ -708,6 +728,7 @@
 	Spelling & Grammar	Yazım ve Dilbilgisi
 	Spelling &\nGrammar	Yazım ve\nDilbilgisi
 	Spelling Suggestions	Yazım Önerileri
+	Possible spelling mistake	Olası yazım hatası
 	Split	Böl
 	Split Cells	Hücreleri Böl
 	Split Table	Tabloyu Böl
@@ -1135,6 +1156,9 @@ preview	Title	Örnek
 	Version	Sürüm
 	% of all commits	Commit payı (%)
 	pt	pt
+	cm	cm
+	mm	mm
+	pi	pi
 	Save the document to turn on AutoSave	Otomatik Kaydet'i açmak için belgeyi kaydedin
 	Models	Modeller
 	Good evening	İyi akşamlar
@@ -1735,7 +1759,14 @@ preview	Title	Örnek
 	Go Back	Geri Git
 	Do Not Check Spelling or Grammar	Yazım veya dilbilgisini denetleme
 	English (United Kingdom)	İngilizce (Birleşik Krallık)
+	English (Australia)	İngilizce (Avustralya)
+	English (Canada)	İngilizce (Kanada)
+	English (India)	İngilizce (Hindistan)
+	English (Ireland)	İngilizce (İrlanda)
+	English (New Zealand)	İngilizce (Yeni Zelanda)
+	English (South Africa)	İngilizce (Güney Afrika)
 	Polish	Lehçe
+	Chinese	Chinese
 	Insert Date Field	Tarih Alanı Ekle
 	Insert Page Field	Sayfa Alanı Ekle
 	Insert Time Field	Saat Alanı Ekle
@@ -2606,6 +2637,7 @@ preview	Title	Örnek
 	Submitting print job…	Yazdırma işi gönderiliyor…
 	Print job submitted.	Yazdırma işi gönderildi.
 	Print job submitted: {receipt}	Yazdırma işi gönderildi: {receipt}
+	Print job submitted: spooled {count} sheet(s)	Yazdırma işi gönderildi: {count} sayfa kuyruğa alındı
 	Print failed: the printing worker stopped.	Yazdırma başarısız oldu: yazdırma işlemi durdu.
 	Print settings	Yazdırma ayarları
 	Submit print job	Yazdırma işini gönder
@@ -2646,6 +2678,9 @@ preview	Title	Örnek
 # Reading Mode column widths (#1040)
 	Narrow	Dar
 	Medium	Orta
+	Dot-dot-dash	Nokta-nokta-çizgi
+	More Underlines…	Diğer Alt Çizgiler…
+	Underline Color	Alt Çizgi Rengi
 # Split Cells and Convert Text to Table (#2592)
 	Merge cells before split	Bölmeden önce hücreleri birleştir
 	Table size	Tablo boyutu
@@ -2696,3 +2731,65 @@ preview	Title	Örnek
 	Type a size in any unit, such as 5 cm or 300 px. The other side follows, so the picture keeps its proportions.	Herhangi bir birimde bir boyut yazın, örneğin 5 cm veya 300 px. Diğer kenar da buna uyar, böylece resim oranlarını korur.
 
 	Import…	İçe aktar…
+	Simplify Chinese	Simplify Chinese
+	Traditional Chinese	Traditional Chinese
+	Sort by Pinyin	Sort by Pinyin
+	Erase Area	Erase Area
+	Enhance	Enhance
+	ID Photo	ID Photo
+	Slim Document	Slim Document
+	Export as Long Image	Export as Long Image
+
+# Personal templates (#2852)
+	Personal	Kişisel
+	Personal Templates	Kişisel şablonlar
+	Templates you save in your templates folder show up here.	Şablon klasörünüze kaydettiğiniz şablonlar burada görünür.
+	Save as Word Template…	Word şablonu olarak kaydet…
+	Saves a .dotx template in your templates folder. It shows up in File › New under Personal.	Şablon klasörünüze bir .dotx şablonu kaydeder. Dosya › Yeni altında Kişisel bölümünde görünür.
+	File locations	Dosya konumları
+	User templates:	Kullanıcı şablonları:
+	Not set	Ayarlanmadı
+	File › New lists the .dotx and .dotm templates here under Personal; Save as Word Template starts here.	Dosya › Yeni, buradaki .dotx ve .dotm şablonlarını Kişisel altında listeler; Word şablonu olarak kaydet buradan başlar.
+	Format Shape Pane	Şekli Biçimlendir bölmesi
+	Format Shape	Şekli Biçimlendir
+	Format Shape…	Şekli Biçimlendir…
+	No fill	Dolgu yok
+	Solid fill	Düz dolgu
+	Gradient fill	Degrade dolgu
+	Preset gradients	Hazır degradeler
+	Radial	Dairesel
+	Rectangular	Dikdörtgen
+	Path	Yol
+	Direction	Yön
+	Angle	Açı
+	Gradient stops	Degrade durakları
+	Add gradient stop	Degrade durağı ekle
+	Remove gradient stop	Degrade durağını kaldır
+	Rotate with shape	Şekille birlikte döndür
+	Gradient	Degrade
+	No Gradient	Degrade yok
+	Light Variations	Açık çeşitler
+	Dark Variations	Koyu çeşitler
+	More Gradients…	Diğer degradeler…
+	Select a shape, text box or drawing canvas to format its fill.	Dolgusunu biçimlendirmek için bir şekil, metin kutusu veya çizim tuvali seçin.
+	Linear Right	Doğrusal sağa
+	Linear Diagonal - Top Left to Bottom Right	Doğrusal çapraz – sol üst köşeden sağ alt köşeye
+	Linear Down	Doğrusal aşağı
+	Linear Diagonal - Top Right to Bottom Left	Doğrusal çapraz – sağ üst köşeden sol alt köşeye
+	Linear Left	Doğrusal sola
+	Linear Diagonal - Bottom Right to Top Left	Doğrusal çapraz – sağ alt köşeden sol üst köşeye
+	Linear Up	Doğrusal yukarı
+	Linear Diagonal - Bottom Left to Top Right	Doğrusal çapraz – sol alt köşeden sağ üst köşeye
+	From Top Left Corner	sol üst köşeden
+	From Top Right Corner	sağ üst köşeden
+	From Bottom Left Corner	sol alt köşeden
+	From Bottom Right Corner	sağ alt köşeden
+	From Center	Merkezden
+	Soft	Yumuşak
+	Lit from Top	Üstten aydınlatılmış
+	Deep	Koyu
+	Lit from Bottom	Alttan aydınlatılmış
+	Center Glow	Merkez parıltısı
+	More tabs	Diğer sekmeler
+# #3013: Insert Table of Figures
+	Include label and number	Etiketi ve numarayı ekle
