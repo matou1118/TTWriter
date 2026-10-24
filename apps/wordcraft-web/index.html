@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>WordCraft</title>
   <link data-trunk rel="icon" href="../../assets/app-icon/wordcraft.ico" />
-  <!-- wasm-opt "z": smallest. Bulk-memory ops need the flags below or binaryen 123
-       refuses to validate Rust's output ("memory.copy operations require bulk memory
-       operations"). (One Windows machine's trunk-cached wasm-opt v123 crashes on this
-       wasm; locally pass a patched copy without these attributes - CI is fine.) -->
-  <link data-trunk rel="rust" data-bin="wordcraft-web" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt" data-weak-refs />
+  <!-- wasm-opt "z": smallest. binaryen 123 does not infer Rust's target features, so
+       --all-features lets it validate bulk-memory / saturating-float / reference types.
+       (One Windows machine's trunk-cached wasm-opt v123 crashes on this wasm; locally
+       pass a patched copy without these attributes - CI is fine.) -->
+  <link data-trunk rel="rust" data-bin="wordcraft-web" data-wasm-opt="z" data-wasm-opt-params="--all-features" data-weak-refs />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e6e6e6; }
     #wordcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
