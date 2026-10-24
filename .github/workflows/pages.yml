@@ -85,6 +85,14 @@ jobs:
           if [[ "${{ steps.webapp.outputs.build }}" == "true" || "${{ steps.appcache.outputs.cache-hit }}" == "true" ]]; then
             mkdir -p _site/app
             cp -r dist/web/. _site/app/
+            # PWA assets (same list as apps/wordcraft-web/build-web.ps1; trunk's
+            # copy-file pipeline writes 1-byte stubs on 0.21.14, so plain cp here):
+            cp apps/wordcraft-web/manifest.json _site/app/
+            cp apps/wordcraft-web/sw.js _site/app/
+            cp assets/app-icon/hicolor/512x512/apps/ai.storyteller.wordcraft.png _site/app/wordcraft-icon-512.png
+            cp assets/app-icon/hicolor/256x256/apps/ai.storyteller.wordcraft.png _site/app/wordcraft-icon-256.png
+            cp assets/app-icon/hicolor/128x128/apps/ai.storyteller.wordcraft.png _site/app/wordcraft-icon-128.png
+            cp assets/app-icon/wordcraft.svg _site/app/
           fi
           ls -la _site
       - uses: actions/configure-pages@v5

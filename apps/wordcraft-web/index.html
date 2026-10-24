@@ -1,10 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>WordCraft</title>
+  <title>蜻蜓文档 TTWriter</title>
   <link data-trunk rel="icon" href="../../assets/app-icon/wordcraft.ico" />
+  <!-- PWA 资产（manifest/sw/图标）不进 trunk 管线：trunk 0.21 的 copy-file +
+       data-target-path 会写出 1 字节的坏文件。固定文件名在这里引用，拷贝由
+       pages.yml 的 assemble 步骤与本地脚本做（cp 一条命令）。 -->
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon" href="./wordcraft-icon-512.png" />
   <!-- wasm-opt "z": smallest. binaryen 123 does not infer Rust's target features, so
        --all-features lets it validate bulk-memory / saturating-float / reference types.
        (One Windows machine's trunk-cached wasm-opt v123 crashes on this wasm; locally
@@ -19,6 +24,17 @@
 </head>
 <body>
   <canvas id="wordcraft_canvas"></canvas>
-  <div id="wordcraft_loading">Loading WordCraft&hellip;</div>
+  <div id="wordcraft_loading">正在加载蜻蜓文档&hellip;</div>
+  <script>
+    // 注册 Service Worker（PWA：离线可用 + 42MB wasm 走缓存二次秒开）。
+    // 安全条件：https 或 localhost（file:// 与 http 内网不支持 SW，静默跳过）。
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch((err) => {
+          console.warn("service worker 注册失败（不影响使用，只是没有离线缓存）:", err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
