@@ -48,37 +48,40 @@
       }
       try {
         var c = document.createElement("canvas");
-        var gl2 = c.getContext("webgl2");
-        if (!gl2) {
+        // eframe 走 wgpu：有 WebGPU 就用 WebGPU，没有才退回 WebGL2。只查 WebGL2 会误杀
+        // 那些关了 WebGL 但 WebGPU 正常的浏览器。
+        if (!navigator.gpu && !c.getContext("webgl2")) {
           fail("此浏览器不支持 WebGL2（渲染必需）。请改用较新的 Chrome / Edge / Safari，或在系统设置里开启硬件加速。");
           return;
         }
       } catch (e) { /* 上下文创建异常按无 WebGL2 处理过了 */ }
 
-      // ② wasm 下载进度
+      // ② wasm 下载进度：流式计量，边下边报。不能把分片攒起来再拼 Response——
+      //    62MB 攒进 JS 内存，手机上正好会 OOM（本意是诊断失败，别自己制造失败）。
       var origFetch = window.fetch ? window.fetch.bind(window) : null;
-      if (origFetch) {
+      if (origFetch && typeof TransformStream !== "undefined") {
         window.fetch = function (url, opts) {
           var p = origFetch(url, opts);
           if (typeof url === "string" && url.indexOf("_bg.wasm") >= 0) {
             p = p.then(function (r) {
               if (!r.ok || !r.body) { return r; }
               var total = parseInt(r.headers.get("Content-Length") || "0", 10);
-              var reader = r.body.getReader();
               var loaded = 0;
-              var chunks = [];
-              return reader.read().then(function pump(step) {
-                if (step.done) {
-                  return new Response(new Blob(chunks), { headers: r.headers, status: r.status });
+              var meter = new TransformStream({
+                transform: function (chunk, ctl) {
+                  loaded += chunk.byteLength;
+                  // gzip 的 Content-Length 是压缩前口径，可能比实际字节大——只在没超时显示总量
+                  var mb = (loaded / 1048576).toFixed(1);
+                  var tail = total > 0 && loaded <= total ? " / " + (total / 1048576).toFixed(1) + " MB" : " MB";
+                  if (progress) { progress.textContent = "下载中 " + mb + tail + "（首次约 40-60 MB，之后走缓存）"; }
+                  ctl.enqueue(chunk);
                 }
-                chunks.push(step.value);
-                loaded += step.value.length;
-                // gzip 流的 Content-Length 是压缩前口径，可能超过 100%——按 MB 显示更稳
-                var mb = (loaded / 1048576).toFixed(1);
-                var tail = total > 0 && loaded <= total ? " / " + (total / 1048576).toFixed(1) + " MB" : " MB";
-                if (progress) { progress.textContent = "下载中 " + mb + tail + "（首次约 40-60 MB，之后走缓存）"; }
-                return reader.read().then(pump);
               });
+              // 长度/编码已由解压后的流作废，留着会让 instantiateStreaming 读到错的元数据
+              var h = new Headers(r.headers);
+              h.delete("content-length");
+              h.delete("content-encoding");
+              return new Response(r.body.pipeThrough(meter), { headers: h, status: r.status });
             });
           }
           return p;
@@ -96,9 +99,9 @@
         }
       });
 
-      // ④ 超时诊断
+      // ④ 超时诊断：界面还没撤掉才算没起来（wasmBindings 只有 --no-modules 才有，别拿它判断）
       window.setTimeout(function () {
-        if (!window.wasmBindings) {
+        if (loading && loading.style.display !== "none") {
           fail("60 秒还没加载完：多半是网络太慢（GitHub Pages 在国内不稳定）或浏览器内核过旧。建议：① 用 Chrome/Edge 重试；② 换网络；③ 微信内请点「在浏览器打开」。");
         }
       }, 60000);
