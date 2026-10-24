@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn sort_list_by_pinyin() {
         let mut words = vec!["上海", "北京", "广州", "深圳"];
-        words.sort_by(|a, b| pinyin_sort_key(a).cmp(&pinyin_sort_key(b)));
+        words.sort_by_key(|a| pinyin_sort_key(a));
         // bei jing < guang zhou < shang hai < shen zhen
         assert_eq!(words, ["北京", "广州", "上海", "深圳"]);
     }

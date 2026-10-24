@@ -18,6 +18,9 @@ import re
 import subprocess
 import sys
 
+# GBK 控制台（中文 Windows 默认）打不出 ✔/✘——降级成 ?，不让体检中途崩。
+sys.stdout.reconfigure(errors="replace")
+
 CM_TO_PT = 72.0 / 2.54
 MARGINS_PT = {"top": 70.9, "bottom": 70.9, "left": 85.0, "right": 56.7}
 TOL = 3.0

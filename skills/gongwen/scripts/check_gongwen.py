@@ -35,6 +35,9 @@ import subprocess
 import sys
 import tempfile
 
+# GBK 控制台（中文 Windows 默认）打不出 ✔/✘——降级成 ?，不让体检中途崩。
+sys.stdout.reconfigure(errors="replace")
+
 MM_TO_PT = 72.0 / 25.4
 
 # 国标版心（毫米）→ 磅（四舍五入到 0.1）

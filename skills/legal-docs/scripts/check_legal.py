@@ -24,6 +24,9 @@ import shutil
 import subprocess
 import sys
 
+# GBK 控制台（中文 Windows 默认）打不出 ✔/✘——降级成 ?，不让体检中途崩。
+sys.stdout.reconfigure(errors="replace")
+
 CLI = shutil.which("wordcraft-cli") or os.environ.get("WORDCRAFT_CLI") or ""
 
 DAXIE = "壹贰叁肆伍陆柒捌玖拾佰仟萬亿"

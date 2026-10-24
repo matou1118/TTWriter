@@ -11,7 +11,8 @@
   lease    房屋租赁合同
 
 红线（拒绝生成，同 jietiao 的 LPR 四倍思路）：
-  labor: 试用期超劳动合同法 §19 上限（合同期<1年试≤1月；1–3年试≤2月；≥3年试≤6月）
+  labor: 试用期超劳动合同法 §19 上限（合同期<1年试≤1月；1–3年试≤2月；≥3年试≤6月），
+         合同期不满 3 个月的不得约定试用期（§19 第三款）
   lease: 押金超过 2 个月租金只警告（各地规定不一，写清城市后自行核对）
 
 用法：
@@ -31,7 +32,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import re
 import subprocess
 import sys
 import tempfile
@@ -369,6 +369,8 @@ def main() -> int:
             sys.exit("期限不能为负")
         if p > 0 and t <= 0:
             sys.exit("劳动合同试用期要有合同期限（--term-months）才能校验上限")
+        if t < 3 and p > 0:
+            sys.exit("合同期限不满三个月的不得约定试用期（《劳动合同法》第十九条第三款）——删掉试用期，或把 --term-months 加到 3 以上")
         cap = 1 if t < 12 else (2 if t < 36 else 6)
         if p > cap:
             sys.exit(

@@ -130,7 +130,6 @@ fn every_char_prop_round_trips() {
         italic_cs: Some(true),
         lang_bidi: Some("fa-IR".into()),
         lang_ea: Some("zh-CN".into()),
-        lang_ea: Some("ja-JP".into()),
         east_asian_layout: Some(wordcraft_doc::props::EastAsianLayout {
             id: Some(3),
             combine: Some(true),

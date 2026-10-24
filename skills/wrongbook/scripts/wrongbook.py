@@ -168,8 +168,8 @@ def cmd_quiz(a: argparse.Namespace) -> int:
     pool = [it for it in pool if not it.get("forgotten")]
     if not a.mastered:
         pool = [it for it in pool if not it.get("mastered")]
-    # 组卷顺序：先到期的（最急），再按录入时间。
-    pool = sorted(pool, key=lambda it: (it.get("due", "9999") == "" and it.get("mastered"), it.get("added", ""), -it.get("stage", 0)))
+    # 组卷顺序：已掌握的垫底，其余先到期的（最急）在前，同一天按录入时间。
+    pool = sorted(pool, key=lambda it: (bool(it.get("mastered")), it.get("due") or "9999", it.get("added", "")))
     if a.limit and a.limit > 0:
         pool = pool[: a.limit]
     if not pool:

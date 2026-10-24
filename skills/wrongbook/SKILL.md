@@ -1,6 +1,6 @@
 ---
 name: wrongbook
-description: 错题本——录入错题（题目、答案、错因）、艾宾浩斯间隔重复复习调度（1-2-4-7-15-30 天）、一键生成「错题重练卷」（按到期题组卷，复用 exam 排版出 docx/PDF）。Use when the user wants 错题本/错题整理/复习计划/重练卷/艾宾浩斯/间隔重复, mentions 错题回顾、把做错的题再练一遍、复习打卡、考前突击错题, or provides 错题照片文字/题目与错因 and asks to 建错题库、安排复习、出重练卷. This skill MANAGES the wrong-answer data and review schedule; the quiz PAPER layout reuses the exam skill; it never invents questions or answers.
+description: 错题本——录入错题（题目、答案、错因）、艾宾浩斯间隔重复复习调度（1-2-4-7-15-30-60 天）、一键生成「错题重练卷」（按到期题组卷，复用 exam 排版出 docx/PDF）。Use when the user wants 错题本/错题整理/复习计划/重练卷/艾宾浩斯/间隔重复, mentions 错题回顾、把做错的题再练一遍、复习打卡、考前突击错题, or provides 错题照片文字/题目与错因 and asks to 建错题库、安排复习、出重练卷. This skill MANAGES the wrong-answer data and review schedule; the quiz PAPER layout reuses the exam skill; it never invents questions or answers.
 license: Apache-2.0
 compatibility: Needs the wordcraft-cli binary on PATH. No network access needed.
 metadata:
@@ -33,7 +33,7 @@ python scripts/wrongbook.py add \
   --answer "f'(x)=2x+2，f'(1)=4" \
   --cause 计算失误 --source "10月月考·第12题"
 
-# 选择题带选项：--options "A.1 B.2 C.3 D.4"
+# 选择题带选项：--options "A.1|B.2|C.3|D.4"
 ```
 
 错因建议词表：概念不清 / 计算失误 / 审题错误 / 方法不会 / 粗心大意 /
