@@ -40,6 +40,8 @@ chk("body < 500 lines", len(body.splitlines()) < 500, f"lines={len(body.splitlin
 root = p.parent
 refs = re.findall(r"\]\(([^)#]+)(#[^)]+)?\)", body)
 for r in sorted(set(x[0] for x in refs)):
+    if "://" in r or r.startswith("mailto:"):
+        continue  # an absolute URL is not a path in the repo; the gate stays offline
     chk(f"reference exists: {r}", (root / r).exists())
 
 # no CJK leaking into a description that must stay English? (allowed, but check it's short)
