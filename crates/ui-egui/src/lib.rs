@@ -287,7 +287,6 @@ pub struct UiState {
     /// Headings whose sub-headings the Navigation pane hides (#1997); per session, not saved.
     #[serde(skip)]
     pub nav_collapsed: std::collections::HashSet<wordcraft_doc::Path>,
-    pub show_discord: bool,
     /// User name (File › Options) for comments and tracked changes; empty keeps the default.
     pub author: String,
     /// Desktop: the main window's size and position, restored at the next launch.
@@ -402,7 +401,6 @@ impl Default for UiState {
             nav_tab: "headings".into(),
             nav_pane: false,
             nav_collapsed: Default::default(),
-            show_discord: true,
             author: String::new(),
             window: None,
             language: i18n::AUTO.into(),
