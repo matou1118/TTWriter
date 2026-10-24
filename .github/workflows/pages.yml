@@ -61,9 +61,20 @@ jobs:
         with:
           version: "v0.21.14"
 
+      # 中文字体（craft-fonts，可选构建输入）：不嵌的话网页版中文界面全是问号——
+      # 浏览器里 queryLocalFonts 极少被授予，wasm 里必须自带 Hans 字形。
+      - name: check out craft-fonts (the CJK faces for the web app)
+        if: steps.webapp.outputs.build == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: storytold/craft-fonts
+          path: craft-fonts
+
       - name: build the web app
         if: steps.webapp.outputs.build == 'true'
         working-directory: apps/wordcraft-web
+        env:
+          CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
         run: trunk build --release
 
       - name: save the built app for site-only redeployments
