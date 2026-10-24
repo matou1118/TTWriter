@@ -127,11 +127,14 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
                     last.page_h = ph;
                     first_img = false;
                 }
+                // 后续图与首图不同尺寸时：等比缩放进页（同节同页型——分节会多出空白页，
+                // 见 613c7d7b 前的回归测试），缩放后整页可用。
+                let (fit_w, fit_h) = fit_into(pw, ph, last.page_w, last.page_h);
                 let key = doc.add_media(bytes, &img_ext(img_path));
                 let img = wordcraft_doc::InlineObject::Image {
                     media: key,
-                    w: pw,
-                    h: ph,
+                    w: fit_w,
+                    h: fit_h,
                     alt: img_path.clone(),
                     float: Default::default(),
                     crop: [0.0; 4],
@@ -142,6 +145,8 @@ pub fn run(args: &[String]) -> Result<(), Failure> {
                     // 后续图片：分页符（同节内换页）。
                     p.props.page_break_before = Some(true);
                 }
+                // 居中（页型与图片不同尺寸时上下留白对称）。
+                p.props.align = Some(wordcraft_doc::props::Align::Center);
                 // 行距 Exact 0：图片行的高度就是图片本身。
                 p.props.line_spacing = Some(wordcraft_doc::props::LineSpacing::Exactly(0.0));
                 p.insert_object(0, img, &wordcraft_doc::CharProps::default()).map_err(|e| e.to_string())?;
@@ -291,6 +296,16 @@ fn img_ext(path: &str) -> String {
     path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_else(|| "png".into())
 }
 
+/// 等比缩放 `(w, h)` 进 `(page_w, page_h)`（不放大：已经小于页的保持原尺寸）。
+/// 同节同页型的多图序列里，后续图按此适配，不变形、不溢出。
+fn fit_into(w: f32, h: f32, page_w: f32, page_h: f32) -> (f32, f32) {
+    if w <= page_w && h <= page_h {
+        return (w, h);
+    }
+    let scale = (page_w / w).min(page_h / h);
+    (w * scale, h * scale)
+}
+
 /// `--name value` 的值。
 fn option(args: &[String], name: &str) -> Option<String> {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
@@ -397,5 +412,18 @@ mod tests {
         let pdf = wordcraft_pdfedit::Pdf::open(dir.join("out.pdf")).unwrap();
         assert_eq!(pdf.page_count(), 2, "两图两页，一图一页");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 后续图按首图的页型等比缩放（不放大、不变形）。
+    #[test]
+    fn fit_into_scales_proportionally() {
+        // 200×100 的页型放 80×160 的图：高受限（0.625 < 2.5），等比到 50×100。
+        assert_eq!(fit_into(80.0, 160.0, 200.0, 100.0), (50.0, 100.0));
+        // 小图不放大。
+        assert_eq!(fit_into(50.0, 30.0, 200.0, 100.0), (50.0, 30.0));
+        // 宽受限：300×150 进 200×100 → 200×100。
+        assert_eq!(fit_into(300.0, 150.0, 200.0, 100.0), (200.0, 100.0));
+        // 恰好等大。
+        assert_eq!(fit_into(200.0, 100.0, 200.0, 100.0), (200.0, 100.0));
     }
 }
