@@ -11,7 +11,7 @@
   Produces, in $env:DIST (default: dist\release-gnu):
     wordcraft-<version>-windows-x64-portable.zip   ttwriter.exe + wordcraft-cli.exe + licences
 
-  The interface languages (31 catalogs) and the agent skills (12) are compiled
+  The interface languages (31 catalogs) and the agent skills (13) are compiled
   into the binaries (include_str!), so the zip needs no data files.
 
   GNU builds don't take +crt-static (the MinGW runtime is linked dynamically
@@ -119,7 +119,7 @@ $zhNote = @"
 蜻蜓文档 TTWriter $Version（便携版，GNU 构建）
 
 - 双击 ttwriter.exe 启动；wordcraft-cli.exe 是命令行工具（转换、PDF 工具、更新）。
-- 免安装：解压即用。界面语言和 12 个文档技能都已在程序里，无需另配。
+- 免安装：解压即用。界面语言和 13 个文档技能都已在程序里，无需另配。
 - 检查更新：wordcraft-cli update --check；下载并安装：wordcraft-cli update --install。
 - 许可与第三方素材见 LICENSE-*、NOTICE、ATTRIBUTION.md。
 "@

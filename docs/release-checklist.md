@@ -5,6 +5,7 @@
 ## 日常发布
 
 ```powershell
+# 0. 门禁全绿再出包：cargo xtask ci（fmt / clippy / test / assets / layers / wasm / skills）
 # 1. 版本号：改 [workspace.package] version 并提交（脚本会拒绝与 WORDCRAFT_VERSION 漂移）
 # 2. 构建 + 打包 + 清单（约 10 分钟）
 powershell -File packaging/windows/package-gnu.ps1
