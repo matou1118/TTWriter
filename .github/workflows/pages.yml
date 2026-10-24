@@ -6,7 +6,7 @@ name: Pages
 #
 # 截图仍只有 docs/images/ 一份，发布时拷进来，免得同一张图在仓库里存两遍。
 # 网页版只在 tag（v*）与手动触发时重编（一次 wasm 构建约 10 分钟）；纯 site/ 文案
-# 改动复用上一次的 app（无缓存时跳过 app，Pages 上 /app/ 保持上版）。
+# 改动复用上一次的 app（缓存没命中就照常重编——跳过会发布一个没有 /app/ 的站点）。
 
 on:
   push:
@@ -35,21 +35,23 @@ jobs:
       # ---- 网页版（/app/）：release 发布或手动触发才重编，平时复用 -----------------
       # Pages 每次 deployment 整站替换，所以 site-only 改动也要把上次的 app 带上：
       # dist/web 按代码哈希缓存（Cargo.lock + wordcraft-web 源码没变 → 缓存命中）。
-      - name: should the web app be rebuilt?
-        id: webapp
-        run: |
-          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "build=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: restore the last built app
         id: appcache
         uses: actions/cache/restore@v4
         with:
           path: dist/web
           key: webapp-${{ hashFiles('Cargo.lock', 'apps/wordcraft-web/src/**', 'apps/wordcraft-web/index.html', 'apps/wordcraft-web/Trunk.toml') }}
+
+      # A Pages deployment replaces the whole site, so "reuse the cached app" is only safe when
+      # the cache actually hit - a miss without a build would publish a site with no /app/.
+      - name: should the web app be rebuilt?
+        id: webapp
+        run: |
+          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" || "${{ steps.appcache.outputs.cache-hit }}" != "true" ]]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: install wasm target
         if: steps.webapp.outputs.build == 'true'
