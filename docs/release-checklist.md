@@ -2,6 +2,20 @@
 
 > 本机 MSVC 链接器不可用，官方发布走 GNU 工具链。一条命令出全部资产。
 
+## 本机推送（ghfast.top 镜像 + gh token）
+
+直连 github.com 会被墙（Connection reset），gh-proxy 匿名不可推。**ghfast.top 认证透传**：
+
+```powershell
+$token = & "C:\Program Files\GitHub CLI\gh.exe" auth token
+git push "https://matou1118:$token@ghfast.top/https://github.com/matou1118/TTWriter.git" master
+# 触发 Pages 重编（网页版）：
+& "C:\Program Files\GitHub CLI\gh.exe" api "repos/matou1118/TTWriter/actions/workflows/pages.yml/dispatches" -f ref=master
+```
+
+（gh 的 keyring 登录态 `matou1118`，scopes 含 repo+workflow；凭证管理器弹窗在无交互 shell
+里会死，别走 GCM。）
+
 ## 日常发布
 
 ```powershell
