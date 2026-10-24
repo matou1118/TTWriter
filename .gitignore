@@ -8,6 +8,8 @@ plan/
 .DS_Store
 /.claude/
 /target-*/
+# 本地 web 构建的 CARGO_TARGET_DIR 落在 app 目录里（build-web.ps1 相对路径），别进仓库。
+/apps/wordcraft-web/target-gnu/
 /craft-fonts/
 
 skills/*/scripts/__pycache__/

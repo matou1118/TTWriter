@@ -30,6 +30,24 @@ zip → CLI `--version` 冒烟 → manifest。
    更新器从 Gitee raw 读它；没传资产就提交清单，用户会下载到 404
 5. 验证：干净机器上 `wordcraft-cli update --check` → `--install`，跑一次 `--version`
 
+## 网页版（GitHub Pages /app/）
+
+release 发布会自动触发 `pages.yml` 重编网页版（wasm + 内置中文字体，约 10 分钟）。
+手动触发：Actions → Pages → Run workflow。
+
+- **本地预发验证**：`powershell apps/wordcraft-web/build-web.ps1`（trunk + wasm-bindgen
+  预编译二进制在 `target-gnu/trunk-bin/`；GNU 工具链自动设；产物在 `dist/web`）
+- **首次加载约 58MB**（wasm 含 Noto 中文字形）——国内网络慢是常态，页面有下载进度
+  与 60 秒超时指引；装成 PWA 后走缓存离线可用
+- **craft-fonts 是可选构建输入**：CI checkout `storytold/craft-fonts` 并设
+  `CRAFT_FONTS_DIR`；本地用仓库旁的 `craft-fonts/` 目录（不进仓库）。**不嵌字体的
+  后果是中文界面全是问号**——`crates/fonts/build.rs` 的 wasm 过滤规则只保留 UI 字形
+  （BIZ UDPGothic + Hans Regular/Bold），文档字体（仿宋/文楷）不进 wasm（体积权衡）
+- **PWA 资产**（manifest/sw.js/图标）由 pages.yml 的 assemble 步骤与 build-web.ps1
+  纯拷贝——**两处清单必须同步**（trunk 的 copy-file 会写 1 字节假文件，别用它）
+- 推送含 `apps/wordcraft-web/` 改动的提交后**记得手动触发**（pages.yml 的 push 触发
+  只看 `site/**` 等路径，web 源码变更不在其内——避免每次 push 都跑 10 分钟 wasm 构建）
+
 ## 回滚
 
 release 出问题：把 `site/latest.json` 回退到上一个好版本的清单（tag、资产名、SHA-256 都
