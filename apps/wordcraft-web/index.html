@@ -24,7 +24,91 @@
 </head>
 <body>
   <canvas id="wordcraft_canvas"></canvas>
-  <div id="wordcraft_loading">正在加载蜻蜓文档&hellip;</div>
+  <div id="wordcraft_loading">正在加载蜻蜓文档&hellip;<div id="wordcraft_progress"></div><div id="wordcraft_error" style="color:#b00;margin-top:12px;max-width:80%;text-align:center"></div></div>
+  <script>
+    // 加载反馈（classic script，一定先于 trunk 的 module script 执行）：
+    // ① 浏览器能力检测（WebAssembly / WebGL2）——国产浏览器内核过旧时给明确指引
+    // ② wasm 下载进度（monkey-patch fetch：wasm-bindgen 的 init 内部走 fetch）
+    // ③ 失败显示原因（module script 的 await 失败只会挂住 loading——这里把它亮出来）
+    // ④ 超时诊断：60 秒还没起来，提示网络或换浏览器
+    (function () {
+      var progress = document.getElementById("wordcraft_progress");
+      var errorBox = document.getElementById("wordcraft_error");
+      var loading = document.getElementById("wordcraft_loading");
+
+      function fail(msg) {
+        if (errorBox) { errorBox.textContent = msg; }
+        if (progress) { progress.textContent = ""; }
+      }
+
+      // ① 能力检测
+      if (!("WebAssembly" in window)) {
+        fail("此浏览器不支持 WebAssembly，无法运行蜻蜓文档。请改用较新的 Chrome / Edge / Safari（微信内请点右上角「在浏览器打开」）。");
+        return;
+      }
+      try {
+        var c = document.createElement("canvas");
+        var gl2 = c.getContext("webgl2");
+        if (!gl2) {
+          fail("此浏览器不支持 WebGL2（渲染必需）。请改用较新的 Chrome / Edge / Safari，或在系统设置里开启硬件加速。");
+          return;
+        }
+      } catch (e) { /* 上下文创建异常按无 WebGL2 处理过了 */ }
+
+      // ② wasm 下载进度
+      var origFetch = window.fetch ? window.fetch.bind(window) : null;
+      if (origFetch) {
+        window.fetch = function (url, opts) {
+          var p = origFetch(url, opts);
+          if (typeof url === "string" && url.indexOf("_bg.wasm") >= 0) {
+            p = p.then(function (r) {
+              if (!r.ok || !r.body) { return r; }
+              var total = parseInt(r.headers.get("Content-Length") || "0", 10);
+              var reader = r.body.getReader();
+              var loaded = 0;
+              var chunks = [];
+              return reader.read().then(function pump(step) {
+                if (step.done) {
+                  return new Response(new Blob(chunks), { headers: r.headers, status: r.status });
+                }
+                chunks.push(step.value);
+                loaded += step.value.length;
+                // gzip 流的 Content-Length 是压缩前口径，可能超过 100%——按 MB 显示更稳
+                var mb = (loaded / 1048576).toFixed(1);
+                var tail = total > 0 && loaded <= total ? " / " + (total / 1048576).toFixed(1) + " MB" : " MB";
+                if (progress) { progress.textContent = "下载中 " + mb + tail + "（首次约 40-60 MB，之后走缓存）"; }
+                return reader.read().then(pump);
+              });
+            });
+          }
+          return p;
+        };
+      }
+
+      // ③ 失败亮出来（module script 顶层 await 失败 → unhandledrejection）
+      window.addEventListener("unhandledrejection", function (ev) {
+        var reason = ev.reason && (ev.reason.message || ev.reason) || "未知错误";
+        fail("加载失败：" + reason + "。多为网络中断或内存不足——请重试；反复失败请换 Chrome / Edge。");
+      });
+      window.addEventListener("error", function (ev) {
+        if (ev.message && ev.message.indexOf("wasm") >= 0) {
+          fail("加载失败：" + ev.message);
+        }
+      });
+
+      // ④ 超时诊断
+      window.setTimeout(function () {
+        if (!window.wasmBindings) {
+          fail("60 秒还没加载完：多半是网络太慢（GitHub Pages 在国内不稳定）或浏览器内核过旧。建议：① 用 Chrome/Edge 重试；② 换网络；③ 微信内请点「在浏览器打开」。");
+        }
+      }, 60000);
+
+      // eframe 起来后隐藏 loading（原逻辑不动，这里兜底：字体/界面挂载后再撤提示）。
+      window.addEventListener("TrunkApplicationStarted", function () {
+        if (loading) { loading.style.display = "none"; }
+      });
+    })();
+  </script>
   <script>
     // 注册 Service Worker（PWA：离线可用 + 42MB wasm 走缓存二次秒开）。
     // 安全条件：https 或 localhost（file:// 与 http 内网不支持 SW，静默跳过）。
