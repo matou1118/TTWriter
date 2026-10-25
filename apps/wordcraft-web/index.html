@@ -17,9 +17,14 @@
   <link data-trunk rel="rust" data-bin="wordcraft-web" data-wasm-opt="z" data-wasm-opt-params="--all-features" data-weak-refs />
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #e6e6e6; }
-    #wordcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #wordcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
     #wordcraft_loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
       color: #555; font: 14px system-ui, sans-serif; pointer-events: none; }
+    /* 手机（<600pt 进 focus 模式的同一条视觉线）：黑底，避免加载页先闪白再变黑 */
+    @media (max-width: 767px) {
+      html, body, #wordcraft_canvas { background: #111; }
+      #wordcraft_loading { color: #aaa; }
+    }
   </style>
 </head>
 <body>
