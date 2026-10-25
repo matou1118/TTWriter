@@ -114,6 +114,26 @@ jobs:
             python3 apps/wordcraft-web/shard_wasm.py _site/app
           fi
           ls -la _site
+      # Push wasm shards to TTWriter-cdn repo so jsdelivr mirrors them for China CDN.
+      # Skipped if CDN_TOKEN secret is unset (local fallback still works via _site/app/shards/).
+      - name: sync shards to CDN repo
+        if: github.ref_name == 'master'
+        env:
+          CDN_TOKEN: ${{ secrets.CDN_TOKEN }}
+        run: |
+          if [ -z "$CDN_TOKEN" ]; then echo "CDN_TOKEN empty, skipping CDN sync"; exit 0; fi
+          tmp=$(mktemp -d)
+          git clone --depth 1 https://x-access-token:$CDN_TOKEN@github.com/matou1118/TTWriter-cdn.git $tmp
+          rm -rf $tmp/cdn-shards
+          mkdir -p $tmp/cdn-shards
+          cp _site/app/shards/* $tmp/cdn-shards/
+          cd $tmp
+          git config user.name "wordcraft-ci"
+          git config user.email "ci@wordcraft.local"
+          git add -A
+          git diff --cached --quiet && { echo "no changes"; exit 0; }
+          git commit -m "shards for TTWriter ${{ github.sha }}"
+          git push origin main
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
