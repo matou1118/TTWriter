@@ -31,3 +31,6 @@ jobs:
     with:
       app-name: wordcraft
       app-dir: WordCraft
+      # MSI 装的是改名后的 ttwriter.exe（package.ps1 把 wordcraft.exe 改名、wordcraft.wxs 打包它）；
+      # 不声明的话上游默认找 wordcraft.exe，装成功也判定失败。
+      main-binary: ttwriter.exe
