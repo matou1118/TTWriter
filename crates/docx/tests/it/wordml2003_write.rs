@@ -179,3 +179,51 @@ fn big_and_deep_documents_write() {
         let _ = read_xml(&xml);
     }
 }
+
+#[test]
+fn shared_header_and_repeated_note_are_not_inlined_per_reference() {
+    // #3652: one ~10 KB header shared by 1000 sections and one ~10 KB footnote referenced 500
+    // times must not be copied into the output once per section or reference.
+    let mut d = Document::new();
+    let big = format!("HDRMARK {}", "h".repeat(10_000));
+    let head = d.add_part(PartKind::Header, vec![para_block(Paragraph::with_text(&big, CharProps::default()))]);
+    let note = format!("NOTEMARK {}", "n".repeat(10_000));
+    let foot = d.add_part(PartKind::Footnote, vec![para_block(Paragraph::with_text(&note, CharProps::default()))]);
+    d.last_section.headers.default = Some(head);
+    let mut blocks = Vec::new();
+    for i in 0..1000 {
+        let mut p = Paragraph::with_text("x", CharProps::default());
+        if i < 500 {
+            p.insert_object(1, InlineObject::NoteRef { kind: NoteKind::Footnote, id: foot, custom: String::new() }, &CharProps::default()).unwrap();
+        }
+        p.section = Some(Box::new(d.last_section.clone()));
+        blocks.push(para_block(p));
+    }
+    d.body = blocks;
+    let xml = write_wordml2003(&d).expect("write");
+    assert!(read_xml(&xml).is_ok());
+    let text = String::from_utf8(xml).expect("utf-8");
+    let hdr = text.matches("HDRMARK").count();
+    let notes = text.matches("NOTEMARK").count();
+    assert!(text.len() < 2_000_000 && hdr <= 3 && notes <= 3, "output {} bytes, header x{hdr}, note x{notes}", text.len());
+}
+
+#[test]
+fn headers_past_the_inlined_byte_budget_fail_the_export() {
+    // #3652: two ~1 MB headers alternating over 80 sections must each be written where they
+    // change; past the byte budget the export fails rather than growing or dropping a header.
+    let mut d = Document::new();
+    let a = d.add_part(PartKind::Header, vec![para_block(Paragraph::with_text(&"a".repeat(1_000_000), CharProps::default()))]);
+    let b = d.add_part(PartKind::Header, vec![para_block(Paragraph::with_text(&"b".repeat(1_000_000), CharProps::default()))]);
+    let mut blocks = Vec::new();
+    for i in 0..80 {
+        let mut p = Paragraph::with_text("x", CharProps::default());
+        let mut s = d.last_section.clone();
+        s.headers.default = Some(if i % 2 == 0 { a } else { b });
+        p.section = Some(Box::new(s));
+        blocks.push(para_block(p));
+    }
+    d.body = blocks;
+    let out = write_wordml2003(&d);
+    assert!(matches!(out, Err(wordcraft_docx::DocxError::Limit(_))), "expected a limit error, got {:?}", out.map(|x| x.len()));
+}

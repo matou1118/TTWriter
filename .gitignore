@@ -13,3 +13,6 @@ plan/
 /craft-fonts/
 
 skills/*/scripts/__pycache__/
+
+# tool preferences (local only)
+.opencode/

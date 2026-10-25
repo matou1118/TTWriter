@@ -2,7 +2,6 @@
 //! The RTF is original and synthetic, laid out the way word processors write sections: document
 //! page defaults, then `\sectd` + section words + the section's header/footer groups, a `\sect`
 //! after the last `\par` (or after a table), and a `\sectd` inside a footer's field result.
-#![cfg(not(target_arch = "wasm32"))]
 
 use std::io::Read;
 

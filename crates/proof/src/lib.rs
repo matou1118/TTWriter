@@ -34,6 +34,11 @@
 //! - **Indonesian** ([`ProofLang::Id`], module [`id`]): the installed Hunspell `id_ID`
 //!   dictionary (not bundled), dictionary-driven suggestions and generic checks with Indonesian
 //!   messages. Hyphenation uses the existing English fallback.
+//! - **Spanish** ([`ProofLang::Es`], [`ProofLang::EsMx`], [`ProofLang::Es419`], [`ProofLang::EsUy`],
+//!   module [`es`]): each variety's installed Hunspell dictionary (`es_ES`, `es_MX`, `es_419`,
+//!   `es_UY`, with fallbacks; not bundled), dictionary-driven suggestions, Uruguayan `vos` forms,
+//!   and generic checks plus the opening `¿`/`¡` with Spanish messages. Hyphenation uses the
+//!   existing English fallback.
 //! - **German** ([`ProofLang::De`]): hyphenation by `hyph-utf8`'s German patterns (reformed
 //!   spelling, MIT); no spelling or grammar marks yet.
 //! - **Other languages** ([`ProofLang::Other`]): no spelling or grammar marks, like Word without
@@ -49,6 +54,7 @@ pub mod bg;
 pub mod cs;
 pub mod dict;
 pub mod en_variants;
+pub mod es;
 pub mod hr;
 pub mod hunspell;
 pub mod hyphen;
@@ -115,16 +121,24 @@ fn user_words() -> &'static RwLock<HashSet<String>> {
 /// Bumped whenever the user dictionary changes, so cached proofing results can be dropped.
 static DICTIONARY_GENERATION: AtomicU64 = AtomicU64::new(0);
 
+/// The key a word has in the user dictionary and the Ignore All list: lower case and composed
+/// (NFC), as spelling looks words up ([`composed`]). A word added, ignored, removed or loaded
+/// decomposed (`zqprue\u{301}ba`) is then the same entry as its composed form (`zqpruéba`), and
+/// the other way round (#3562 review).
+fn dictionary_key(w: &str) -> String {
+    composed(&w.to_lowercase()).into_owned()
+}
+
 /// Add a word to the user dictionary ("Add to Dictionary"). It applies to every language.
 pub fn add_word(w: &str) {
-    if user_words().write().unwrap_or_else(|e| e.into_inner()).insert(w.to_lowercase()) {
+    if user_words().write().unwrap_or_else(std::sync::PoisonError::into_inner).insert(dictionary_key(w)) {
         DICTIONARY_GENERATION.fetch_add(1, Ordering::Relaxed);
     }
 }
 
 /// Take a word out of the user dictionary (File › Options › Proofing). Returns whether it was there.
 pub fn remove_word(w: &str) -> bool {
-    let removed = user_words().write().unwrap_or_else(|e| e.into_inner()).remove(&w.to_lowercase());
+    let removed = user_words().write().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&dictionary_key(w));
     if removed {
         DICTIONARY_GENERATION.fetch_add(1, Ordering::Relaxed);
     }
@@ -139,7 +153,7 @@ fn ignored_words() -> &'static RwLock<HashSet<String>> {
 /// Ignore a word everywhere until the app closes ("Ignore All"). Unlike [`add_word`] it isn't
 /// part of the user dictionary: it is never listed, saved or loaded, as in Word.
 pub fn ignore_word(w: &str) {
-    if ignored_words().write().unwrap_or_else(|e| e.into_inner()).insert(w.to_lowercase()) {
+    if ignored_words().write().unwrap_or_else(std::sync::PoisonError::into_inner).insert(dictionary_key(w)) {
         DICTIONARY_GENERATION.fetch_add(1, Ordering::Relaxed);
     }
 }
@@ -157,6 +171,7 @@ pub fn set_dictionaries_folder(dir: Option<std::path::PathBuf>) {
     ru::reload_dictionary();
     cs::reload_dictionary();
     id::reload_dictionary();
+    es::reload_dictionary();
     DICTIONARY_GENERATION.fetch_add(1, Ordering::Relaxed);
 }
 
@@ -172,6 +187,10 @@ pub fn installed_dictionaries() -> Vec<(ProofLang, Option<std::path::PathBuf>)> 
         (ProofLang::Ru, ru::installed_path()),
         (ProofLang::Cs, cs::installed_path()),
         (ProofLang::Id, id::installed_path()),
+        (ProofLang::Es, es::installed_path(ProofLang::Es)),
+        (ProofLang::EsMx, es::installed_path(ProofLang::EsMx)),
+        (ProofLang::Es419, es::installed_path(ProofLang::Es419)),
+        (ProofLang::EsUy, es::installed_path(ProofLang::EsUy)),
     ]
 }
 
@@ -186,6 +205,7 @@ pub fn dictionary_load_error(lang: ProofLang) -> Option<String> {
         ProofLang::Hr => "hr_HR",
         ProofLang::Tr => "tr_TR",
         ProofLang::Id => "id_ID",
+        ProofLang::Es | ProofLang::EsMx | ProofLang::Es419 | ProofLang::EsUy => es::dictionary_name(lang),
         _ => return None,
     };
     hunspell::load_error(key).map(|(_, reason)| reason)
@@ -197,15 +217,17 @@ pub fn dictionary_generation() -> u64 {
     DICTIONARY_GENERATION.load(Ordering::Relaxed)
 }
 
-/// Is `lower` (a lower-case word) in the user dictionary or ignored?
+/// Is `lower` (a lower-case word) in the user dictionary or ignored? It is looked up composed, as
+/// the entries are kept ([`dictionary_key`]).
 pub(crate) fn in_user_dictionary(lower: &str) -> bool {
-    user_words().read().unwrap_or_else(|e| e.into_inner()).contains(lower)
-        || ignored_words().read().unwrap_or_else(|e| e.into_inner()).contains(lower)
+    let key = composed(lower);
+    user_words().read().unwrap_or_else(std::sync::PoisonError::into_inner).contains(&*key)
+        || ignored_words().read().unwrap_or_else(std::sync::PoisonError::into_inner).contains(&*key)
 }
 
 /// Words in the user dictionary.
 pub fn user_dictionary() -> Vec<String> {
-    let mut v: Vec<String> = user_words().read().unwrap_or_else(|e| e.into_inner()).iter().cloned().collect();
+    let mut v: Vec<String> = user_words().read().unwrap_or_else(std::sync::PoisonError::into_inner).iter().cloned().collect();
     v.sort();
     v
 }
@@ -229,7 +251,7 @@ pub fn custom_word(w: &str) -> Option<String> {
     {
         return None;
     }
-    Some(w.to_lowercase())
+    Some(dictionary_key(w))
 }
 
 /// The valid words of the custom-dictionary file at `path`, reading at most
@@ -253,7 +275,7 @@ fn read_dictionary_file(path: &std::path::Path) -> Vec<String> {
 /// never a panic and never an error that stops startup. Returns the words added.
 pub fn load_user_dictionary(path: &std::path::Path) -> Vec<String> {
     let words = read_dictionary_file(path);
-    let mut set = user_words().write().unwrap_or_else(|e| e.into_inner());
+    let mut set = user_words().write().unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut added = Vec::new();
     for w in words {
         if set.len() >= MAX_CUSTOM_WORDS {
@@ -276,10 +298,10 @@ pub fn load_user_dictionary(path: &std::path::Path) -> Vec<String> {
 /// out. The file is replaced atomically: written beside it, then renamed over it. Errors (a
 /// read-only folder, a full disk) go back to the caller; the in-memory words are kept.
 pub fn save_user_dictionary(path: &std::path::Path, removed: &[String]) -> std::io::Result<()> {
-    let removed: HashSet<String> = removed.iter().map(|w| w.to_lowercase()).collect();
+    let removed: HashSet<String> = removed.iter().map(|w| dictionary_key(w)).collect();
     let on_disk = read_dictionary_file(path);
     {
-        let mut set = user_words().write().unwrap_or_else(|e| e.into_inner());
+        let mut set = user_words().write().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut changed = false;
         for w in on_disk {
             if set.len() >= MAX_CUSTOM_WORDS {
@@ -321,7 +343,7 @@ const COMMON: &str = "a an the and or but if of to in on at by for with from as 
 const EXTRA_EN: &str = include_str!("../../../assets/spelling/en-extra.txt");
 
 fn extra_words() -> &'static HashSet<&'static str> {
-    static E: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    static E: OnceLock<HashSet<&str>> = OnceLock::new();
     E.get_or_init(|| EXTRA_EN.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect())
 }
 
@@ -335,7 +357,7 @@ fn known_core(w: &str) -> bool {
     if base_known(d, w) || COMMON.split(' ').any(|c| c == w) {
         return true;
     }
-    if user_words().read().unwrap_or_else(|e| e.into_inner()).contains(w) || ignored_words().read().unwrap_or_else(|e| e.into_inner()).contains(w) {
+    if in_user_dictionary(w) {
         return true;
     }
     // Inflections.
@@ -396,16 +418,13 @@ pub fn has_dictionary(lang: Option<&str>) -> bool {
     ProofLang::from_tag(lang).is_proofed()
 }
 
-/// The Hunspell dictionary name (`pl_PL`, `pt_BR`) a proofing language needs but doesn't have
+/// The Hunspell dictionary name (`pl_PL`, `it_IT`) a proofing language needs but doesn't have
 /// installed, for a status-bar hint (#1167). `None` when the language's dictionary is available,
 /// or when it needs none (English has a built-in word list; unproofed languages aren't offered
 /// one). Reads the dictionary once (it is cached afterwards).
 pub fn missing_dictionary(lang: Option<&str>) -> Option<&'static str> {
-    match ProofLang::from_tag(lang) {
-        ProofLang::Pl => dictionary_needed(ProofLang::Pl, pl::has_dictionary()),
-        ProofLang::Pt => dictionary_needed(ProofLang::Pt, pt::has_dictionary()),
-        _ => None,
-    }
+    let lang = ProofLang::from_tag(lang);
+    dictionary_needed(lang, dictionary_loaded(lang)?)
 }
 
 /// The Hunspell name, `.dic` file and reason of a dictionary that is installed for this language
@@ -413,24 +432,41 @@ pub fn missing_dictionary(lang: Option<&str>) -> Option<&'static str> {
 /// loaded, or when no file exists (then [`missing_dictionary`] names it). Reads the dictionary
 /// once (it is cached afterwards).
 pub fn unreadable_dictionary(lang: Option<&str>) -> Option<(&'static str, std::path::PathBuf, String)> {
-    let (proof_lang, loaded) = match ProofLang::from_tag(lang) {
-        ProofLang::Pl => (ProofLang::Pl, pl::has_dictionary()),
-        ProofLang::Pt => (ProofLang::Pt, pt::has_dictionary()),
-        _ => return None,
-    };
-    let name = dictionary_needed(proof_lang, false)?;
-    if loaded {
-        return None;
-    }
+    let lang = ProofLang::from_tag(lang);
+    let name = dictionary_needed(lang, dictionary_loaded(lang)?)?;
     hunspell::load_error(name).map(|(file, reason)| (name, file, reason))
 }
 
-/// The Hunspell name `lang` needs when `installed` is false; only Polish and Portuguese use one.
+/// Did the Hunspell dictionary of `lang` load? `None` for languages that use none (English).
+fn dictionary_loaded(lang: ProofLang) -> Option<bool> {
+    Some(match lang {
+        ProofLang::Pl => pl::has_dictionary(),
+        ProofLang::Pt => pt::has_dictionary(),
+        ProofLang::It => it::has_dictionary(),
+        ProofLang::Hr => hr::has_dictionary(),
+        ProofLang::Tr => tr::has_dictionary(),
+        ProofLang::Ru => ru::has_dictionary(),
+        ProofLang::Cs => cs::has_dictionary(),
+        ProofLang::Id => id::has_dictionary(),
+        l if l.is_spanish() => es::has_dictionary(l),
+        _ => return None,
+    })
+}
+
+/// The Hunspell name `lang` needs when `installed` is false (the first name its module looks for;
+/// a Spanish variety's is its own: `es_ES`, `es_MX`, `es_419`, `es_UY`).
 fn dictionary_needed(lang: ProofLang, installed: bool) -> Option<&'static str> {
     match lang {
         _ if installed => None,
         ProofLang::Pl => Some("pl_PL"),
         ProofLang::Pt => Some("pt_BR"),
+        ProofLang::It => Some("it_IT"),
+        ProofLang::Hr => Some("hr_HR"),
+        ProofLang::Tr => Some("tr_TR"),
+        ProofLang::Ru => Some("ru_RU"),
+        ProofLang::Cs => Some("cs_CZ"),
+        ProofLang::Id => Some("id_ID"),
+        l if l.is_spanish() => Some(es::dictionary_name(l)),
         _ => None,
     }
 }
@@ -611,11 +647,12 @@ fn damerau(a: &[char], b: &str) -> usize {
     prev.get(m).copied().unwrap_or(9)
 }
 
-/// Words in `text`: (byte start, byte end).
+/// Words in `text`: (byte start, byte end). Combining marks belong to the word they follow, so a
+/// word typed decomposed (`tambie\u{301}n`, NFD) is one word, as its precomposed form is.
 pub fn words(text: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut start: Option<usize> = None;
-    let is_w = |c: char| c.is_alphanumeric() || c == '\'' || c == '’' || c == '-';
+    let is_w = |c: char| c.is_alphanumeric() || c == '\'' || c == '’' || c == '-' || unicode_normalization::char::is_combining_mark(c);
     for (i, c) in text.char_indices() {
         match (start, is_w(c)) {
             (None, true) => start = Some(i),
@@ -681,10 +718,17 @@ fn spelling_issues(text: &str, lang: impl Fn(usize) -> ProofLang, opts: &Options
 /// The whitespace-delimited token enclosing the word at `a..b` of `text`: its byte range, and
 /// whether it looks like a web or e-mail address.
 fn enclosing_token(text: &str, a: usize, b: usize) -> (usize, usize, bool) {
-    let ts = text.get(..a).and_then(|t| t.rfind(char::is_whitespace)).map(|i| i + 1).unwrap_or(0);
+    // The token starts after the last white-space character, whatever its width (a no-break
+    // space is two bytes and an ideographic space is three).
+    let ts = text.get(..a).and_then(|t| t.char_indices().rev().find(|(_, c)| c.is_whitespace())).map(|(i, c)| i + c.len_utf8()).unwrap_or(0);
     let te = text.get(b..).and_then(|t| t.find(char::is_whitespace)).map(|i| b + i).unwrap_or(text.len());
-    let token = text.get(ts..te).unwrap_or("");
-    (ts, te, token.contains("://") || token.contains('@') || token.starts_with("www."))
+    (ts, te, text.get(ts..te).is_some_and(is_address))
+}
+
+/// Does a whitespace-delimited token look like a web or e-mail address (`https://…`, `www.…`,
+/// `a@b.org`)? Spelling skips its words, and Spanish grammar its punctuation.
+pub(crate) fn is_address(token: &str) -> bool {
+    token.contains("://") || token.contains('@') || token.starts_with("www.")
 }
 
 /// The spelling issue of the word at `a..b` of `text`, if it is misspelled in `lang`. Words in
@@ -705,6 +749,7 @@ fn spelling_issue(text: &str, a: usize, b: usize, lang: ProofLang, opts: &Option
         ProofLang::Ru => "Возможна орфографическая ошибка",
         ProofLang::Cs => "Možná pravopisná chyba",
         ProofLang::Id => "Kemungkinan salah eja",
+        ProofLang::Es | ProofLang::EsMx | ProofLang::Es419 | ProofLang::EsUy => "Posible error ortográfico",
         _ => "Possible spelling mistake",
     };
     Some(Issue { start: a, end: b, kind: IssueKind::Spelling, message: message.into(), suggestions: Vec::new(), lang })
@@ -715,25 +760,43 @@ pub fn is_correct_in(word: &str, lang: ProofLang) -> bool {
     is_correct_in_with(word, lang, &Options::default())
 }
 
-/// [`is_correct_in`] with the File › Options › Proofing choices.
-pub fn is_correct_in_with(word: &str, lang: ProofLang, opts: &Options) -> bool {
-    match lang {
-        ProofLang::En | ProofLang::EnGb | ProofLang::EnCa => is_correct_english(word, lang, opts),
-        ProofLang::Pl => accepted_by_options(word, opts) || pl::is_correct(word),
-        ProofLang::Hr => accepted_by_options(word, opts) || hr::is_correct(word),
-        ProofLang::Pt => accepted_by_options(word, opts) || pt::is_correct(word),
-        ProofLang::It => accepted_by_options(word, opts) || it::is_correct(word),
-        ProofLang::Tr => accepted_by_options(word, opts) || tr::is_correct(word),
-        ProofLang::Ru => accepted_by_options(word, opts) || ru::is_correct(word),
-        ProofLang::Cs => accepted_by_options(word, opts) || cs::is_correct(word),
-        ProofLang::Id => accepted_by_options(word, opts) || id::is_correct(word),
-        // Chinese doesn't spell-check word-by-word; characters are always "correct".
-        ProofLang::Zh | ProofLang::Bg | ProofLang::De | ProofLang::Other => true,
+/// `word` composed (NFC), as the dictionaries spell their words: `tambie\u{301}n` is looked up as
+/// `también`. Words already composed (all ASCII ones among them) are borrowed as they are.
+fn composed(word: &str) -> std::borrow::Cow<'_, str> {
+    use unicode_normalization::{IsNormalized, UnicodeNormalization, is_nfc_quick};
+    if word.is_ascii() || is_nfc_quick(word.chars()) == IsNormalized::Yes {
+        std::borrow::Cow::Borrowed(word)
+    } else {
+        std::borrow::Cow::Owned(word.nfc().collect())
     }
 }
 
-/// Spelling suggestions for a word misspelled in `lang` (best first, at most `max`).
+/// [`is_correct_in`] with the File › Options › Proofing choices. A word with combining marks is
+/// checked as its composed form ([`composed`]).
+pub fn is_correct_in_with(word: &str, lang: ProofLang, opts: &Options) -> bool {
+    let word = &*composed(word);
+    match lang {
+        ProofLang::En | ProofLang::EnGb | ProofLang::EnCa => is_correct_english(word, lang, opts),
+        ProofLang::Pl => accepted_by_options(word, opts) || pl::is_correct_with_options(word, opts),
+        ProofLang::Hr => accepted_by_options(word, opts) || hr::is_correct_with_options(word, opts),
+        ProofLang::Pt => accepted_by_options(word, opts) || pt::is_correct_with_options(word, opts),
+        ProofLang::It => accepted_by_options(word, opts) || it::is_correct_with_options(word, opts),
+        ProofLang::Tr => accepted_by_options(word, opts) || tr::is_correct(word),
+        ProofLang::Ru => accepted_by_options(word, opts) || ru::is_correct(word),
+        // Chinese doesn't spell-check word-by-word; characters are always "correct".
+        ProofLang::Zh | ProofLang::Bg | ProofLang::De | ProofLang::Other => true,
+        ProofLang::Es | ProofLang::EsMx | ProofLang::Es419 | ProofLang::EsUy => {
+            accepted_by_options(word, opts) || es::is_correct_with_options(word, lang, opts)
+        }
+        ProofLang::Cs => accepted_by_options(word, opts) || cs::is_correct_with_options(word, opts),
+        ProofLang::Id => accepted_by_options(word, opts) || id::is_correct_with_options(word, opts),
+    }
+}
+
+/// Spelling suggestions for a word misspelled in `lang` (best first, at most `max`), composed
+/// ([`composed`]) like the dictionaries' words.
 pub fn suggest_in(word: &str, max: usize, lang: ProofLang) -> Vec<String> {
+    let word = &*composed(word);
     match lang {
         ProofLang::En | ProofLang::EnGb | ProofLang::EnCa => suggest_english(word, max, lang),
         ProofLang::Pl => pl::suggest(word, max),
@@ -744,13 +807,16 @@ pub fn suggest_in(word: &str, max: usize, lang: ProofLang) -> Vec<String> {
         ProofLang::Ru => ru::suggest(word, max),
         ProofLang::Cs => cs::suggest(word, max),
         ProofLang::Id => id::suggest(word, max),
+        // Chinese doesn't spell-check word-by-word; no suggestions.
         ProofLang::Zh | ProofLang::Bg | ProofLang::De | ProofLang::Other => Vec::new(),
+        ProofLang::Es | ProofLang::EsMx | ProofLang::Es419 | ProofLang::EsUy => es::suggest(word, max, lang),
     }
 }
 
 /// Grammar issues in a paragraph of text in `lang`: the English rules, the Polish ones
 /// ([`pl::grammar`]), the Portuguese ones ([`pt::grammar`]), the Italian ones ([`it::grammar`]),
-/// the Turkish ones ([`tr::grammar`]), Czech and Indonesian generic checks ([`cs::grammar`], [`id::grammar`]), or none for a language WordCraft doesn't proof.
+/// the Turkish ones ([`tr::grammar`]), Czech and Indonesian generic checks ([`cs::grammar`], [`id::grammar`]), the Spanish ones
+/// ([`es::grammar`]), or none for a language WordCraft doesn't proof.
 pub fn check_grammar_in(text: &str, lang: ProofLang) -> Vec<Issue> {
     grammar_in(text, lang, true)
 }
@@ -771,6 +837,8 @@ fn grammar_in(text: &str, lang: ProofLang, capital_first: bool) -> Vec<Issue> {
         ProofLang::Cs => cs::grammar::check(text),
         ProofLang::Id => id::grammar::check(text),
         ProofLang::Zh => zh::grammar::check(text),
+        // Spanish has no sentence-capital rule either.
+        ProofLang::Es | ProofLang::EsMx | ProofLang::Es419 | ProofLang::EsUy => es::grammar::check(text, lang),
         ProofLang::Bg | ProofLang::De | ProofLang::Other => Vec::new(),
     }
 }
@@ -881,7 +949,7 @@ fn grammar_en(text: &str, capital_first: bool) -> Vec<Issue> {
         if gap == " "
             && (w0 == "an" || w0 == "An")
             && w1.chars().next().is_some_and(|c| c.is_alphabetic() && !"aeiouAEIOUhH".contains(c))
-            && !w1.chars().all(|c| c.is_uppercase())
+            && !w1.chars().all(char::is_uppercase)
         {
             v.push(Issue {
                 start: *a0,
@@ -960,18 +1028,44 @@ mod tests {
         assert_eq!(dictionary_needed(ProofLang::Pt, false), Some("pt_BR"));
         assert_eq!(dictionary_needed(ProofLang::Pl, true), None);
         assert_eq!(dictionary_needed(ProofLang::Pt, true), None);
+        // Every Hunspell language is named by the first name its module looks for (#3150).
+        for (l, name) in [
+            (ProofLang::It, "it_IT"),
+            (ProofLang::Hr, "hr_HR"),
+            (ProofLang::Tr, "tr_TR"),
+            (ProofLang::Ru, "ru_RU"),
+            (ProofLang::Cs, "cs_CZ"),
+            (ProofLang::Id, "id_ID"),
+            // #3360: each Spanish variety names its own.
+            (ProofLang::Es, "es_ES"),
+            (ProofLang::EsMx, "es_MX"),
+            (ProofLang::Es419, "es_419"),
+            (ProofLang::EsUy, "es_UY"),
+        ] {
+            assert_eq!(dictionary_needed(l, false), Some(name), "{l:?}");
+            assert_eq!(dictionary_needed(l, true), None, "{l:?}");
+        }
+        // Every proofed language other than English has a Hunspell dictionary to report.
+        for l in ProofLang::PROOFED {
+            let english = matches!(l, ProofLang::En | ProofLang::EnGb | ProofLang::EnCa);
+            assert_eq!(dictionary_needed(l, false).is_some(), !english, "{l:?}");
+        }
         for l in [ProofLang::En, ProofLang::Bg, ProofLang::De, ProofLang::Other] {
             assert_eq!(dictionary_needed(l, false), None);
         }
         // Installed dictionaries and the built-in English list: no hint.
         pl::test_dict::install();
         pt::test_dict::install();
-        for tag in [Some("pl-PL"), Some("pt-BR"), Some("en-US"), Some("fr-FR"), None] {
+        es::test_dict::install();
+        for tag in [Some("pl-PL"), Some("pt-BR"), Some("es-ES"), Some("es-MX"), Some("es-419"), Some("es-UY"), Some("en-US"), Some("fr-FR"), None] {
             assert_eq!(missing_dictionary(tag), None, "{tag:?}");
         }
     }
 
     use super::*;
+
+    /// Held by tests that swap or rely on the shared Spanish dictionary, so a folder reset can't land mid-test.
+    static DICTIONARY_TESTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     /// #1063: the dictionaries folder is searched before the system locations; the dictionaries
     /// in it are reported and used, and cached checks are dropped. The folder holds the same test
@@ -979,6 +1073,7 @@ mod tests {
     /// stays set for the rest of the run for that reason.
     #[test]
     fn dictionaries_folder_is_searched_first() {
+        let _guard = DICTIONARY_TESTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = std::env::temp_dir().join(format!("wc-proof-dictionaries-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         for (name, aff, dic) in [
@@ -989,6 +1084,10 @@ mod tests {
             ("ru_RU", ru::test_dict::AFF, ru::test_dict::DIC),
             ("cs_CZ", cs::test_dict::AFF, cs::test_dict::DIC),
             ("id_ID", id::test_dict::AFF, id::test_dict::DIC),
+            ("es_ES", es::test_dict::AFF, es::test_dict::DIC),
+            ("es_MX", es::test_dict::AFF, es::test_dict::DIC_AMERICAS),
+            ("es_419", es::test_dict::AFF, es::test_dict::DIC_AMERICAS),
+            ("es_UY", es::test_dict::AFF, es::test_dict::DIC_AMERICAS),
         ] {
             std::fs::write(dir.join(format!("{name}.aff")), aff).unwrap();
             std::fs::write(dir.join(format!("{name}.dic")), dic).unwrap();
@@ -1001,10 +1100,19 @@ mod tests {
         let before = dictionary_generation();
         set_dictionaries_folder(Some(dir.clone()));
         assert!(dictionary_generation() > before, "cached checks are dropped");
-        // Turkish has no test dictionary to put in the folder; Indonesian is listed after it.
+        // Turkish has no test dictionary to put in the folder; Russian, Czech, Indonesian and the Spanishes follow it.
         let found = installed_dictionaries();
         assert_eq!(found.get(4).map(|(lang, _)| *lang), Some(ProofLang::Tr));
-        assert_eq!(found.last(), Some(&(ProofLang::Id, Some(dir.join("id_ID.dic")))));
+        assert_eq!(
+            found[7..],
+            [
+                (ProofLang::Id, Some(dir.join("id_ID.dic"))),
+                (ProofLang::Es, Some(dir.join("es_ES.dic"))),
+                (ProofLang::EsMx, Some(dir.join("es_MX.dic"))),
+                (ProofLang::Es419, Some(dir.join("es_419.dic"))),
+                (ProofLang::EsUy, Some(dir.join("es_UY.dic"))),
+            ]
+        );
         assert_eq!(
             found[..4],
             [
@@ -1023,6 +1131,7 @@ mod tests {
         // would race them for no reason this test needs to care about.
         assert_eq!(found[5..7].iter().map(|(lang, _)| *lang).collect::<Vec<_>>(), [ProofLang::Ru, ProofLang::Cs], "{found:?}");
         assert!(is_correct_in("chrząszcz", ProofLang::Pl) && !is_correct_in("chrzonszcz", ProofLang::Pl));
+        assert!(is_correct_in("tenés", ProofLang::EsUy) && !is_correct_in("prueva", ProofLang::EsUy));
         assert!(is_correct_in("дом", ProofLang::Ru) && !is_correct_in("дум", ProofLang::Ru));
     }
 
@@ -1405,6 +1514,18 @@ mod tests {
     }
 
     #[test]
+    fn address_after_a_wide_space_is_an_internet_token() {
+        // A web or e-mail address after a no-break space or an ideographic space is skipped,
+        // as it is after a plain space.
+        let t = "see\u{a0}https://xyzq.example/blorp and\u{3000}www.qwirpy.example or\u{a0}zxq@mail.example wugwug";
+        let bad: Vec<&str> = check_spelling(t).iter().map(|i| &t[i.start..i.end]).collect();
+        assert_eq!(bad, vec!["wugwug"]);
+        let opts = Options { ignore_internet: false, ..Options::default() };
+        let bad: Vec<&str> = check_spelling_with(t, &opts).iter().map(|i| &t[i.start..i.end]).collect();
+        assert!(["xyzq", "blorp", "qwirpy", "zxq", "wugwug"].iter().all(|w| bad.contains(w)), "{bad:?}");
+    }
+
+    #[test]
     fn spelling_scales_over_one_long_token() {
         // #1335: thousands of punctuation-separated words inside a single
         // whitespace-free token: one classification for the token, one issue per
@@ -1566,7 +1687,7 @@ mod tests {
         for l in [None, Some(""), Some("  "), Some("en"), Some("en-US"), Some("en-GB"), Some("EN-us"), Some("en_US")] {
             assert!(has_dictionary(l), "{l:?}");
         }
-        for l in [Some("lt-LT"), Some("fr-FR"), Some("de"), Some("uk"), Some("es"), Some("-US"), Some("e")] {
+        for l in [Some("lt-LT"), Some("fr-FR"), Some("de"), Some("uk"), Some("-US"), Some("e")] {
             assert!(!has_dictionary(l), "{l:?}");
         }
         // The gate follows the dictionaries, not English: every proofed language is proofed.
@@ -1574,6 +1695,61 @@ mod tests {
             assert!(has_dictionary(Some(d)), "{d}");
             assert!(has_dictionary(Some(&format!("{}-XX", d.to_ascii_uppercase()))), "{d}");
         }
+    }
+
+    /// Combining marks stay in their word (#3562 review): a decomposed word is one word, with the
+    /// byte range of what was typed, and it is checked as its composed form in every language.
+    #[test]
+    fn decomposed_words_stay_whole() {
+        let text = "tambie\u{301}n, cafe\u{301}  \u{301}x";
+        let ws: Vec<&str> = words(text).into_iter().map(|(a, b)| &text[a..b]).collect();
+        assert_eq!(ws, ["tambie\u{301}n", "cafe\u{301}", "\u{301}x"]);
+        assert_eq!(words("tambie\u{301}n"), [(0, 9)]);
+        assert_eq!(&*composed("tambie\u{301}n"), "también");
+        assert!(matches!(composed("también"), std::borrow::Cow::Borrowed(_)) && matches!(composed("plain"), std::borrow::Cow::Borrowed(_)));
+        pt::test_dict::install();
+        assert!(is_correct_in("corac\u{327}a\u{303}o", ProofLang::Pt), "Portuguese gets the same composition");
+    }
+
+    /// #3562 review: Add to Dictionary, Ignore All, removal and the dictionary file use the same
+    /// composed key as spelling, so a word added or ignored decomposed is accepted in both forms,
+    /// an NFD entry in a saved file loads (and saves) composed, and either form removes it.
+    #[test]
+    fn user_dictionary_and_ignore_all_match_both_normalization_forms() {
+        let _guard = DICTIONARY_TESTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        es::test_dict::install();
+        let es = ProofLang::Es;
+        let (nfd, nfc) = ("zqprue\u{301}ba", "zqpruéba");
+        let text = format!("esto {nfd}");
+        let issues = check_text(&text, &[(0..text.len(), es)]);
+        assert_eq!(issues.iter().map(|i| (i.start, i.end)).collect::<Vec<_>>(), [(5, text.len())], "flagged at the typed bytes");
+        assert!(!is_correct_in(nfc, es));
+        add_word(nfd);
+        assert!(is_correct_in(nfd, es) && is_correct_in(nfc, es));
+        assert!(check_text(&text, &[(0..text.len(), es)]).is_empty());
+        assert!(user_dictionary().contains(&nfc.to_string()) && !user_dictionary().contains(&nfd.to_string()));
+        assert!(remove_word(nfc), "the composed form removes the entry added decomposed");
+        assert!(!is_correct_in(nfd, es) && !is_correct_in(nfc, es));
+        // Ignore All, either way round.
+        ignore_word("zqigno\u{301}ro");
+        assert!(is_correct_in("zqignóro", es) && is_correct_in("zqigno\u{301}ro", es));
+        ignore_word("zqcallé");
+        assert!(is_correct_in("zqcalle\u{301}", es));
+        // A dictionary file with a decomposed entry loads composed and is saved composed.
+        let path = std::env::temp_dir().join(format!("wc-nfd-dictionary-{}.txt", std::process::id()));
+        std::fs::write(&path, "zqguarda\u{301}do\nzqotra\n").unwrap();
+        let added = load_user_dictionary(&path);
+        assert!(added.contains(&"zqguardádo".to_string()) && !added.iter().any(|w| w.contains('\u{301}')), "{added:?}");
+        assert!(is_correct_in("zqguardádo", es) && is_correct_in("zqguarda\u{301}do", es));
+        save_user_dictionary(&path, &["zqotra".to_string()]).unwrap();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(saved.lines().any(|l| l == "zqguardádo") && !saved.contains('\u{301}') && !saved.lines().any(|l| l == "zqotra"), "{saved}");
+        // Removing the decomposed form takes out the composed entry, and the file follows.
+        assert!(remove_word("zqguarda\u{301}do"));
+        save_user_dictionary(&path, &["zqguarda\u{301}do".to_string()]).unwrap();
+        assert!(!std::fs::read_to_string(&path).unwrap().lines().any(|l| l == "zqguardádo"));
+        assert!(!is_correct_in("zqguardádo", es));
+        let _ = std::fs::remove_file(&path);
     }
 
     /// #100: runs in a language without a dictionary are never flagged; English still is.
@@ -1687,7 +1863,7 @@ mod tests {
             let _ = has_dictionary(Some(&s));
             let _ = is_correct_for(&s, Some(&s));
             let _ = hyphen::hyphen_points(&s, &hyphen::Limits::default());
-            for lang in [ProofLang::En, ProofLang::EnGb, ProofLang::EnCa, ProofLang::Pl, ProofLang::Pt, ProofLang::It, ProofLang::Hr, ProofLang::Tr, ProofLang::Ru, ProofLang::Cs, ProofLang::Id, ProofLang::De, ProofLang::Other] {
+            for lang in [ProofLang::En, ProofLang::EnGb, ProofLang::EnCa, ProofLang::Pl, ProofLang::Pt, ProofLang::It, ProofLang::Hr, ProofLang::Tr, ProofLang::Ru, ProofLang::Cs, ProofLang::Id, ProofLang::De, ProofLang::Es, ProofLang::EsMx, ProofLang::Es419, ProofLang::EsUy, ProofLang::Other] {
                 let _ = check_spelling_in(&s, lang);
                 let _ = check_grammar_in(&s, lang);
                 let _ = is_correct_in(&s, lang);
@@ -1731,8 +1907,17 @@ mod tests {
         }
 
         #[test]
-        fn mixed_spans_never_panic(s in "\\PC{0,60}", cuts in proptest::collection::vec((0usize..80, 0usize..80, 0u8..11), 0..6)) {
-            let langs = [ProofLang::En, ProofLang::EnGb, ProofLang::EnCa, ProofLang::Pl, ProofLang::Pt, ProofLang::It, ProofLang::Tr, ProofLang::Ru, ProofLang::Cs, ProofLang::Id, ProofLang::Other];
+        fn spanish_suggestions_never_panic(s in "[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ¿¡'’ -]{0,14}") {
+            es::test_dict::install();
+            for lang in [ProofLang::Es, ProofLang::EsMx, ProofLang::Es419, ProofLang::EsUy] {
+                let _ = suggest_in(&s, 4, lang);
+                let _ = is_correct_in(&s, lang);
+            }
+        }
+
+        #[test]
+        fn mixed_spans_never_panic(s in "\\PC{0,60}", cuts in proptest::collection::vec((0usize..80, 0usize..80, 0u8..15), 0..6)) {
+            let langs = [ProofLang::En, ProofLang::EnGb, ProofLang::EnCa, ProofLang::Pl, ProofLang::Pt, ProofLang::It, ProofLang::Tr, ProofLang::Ru, ProofLang::Cs, ProofLang::Id, ProofLang::Es, ProofLang::EsMx, ProofLang::Es419, ProofLang::EsUy, ProofLang::Other];
             let spans: Vec<(Range<usize>, ProofLang)> = cuts.iter().map(|&(a, b, l)| (a.min(b)..a.max(b), langs[l as usize % langs.len()])).collect();
             for i in check_text(&s, &spans) {
                 proptest::prop_assert!(i.start <= i.end && i.end <= s.len());

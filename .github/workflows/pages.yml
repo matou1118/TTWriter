@@ -77,6 +77,8 @@ jobs:
         working-directory: apps/wordcraft-web
         env:
           CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+          # 中文界面翻译（仓库内 craft-i18n-local，只含 zh-hans/zh-hant）。
+          CRAFT_I18N_DIR: ${{ github.workspace }}/craft-i18n-local
         run: trunk build --release
 
       - name: save the built app for site-only redeployments

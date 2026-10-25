@@ -8,10 +8,12 @@ use wordcraft_doc::{Pos, StoryRef};
 
 use crate::Session;
 
+/// Create an empty session for command-driven typing fixtures.
 fn s() -> Session {
     Session::new(wordcraft_doc::Document::new())
 }
 
+/// Execute a registry command and report its id on a test failure.
 fn run(s: &mut Session, id: &str, v: serde_json::Value) {
     s.run(id, &v).unwrap_or_else(|e| panic!("{id}: {e}"));
 }
@@ -39,10 +41,12 @@ fn paras(s: &Session) -> Vec<(String, Option<u8>, bool)> {
         .collect()
 }
 
+/// Expected paragraph text and list membership for typing assertions.
 fn para(text: &str, level: Option<u8>) -> (String, Option<u8>, bool) {
     (text.to_string(), level, level.is_some())
 }
 
+/// Create a session and enter its fixture through the actual typing commands.
 fn typed(keys: &str) -> Session {
     let mut s = s();
     typ(&mut s, keys);
@@ -489,6 +493,25 @@ fn enter_finishes_a_word_for_autocorrect() {
     assert_eq!(s.doc.plain_text(StoryRef::Body), "Hello\nThe end\n");
 }
 
+/// A word after a no-break space or an ideographic space is corrected as after a plain space:
+/// replacements, sentence capitals, ordinals and links.
+#[test]
+fn autocorrect_finds_the_word_after_a_wide_space() {
+    let s = typed("a\u{a0}teh x\u{3000}teh ");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "a\u{a0}the x\u{3000}the ");
+    let s = typed("end.\u{a0}hello end.\u{3000}world ");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "End.\u{a0}Hello end.\u{3000}World ");
+    let s = typed("the\u{a0}1st and\u{3000}22nd ");
+    let p = s.doc.para_at(&Pos::body(0, 0)).unwrap();
+    let sup = |t: &str| p.props_of_char(p.text.find(t).unwrap() + t.len() - 2).vert_align == Some(VertAlign::Superscript);
+    assert!(sup("1st") && sup("22nd"));
+    let s = typed("see\u{a0}https://example.org/log, and\u{3000}https://example.net/day, then ");
+    let p = s.doc.para_at(&Pos::body(0, 0)).unwrap();
+    let link = |t: &str| p.props_of_char(p.text.find(t).unwrap()).link.clone();
+    assert_eq!(link("https://example.org").as_deref(), Some("https://example.org/log"));
+    assert_eq!(link("https://example.net").as_deref(), Some("https://example.net/day"));
+}
+
 #[test]
 fn ordinals_become_superscript() {
     let s = typed("the 1st and 22nd and 13th but not 1th ");
@@ -568,6 +591,71 @@ fn a_capitalised_word_after_a_symbol_is_not_in_the_symbol_font() {
     assert_eq!(p.props_of_char(m).sym_font, None);
 }
 
+/// Whether every character of the body paragraph `i` is marked deleted.
+fn all_deleted(s: &Session, i: usize, text: &str) -> bool {
+    s.doc.para_at(&Pos::body(i, 0)).is_some_and(|p| p.text == text && p.run_ranges().all(|(_, c)| c.del.is_some()))
+}
+
+#[test]
+fn a_tracked_border_line_is_a_deletion_and_a_formatting_change() {
+    let bottom = |s: &Session, i| s.doc.para_at(&Pos::body(i, 0)).and_then(|p| p.props.borders).and_then(|b| b.bottom);
+    let tracked = |s: &Session, i| s.doc.para_at(&Pos::body(i, 0)).is_some_and(|p| p.props.fmt_change.is_some());
+    // Characters that were there before Track Changes was turned on are marked deleted.
+    let mut s = typed("Above\n---");
+    run(&mut s, "review.trackChanges", json!({"value": true}));
+    typ(&mut s, "\n");
+    assert!(bottom(&s, 0).is_some() && tracked(&s, 0));
+    assert!(all_deleted(&s, 1, "---"), "{:?}", paras(&s));
+    // Enter again after the deleted characters is a plain Enter.
+    typ(&mut s, "\n");
+    assert_eq!(texts(&s), ["above", "---", ""]);
+    assert_eq!(s.sel.focus, Pos::body(2, 0));
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "review.rejectAll", json!({}));
+    assert_eq!(texts(&s), ["above", "---"]);
+    assert!(bottom(&s, 0).is_none());
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "review.acceptAll", json!({}));
+    assert_eq!(texts(&s), ["above", ""]);
+    assert!(bottom(&s, 0).is_some());
+    // At the top of the document the border goes on the characters' paragraph, and typing
+    // continues in a new one.
+    let mut s = typed("---");
+    run(&mut s, "review.trackChanges", json!({"value": true}));
+    typ(&mut s, "\nText");
+    assert!(bottom(&s, 0).is_some() && tracked(&s, 0));
+    assert!(all_deleted(&s, 0, "---"), "{:?}", paras(&s));
+    assert_eq!(texts(&s)[1], "text");
+    run(&mut s, "review.rejectAll", json!({}));
+    assert_eq!(texts(&s), ["---"]);
+    assert!(bottom(&s, 0).is_none());
+    // Typed with Track Changes on, the characters go and the border is still a change.
+    let mut s = typed("");
+    run(&mut s, "review.trackChanges", json!({"value": true}));
+    typ(&mut s, "---\n");
+    assert_eq!(texts(&s), ["", ""]);
+    assert!(bottom(&s, 0).is_some() && tracked(&s, 0));
+    run(&mut s, "review.rejectAll", json!({}));
+    assert!(bottom(&s, 0).is_none());
+}
+
+#[test]
+fn a_tracked_table_line_keeps_its_characters_as_a_deletion() {
+    let mut s = typed("+--+------+");
+    run(&mut s, "review.trackChanges", json!({"value": true}));
+    typ(&mut s, "\nA");
+    let Some(wordcraft_doc::Block::Table(t)) = s.doc.body.first().map(|b| &**b) else { panic!("no table: {:?}", paras(&s)) };
+    assert_eq!(t.rows[0].cells[0].blocks[0].as_para().map(|p| p.text.as_str()), Some("A"), "the caret is in the first cell");
+    assert!(all_deleted(&s, 1, "+--+------+"), "{:?}", paras(&s));
+    // Enter after the deleted characters makes no second table.
+    run(&mut s, "caret.set", json!({"pos": {"block": 1, "off": 11}}));
+    typ(&mut s, "\n");
+    assert_eq!(s.doc.body.iter().filter(|b| b.as_para().is_none()).count(), 1, "{:?}", paras(&s));
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "review.rejectAll", json!({}));
+    assert!(s.doc.body.get(1).and_then(|b| b.as_para()).is_some_and(|p| p.text == "+--+------+"));
+}
+
 #[test]
 fn border_line_autoformat() {
     let s = typed("Above\n---\nBelow");
@@ -600,6 +688,155 @@ fn undo_right_after_a_border_line_brings_the_characters_back() {
     assert_eq!(s.doc.plain_text(StoryRef::Body), "Above\n---");
 }
 
+/// The first paragraph's (left, first-line) indents as set on the paragraph itself.
+fn indents(s: &Session) -> (Option<f32>, Option<f32>) {
+    let p = s.doc.para_at(&Pos::body(0, 0)).unwrap();
+    (p.props.indent_left, p.props.indent_first)
+}
+
+#[test]
+fn tab_and_backspace_at_a_paragraph_start_set_its_indents() {
+    let mut s = s();
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    typ(&mut s, "Some text");
+    run(&mut s, "caret.docStart", json!({}));
+    // The first Tab indents the first line, the next one the whole paragraph.
+    typ(&mut s, "\t");
+    assert_eq!(indents(&s), (None, Some(36.0)));
+    typ(&mut s, "\t");
+    assert_eq!(indents(&s), (Some(36.0), Some(36.0)));
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "Some text");
+    // Backspace takes the first-line indent back, then the left indent, and stops there.
+    typ(&mut s, "\u{8}");
+    assert_eq!(indents(&s), (Some(36.0), Some(0.0)));
+    typ(&mut s, "\u{8}\u{8}");
+    assert_eq!(indents(&s), (Some(0.0), Some(0.0)));
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "Some text");
+    // Each Tab is one undo step.
+    typ(&mut s, "\t");
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(indents(&s), (Some(0.0), Some(0.0)));
+    // A left indent in characters goes back one tab stop too, instead of the paragraphs joining:
+    // six characters of 11 or 12 points are 66 or 72 points, two tab stops.
+    let mut s = self::s();
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    typ(&mut s, "One\nTwo");
+    let second = Pos::body(1, 0);
+    s.doc.para_mut(StoryRef::Body, &second.path).unwrap().props.indent_left_chars = Some(6.0);
+    s.sel = crate::Selection::caret(second.clone());
+    typ(&mut s, "\u{8}");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "One\nTwo");
+    let p = s.doc.para_at(&second).unwrap();
+    assert_eq!((p.props.indent_left, p.props.indent_left_chars), (Some(36.0), Some(0.0)));
+    // With formatting limited to the document's styles the option is off: Tab types a tab
+    // character at the start of the first line and of a later one, and Backspace at the start
+    // keeps the paragraph's left indent.
+    let mut s = self::s();
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    typ(&mut s, "One");
+    run(&mut s, "text.lineBreak", json!({}));
+    typ(&mut s, "Two");
+    run(&mut s, "review.restrict", json!({"mode": "none", "formatting": true}));
+    run(&mut s, "caret.home", json!({}));
+    typ(&mut s, "\t");
+    run(&mut s, "caret.docStart", json!({}));
+    typ(&mut s, "\t");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "\tOne\n\tTwo");
+    assert_eq!(indents(&s), (None, None));
+    s.doc.para_mut(StoryRef::Body, &Pos::body(0, 0).path).unwrap().props.indent_left = Some(36.0);
+    typ(&mut s, "\u{8}\u{8}");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "One\n\tTwo");
+    assert_eq!(indents(&s), (Some(36.0), None));
+    // An empty paragraph takes a tab character.
+    let mut s = self::s();
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    typ(&mut s, "\tText");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "\tText");
+    assert_eq!(indents(&s), (None, None));
+    // At the start of a list item numbered by its style, Tab types a tab character, as with the
+    // option off.
+    let mut s = style_inherited_list(wordcraft_doc::numbering::ListKind::Numbered, false);
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    run(&mut s, "caret.docStart", json!({}));
+    typ(&mut s, "\t");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "\tAlpha\nBeta");
+    assert_eq!(indents(&s), (None, None));
+    // With the option off (the default), Tab types a tab character.
+    let mut s = self::s();
+    typ(&mut s, "Some text");
+    run(&mut s, "caret.docStart", json!({}));
+    typ(&mut s, "\t");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "\tSome text");
+    assert_eq!(indents(&s), (None, None));
+}
+
+#[test]
+fn tab_before_a_later_line_of_a_paragraph_indents_the_whole_paragraph() {
+    let mut s = s();
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    typ(&mut s, &"Words that run on past the end of one line. ".repeat(6));
+    run(&mut s, "caret.docStart", json!({}));
+    run(&mut s, "caret.down", json!({}));
+    run(&mut s, "caret.home", json!({}));
+    assert!(s.sel.focus.off > 0, "the caret is on the second line");
+    typ(&mut s, "\t");
+    assert_eq!(indents(&s), (Some(36.0), None));
+    assert!(!s.doc.plain_text(StoryRef::Body).contains('\t'));
+    // After a line break too; inside a line Tab still types a tab character.
+    let mut s = self::s();
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    typ(&mut s, "One");
+    run(&mut s, "text.lineBreak", json!({}));
+    typ(&mut s, "Two");
+    run(&mut s, "caret.home", json!({}));
+    typ(&mut s, "\t");
+    assert_eq!(indents(&s), (Some(36.0), None));
+    run(&mut s, "caret.right", json!({}));
+    typ(&mut s, "\t");
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "One\nT\two");
+    // Before a later line of a list item numbered by its style, Tab takes it down a level, as
+    // for a list item numbered directly.
+    let mut s = style_inherited_list(wordcraft_doc::numbering::ListKind::Numbered, false);
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    run(&mut s, "caret.docStart", json!({}));
+    run(&mut s, "caret.end", json!({}));
+    run(&mut s, "text.lineBreak", json!({}));
+    typ(&mut s, "More");
+    run(&mut s, "caret.home", json!({}));
+    typ(&mut s, "\t");
+    assert!(!s.doc.plain_text(StoryRef::Body).contains('\t'));
+    let p = s.doc.para_at(&Pos::body(0, 0)).unwrap();
+    assert_eq!(p.props.numbering.map(|n| n.level), Some(1));
+    assert_eq!(indents(&s), (None, None));
+    // A list level past the last one, from a style or set directly, goes to the last level.
+    let mut s = style_inherited_list(wordcraft_doc::numbering::ListKind::Numbered, false);
+    let style = s.doc.styles.styles.iter_mut().find(|x| x.id == "ListBase").unwrap();
+    style.para.numbering = style.para.numbering.map(|n| wordcraft_doc::props::NumRef { level: u8::MAX, ..n });
+    run(&mut s, "tools.autocorrect", json!({"tabIndent": true}));
+    run(&mut s, "caret.docStart", json!({}));
+    run(&mut s, "caret.end", json!({}));
+    run(&mut s, "text.lineBreak", json!({}));
+    typ(&mut s, "More");
+    run(&mut s, "caret.home", json!({}));
+    typ(&mut s, "\t");
+    assert_eq!(s.doc.para_at(&Pos::body(0, 0)).unwrap().props.numbering.map(|n| n.level), Some(8));
+    let num = s.doc.para_at(&Pos::body(0, 0)).unwrap().props.numbering.unwrap().num;
+    s.doc.para_mut(StoryRef::Body, &Pos::body(1, 0).path).unwrap().props.numbering = Some(wordcraft_doc::props::NumRef { num, level: u8::MAX });
+    s.sel = crate::Selection::caret(Pos::body(1, 0));
+    typ(&mut s, "\t");
+    assert_eq!(s.doc.para_at(&Pos::body(1, 0)).unwrap().props.numbering.map(|n| n.level), Some(8));
+    s.doc.para_mut(StoryRef::Body, &Pos::body(0, 0).path).unwrap().props.numbering = Some(wordcraft_doc::props::NumRef { num, level: u8::MAX });
+    run(&mut s, "caret.docStart", json!({}));
+    run(&mut s, "caret.down", json!({}));
+    run(&mut s, "caret.home", json!({}));
+    assert_eq!((s.sel.focus.path.clone(), s.sel.focus.off), (Pos::body(0, 0).path, 6), "the caret is before \"More\"");
+    typ(&mut s, "\t");
+    assert_eq!(s.doc.para_at(&Pos::body(0, 0)).unwrap().props.numbering.map(|n| n.level), Some(8));
+    s.doc.para_mut(StoryRef::Body, &Pos::body(0, 0).path).unwrap().props.numbering = Some(wordcraft_doc::props::NumRef { num, level: u8::MAX });
+    run(&mut s, "outline.demote", json!({}));
+    assert_eq!(s.doc.para_at(&Pos::body(0, 0)).unwrap().props.numbering.map(|n| n.level), Some(8));
+}
+
 #[test]
 fn plus_and_hyphen_line_becomes_a_table() {
     let mut s = typed("+--+------+\nA");
@@ -619,6 +856,118 @@ fn plus_and_hyphen_line_becomes_a_table() {
     assert_eq!(s.doc.plain_text(StoryRef::Body), "X +--+--+\n");
     let s = typed(&format!("+{}\n", "-+".repeat(64)));
     assert!(s.doc.body.iter().all(|b| b.as_para().is_some()));
+}
+
+/// Body paragraphs as (text, paragraph style).
+fn styled(s: &Session) -> Vec<(String, Option<String>)> {
+    s.doc.body.iter().filter_map(|b| b.as_para()).map(|p| (p.text.clone(), p.props.style.clone())).collect()
+}
+
+fn with_heading_styles(keys: &str) -> Session {
+    let mut s = s();
+    run(&mut s, "tools.autocorrect", json!({"headingStyles": true}));
+    typ(&mut s, keys);
+    s
+}
+
+#[test]
+fn two_enters_after_a_short_line_make_it_a_heading() {
+    let h = |t: &str, st: Option<&str>| (t.to_string(), st.map(str::to_string));
+    // No tab: Heading 1; one or two tabs: Heading 2 or 3, without the tabs. Typing goes on in
+    // the paragraph after the heading.
+    for (keys, style) in [("Introduction\n\nText", "Heading1"), ("\tOur methods\n\nText", "Heading2"), ("\t\tStep 2\n\nText", "Heading3")] {
+        let s = with_heading_styles(keys);
+        let text = keys.trim_start_matches('\t').split('\n').next().unwrap_or_default();
+        assert_eq!(styled(&s), [h(text, Some(style)), h("Text", None)], "{keys:?}");
+    }
+    // Five words is the most; one Enter only ends the line.
+    let s = with_heading_styles("One two three four five\n\n");
+    assert_eq!(s.doc.body.first().and_then(|b| b.as_para()).and_then(|p| p.props.style.as_deref()), Some("Heading1"));
+    assert_eq!(styled(&with_heading_styles("Introduction\nText")), [h("Introduction", None), h("Text", None)]);
+    // Not a heading: six words, a closing punctuation mark, three tabs, a list item, a style.
+    for keys in ["One two three four five six\n\n", "Dear Sir,\n\n", "Is it?\n\n", "\t\t\tDeep\n\n", "* Item\n\n"] {
+        let s = with_heading_styles(keys);
+        assert!(
+            s.doc.body.iter().filter_map(|b| b.as_para()).all(|p| p.props.style.as_deref().is_none_or(|st| !st.starts_with("Heading"))),
+            "{keys:?}: {:?}",
+            styled(&s)
+        );
+    }
+    let mut q = self::s();
+    run(&mut q, "tools.autocorrect", json!({"headingStyles": true}));
+    run(&mut q, "para.style", json!({"style": "Quote"}));
+    typ(&mut q, "Quoted\n\n");
+    assert_eq!(q.doc.body.first().and_then(|b| b.as_para()).and_then(|p| p.props.style.as_deref()), Some("Quote"));
+    // A list item numbered by the Normal style is not body text either.
+    let mut q = self::s();
+    run(&mut q, "tools.autocorrect", json!({"headingStyles": true}));
+    let num = q.doc.numbering.try_add_list(wordcraft_doc::ListKind::Bullet).unwrap();
+    if let Some(normal) = q.doc.styles.get_mut("Normal") {
+        normal.para.numbering = Some(wordcraft_doc::props::NumRef { num, level: 0 });
+    }
+    typ(&mut q, "Item\n\n");
+    assert!(styled(&q).iter().all(|(_, st)| st.as_deref().is_none_or(|st| !st.starts_with("Heading"))), "{:?}", styled(&q));
+    // Off by default.
+    let s = typed("Introduction\n\n");
+    assert_eq!(styled(&s), [h("Introduction", None), h("", None), h("", None)]);
+}
+
+#[test]
+fn undo_right_after_a_heading_autoformat_keeps_the_enter() {
+    let mut s = with_heading_styles("\tMethods\n\n");
+    assert_eq!(styled(&s), [("Methods".to_string(), Some("Heading2".to_string())), (String::new(), None)]);
+    assert_eq!(s.sel.focus, Pos::body(1, 0));
+    run(&mut s, "edit.undo", json!({}));
+    // The AutoFormat is undone on its own: the tab and Normal text are back, the Enter stays.
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "\tMethods\n\n");
+    assert!(styled(&s).iter().all(|(_, st)| st.is_none()));
+    assert_eq!(s.sel.focus, Pos::body(2, 0));
+}
+
+#[test]
+fn a_tracked_heading_autoformat_can_be_rejected() {
+    // With Track Changes on, the tab is marked deleted and the style change is a formatting
+    // revision, so Reject All brings the line back as it was.
+    let mut s = with_heading_styles("\tMethods\n");
+    run(&mut s, "review.trackChanges", json!({"value": true}));
+    typ(&mut s, "\n");
+    let p = s.doc.para_at(&Pos::body(0, 0)).cloned().unwrap_or_default();
+    assert_eq!((p.text.as_str(), p.props.style.as_deref()), ("\tMethods", Some("Heading2")));
+    assert!(p.run_ranges().any(|(r, c)| r.start == 0 && c.del.is_some()), "the tab is marked deleted");
+    assert!(p.props.fmt_change.is_some(), "the style change is tracked");
+    run(&mut s, "review.rejectAll", json!({}));
+    assert_eq!(styled(&s).first(), Some(&("\tMethods".to_string(), None)));
+    // A tab this author inserted is removed outright, and the style change is still tracked.
+    let mut s = with_heading_styles("Title\n");
+    run(&mut s, "review.trackChanges", json!({"value": true}));
+    run(&mut s, "caret.set", json!({"pos": {"block": 0, "off": 0}}));
+    typ(&mut s, "\t");
+    run(&mut s, "caret.set", json!({"pos": {"block": 1, "off": 0}}));
+    typ(&mut s, "\n");
+    let p = s.doc.para_at(&Pos::body(0, 0)).cloned().unwrap_or_default();
+    assert_eq!((p.text.as_str(), p.props.style.as_deref()), ("Title", Some("Heading2")));
+    assert!(p.props.fmt_change.is_some(), "the style change is tracked");
+    run(&mut s, "review.rejectAll", json!({}));
+    assert_eq!(styled(&s).first(), Some(&("Title".to_string(), None)));
+    // A line holding a tracked deletion is left alone.
+    let mut s = with_heading_styles("Old title\n");
+    run(&mut s, "review.trackChanges", json!({"value": true}));
+    run(&mut s, "caret.set", json!({"pos": {"block": 0, "off": 3}}));
+    typ(&mut s, "\u{8}\u{8}\u{8}");
+    run(&mut s, "caret.set", json!({"pos": {"block": 1, "off": 0}}));
+    typ(&mut s, "\n");
+    assert!(styled(&s).iter().all(|(_, st)| st.is_none()), "{:?}", styled(&s));
+}
+
+#[test]
+fn a_locked_heading_style_is_not_applied_as_you_type() {
+    let mut s = s();
+    run(&mut s, "tools.autocorrect", json!({"headingStyles": true}));
+    run(&mut s, "review.restrict", json!({"mode": "none", "formatting": true, "lockedStyles": ["Heading1"]}));
+    typ(&mut s, "Locked\n\n\tOpen\n\n");
+    let st = styled(&s);
+    assert_eq!(st.first(), Some(&("Locked".to_string(), None)), "{st:?}");
+    assert!(st.contains(&("Open".to_string(), Some("Heading2".to_string()))), "{st:?}");
 }
 
 #[test]
@@ -797,6 +1146,20 @@ fn typing_then_selecting_then_typing_are_two_undo_steps() {
     typ(&mut s, "X");
     run(&mut s, "edit.undo", json!({}));
     assert_eq!(s.doc.para_at(&Pos::body(0, 0)).unwrap().text, "");
+}
+
+#[test]
+fn backspace_at_the_start_of_the_document_is_not_an_edit() {
+    // #23: a key that changes nothing adds no undo step, marks no unsaved changes and
+    // leaves the redo stack alone.
+    let mut s = typed("alpha");
+    run(&mut s, "caret.set", json!({"pos": {"block": 0, "off": 0}}));
+    s.dirty = false;
+    let depth = s.undo_depth();
+    typ(&mut s, "\u{8}");
+    assert_eq!(s.undo_depth(), depth, "no undo step");
+    assert!(!s.dirty, "no unsaved changes");
+    assert_eq!(s.doc.para_at(&Pos::body(0, 0)).unwrap().text, "alpha");
 }
 
 #[test]
@@ -2075,6 +2438,46 @@ fn autocorrect_capitalisation_follows_turkic_case_mapping() {
     assert_eq!(s.doc.plain_text(StoryRef::Body), "İngilizce ", "no combining dot in any language");
 }
 
+/// #3479: Format > Change Case follows the same Turkic case mapping as AutoCorrect, using
+/// each run's own language; other languages keep the Unicode default.
+#[test]
+fn change_case_follows_turkic_case_mapping() {
+    for tag in ["tr-TR", "az-AZ"] {
+        for (mode, input, want) in [
+            ("upper", "istanbul", "İSTANBUL"),
+            ("lower", "IŞIK", "ışık"),
+            ("title", "istanbul güzel", "İstanbul Güzel"),
+            ("sentence", "istanbul. izmir", "İstanbul. İzmir"),
+            ("toggle", "iI", "İı"),
+        ] {
+            let mut s = s();
+            run(&mut s, "review.language", json!({"lang": tag, "default": true}));
+            run(&mut s, "text.insert", json!({"text": input, "raw": true}));
+            run(&mut s, "select.all", json!({}));
+            run(&mut s, "format.changeCase", json!({"mode": mode}));
+            assert_eq!(s.doc.plain_text(StoryRef::Body), want, "{tag} {mode}");
+        }
+    }
+    // Other languages keep the Unicode default.
+    let mut s = self::s();
+    run(&mut s, "text.insert", json!({"text": "istanbul", "raw": true}));
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "format.changeCase", json!({"mode": "title"}));
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "Istanbul", "en-US");
+    // Mixed runs: each run's own language decides.
+    let mut s = self::s();
+    run(&mut s, "text.insert", json!({"text": "IŞIK IŞIK", "raw": true}));
+    run(&mut s, "caret.set", json!({"pos": Pos::body(0, 0)}));
+    run(&mut s, "caret.set", json!({"pos": Pos::body(0, 5), "extend": true}));
+    run(&mut s, "review.language", json!({"lang": "tr-TR"}));
+    run(&mut s, "caret.set", json!({"pos": Pos::body(0, 6)}));
+    run(&mut s, "caret.set", json!({"pos": Pos::body(0, 11), "extend": true}));
+    run(&mut s, "review.language", json!({"lang": "en-US"}));
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "format.changeCase", json!({"mode": "lower"}));
+    assert_eq!(s.doc.plain_text(StoryRef::Body), "ışık işik", "mixed runs");
+}
+
 // Spelling as you type (#1552): the word being typed gets no red squiggle until the caret leaves
 // it; F7 and the Spelling pane still report it. See docs/typing-parity.md. Paragraphs start with
 // a correct word so AutoCorrect's sentence capital doesn't change the misspelled one.
@@ -2469,5 +2872,243 @@ fn a_new_list_uses_the_requested_kind_after_a_mixed_format_list() {
         let level = s.doc.numbering.level(n.num, n.level).unwrap();
         assert_eq!(level.format == wordcraft_doc::section::NumFormat::Bullet, kind == ListKind::Bullet);
         assert_eq!(s.doc.para_at(&Pos::body(0, 0)).unwrap(), &before);
+    }
+}
+
+/// #4085: the registered shortcut toggles the last selected highlight, while explicit
+/// colour commands remain idempotent setters for the palette, CLI and automation.
+#[test]
+#[cfg(not(target_os = "macos"))]
+fn highlight_shortcut_toggles_the_last_colour() {
+    let mut s = typed("Alpha Beta");
+    run(&mut s, "select.all", json!({}));
+    let colour = |s: &mut Session| s.run("format.state", &json!({})).unwrap()["highlight"].clone();
+    press(&mut s, "Mod+Alt+H").unwrap();
+    assert_eq!(colour(&mut s), json!("FFFF00"));
+    press(&mut s, "Mod+Alt+H").unwrap();
+    assert_eq!(colour(&mut s), serde_json::Value::Null);
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(colour(&mut s), json!("FFFF00"));
+    run(&mut s, "edit.redo", json!({}));
+    assert_eq!(colour(&mut s), serde_json::Value::Null);
+    run(&mut s, "format.highlight", json!({"color":"blue"}));
+    run(&mut s, "format.highlight", json!({"color":"blue"}));
+    assert_eq!(colour(&mut s), json!("0000FF"));
+    press(&mut s, "Mod+Alt+H").unwrap();
+    assert_eq!(colour(&mut s), serde_json::Value::Null);
+    press(&mut s, "Mod+Alt+H").unwrap();
+    assert_eq!(colour(&mut s), json!("0000FF"));
+    run(&mut s, "format.highlight", json!({"color":"none"}));
+    press(&mut s, "Mod+Alt+H").unwrap();
+    assert_eq!(colour(&mut s), serde_json::Value::Null);
+    assert_eq!(s.doc.body[0].as_para().unwrap().text, "Alpha Beta");
+}
+
+/// #4085: mixed selections take one colour; removing an inherited colour writes an
+/// explicit No Color, and a collapsed caret toggles pending formatting for future typing.
+#[test]
+fn highlight_toggle_handles_mixed_inherited_and_pending_formatting() {
+    let mut s = typed("Alpha Beta ");
+    run(&mut s, "select.text", json!({"text":"Alpha"}));
+    run(&mut s, "format.highlight", json!({"color":"blue"}));
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "format.highlight", json!({}));
+    assert_eq!(s.run("format.state", &json!({})).unwrap()["highlight"], json!("0000FF"));
+    run(&mut s, "format.highlight", json!({}));
+    assert_eq!(s.run("format.state", &json!({})).unwrap()["highlight"], serde_json::Value::Null);
+    s.doc.styles.default_chr.highlight = Some(wordcraft_doc::props::Highlight::Blue);
+    run(&mut s, "format.highlight", json!({"color":"blue"}));
+    run(&mut s, "format.highlight", json!({}));
+    assert!(s.doc.body[0].as_para().unwrap().runs.iter().all(|r| r.props.highlight == Some(wordcraft_doc::props::Highlight::None)));
+    run(&mut s, "caret.docEnd", json!({}));
+    run(&mut s, "format.highlight", json!({}));
+    assert_eq!(s.pending.as_ref().unwrap().highlight, Some(wordcraft_doc::props::Highlight::Blue));
+    run(&mut s, "format.highlight", json!({}));
+    assert_eq!(s.pending.as_ref().unwrap().highlight, Some(wordcraft_doc::props::Highlight::None));
+    run(&mut s, "text.insert", json!({"text":"X"}));
+    run(&mut s, "select.text", json!({"text":"X"}));
+    assert_eq!(s.run("format.state", &json!({})).unwrap()["highlight"], serde_json::Value::Null);
+    let before = serde_json::to_value(&s.doc).unwrap();
+    assert!(s.run("format.highlight", &json!({"color":123})).is_err());
+    assert_eq!(serde_json::to_value(&s.doc).unwrap(), before);
+}
+
+/// A differently coloured final paragraph must remain visible to the shortcut beyond
+/// the formatting-state query limit, including a style-inherited tail and Undo/Redo.
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn highlight_toggle_checks_past_the_resolved_run_limit() {
+    use wordcraft_doc::para::Run;
+    use wordcraft_doc::props::{CharProps, Highlight};
+    for count in [10_000, 10_001, 10_002] {
+        for inherited in [false, true] {
+            let mut doc = wordcraft_doc::Document::from_text(&format!("{}\nZ", "x".repeat(count)));
+            doc.para_mut(StoryRef::Body, &Pos::body(0, 0).path).unwrap().runs = (0..count)
+                .map(|i| Run { len: 1, props: CharProps { highlight: Some(Highlight::Blue), bold: Some(i % 2 == 0), ..Default::default() } })
+                .collect();
+            if inherited {
+                doc.styles.default_chr.highlight = Some(Highlight::Yellow);
+            } else {
+                doc.para_mut(StoryRef::Body, &Pos::body(1, 0).path).unwrap().runs[0].props.highlight = Some(Highlight::Yellow);
+            }
+            doc.para_mut(StoryRef::Body, &Pos::body(0, 0).path).unwrap().mark.highlight = Some(Highlight::Blue);
+            let original = doc.clone();
+            let mut s = Session::new(doc);
+            s.last_highlight = Highlight::Blue;
+            run(&mut s, "select.all", json!({}));
+            press(&mut s, "Mod+Alt+H").unwrap();
+            assert!(
+                s.doc.body.iter().filter_map(|b| b.as_para()).flat_map(|p| &p.runs).all(|r| r.props.highlight == Some(Highlight::Blue)),
+                "count={count}, inherited={inherited}"
+            );
+            press(&mut s, "Mod+Alt+H").unwrap();
+            assert!(s.doc.body.iter().filter_map(|b| b.as_para()).flat_map(|p| &p.runs).all(|r| r.props.highlight == Some(Highlight::None)));
+            run(&mut s, "edit.undo", json!({}));
+            assert!(s.doc.body[1].as_para().unwrap().runs.iter().all(|r| r.props.highlight == Some(Highlight::Blue)));
+            run(&mut s, "edit.undo", json!({}));
+            assert_eq!(serde_json::to_value(&s.doc).unwrap(), serde_json::to_value(&original).unwrap());
+            run(&mut s, "edit.redo", json!({}));
+            assert!(s.doc.body[1].as_para().unwrap().runs.iter().all(|r| r.props.highlight == Some(Highlight::Blue)));
+        }
+    }
+}
+
+/// A command preview uses the real session's remembered colour without changing its
+/// document, colour choice or undo history when the preview toggles highlighting off.
+#[test]
+fn highlight_preview_preserves_the_session_colour_and_document() {
+    use wordcraft_doc::props::Highlight;
+    let mut s = typed("Alpha");
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "format.highlight", json!({"color":"blue"}));
+    let original = serde_json::to_value(&s.doc).unwrap();
+    let depth = s.undo_depth();
+    let (preview, _, _) = s.preview_layout("format.highlight", &json!({})).unwrap();
+    assert!(preview.body[0].as_para().unwrap().runs.iter().all(|r| r.props.highlight == Some(Highlight::None)));
+    assert_eq!(serde_json::to_value(&s.doc).unwrap(), original);
+    assert_eq!(s.last_highlight, Highlight::Blue);
+    assert_eq!(s.undo_depth(), depth);
+}
+
+/// Whole-cell column selections include paragraph marks, including empty cells and
+/// inherited mark colours; adjacent unselected cells and undo/redo keep their formatting.
+#[test]
+fn highlight_toggle_checks_whole_cell_marks() {
+    use wordcraft_doc::props::Highlight;
+    use wordcraft_doc::{CharProps, Paragraph};
+    for inherited in [false, true] {
+        for empty in [false, true] {
+            let mut s = s();
+            run(&mut s, "insert.table", json!({"rows":2,"cols":2}));
+            let (table, _, _) = s.sel.focus.path.cell().unwrap();
+            let pos = |row, col| {
+                let mut path = table.clone();
+                path.0.extend([row, col, 0]);
+                Pos::new(StoryRef::Body, path, 0)
+            };
+            if inherited {
+                s.doc.styles.default_chr.highlight = Some(Highlight::Yellow);
+            }
+            for row in 0..2 {
+                for col in 0..2 {
+                    let p = s.doc.para_mut(StoryRef::Body, &pos(row, col).path).unwrap();
+                    let colour = if col == 0 { Highlight::Blue } else { Highlight::Red };
+                    *p = Paragraph::with_text(
+                        if empty && row == 1 && col == 0 { "" } else { "AB" },
+                        CharProps { highlight: Some(colour), ..Default::default() },
+                    );
+                    p.mark.highlight = Some(colour);
+                    if row == 1 && col == 0 {
+                        p.mark.highlight = if inherited { None } else { Some(Highlight::Yellow) };
+                    }
+                }
+            }
+            s.last_highlight = Highlight::Blue;
+            run(&mut s, "caret.set", json!({"pos":pos(0,0)}));
+            run(&mut s, "table.selectColumn", json!({}));
+            assert!(!s.cell_range().unwrap().stream);
+            let original = serde_json::to_value(&s.doc).unwrap();
+            run(&mut s, "format.highlight", json!({}));
+            for row in 0..2 {
+                let p = s.doc.para_at(&pos(row, 0)).unwrap();
+                assert_eq!(p.mark.highlight, Some(Highlight::Blue), "inherited={inherited}, empty={empty}");
+                assert!(p.runs.iter().all(|r| r.props.highlight == Some(Highlight::Blue)));
+            }
+            run(&mut s, "format.highlight", json!({}));
+            for row in 0..2 {
+                let p = s.doc.para_at(&pos(row, 0)).unwrap();
+                assert_eq!(p.mark.highlight, Some(Highlight::None));
+                assert!(p.runs.iter().all(|r| r.props.highlight == Some(Highlight::None)));
+                let other = s.doc.para_at(&pos(row, 1)).unwrap();
+                assert_eq!(other.mark.highlight, Some(Highlight::Red));
+                assert!(other.runs.iter().all(|r| r.props.highlight == Some(Highlight::Red)));
+            }
+            run(&mut s, "edit.undo", json!({}));
+            run(&mut s, "edit.undo", json!({}));
+            assert_eq!(serde_json::to_value(&s.doc).unwrap(), original);
+            run(&mut s, "edit.redo", json!({}));
+            assert_eq!(s.doc.para_at(&pos(1, 0)).unwrap().mark.highlight, Some(Highlight::Blue));
+        }
+    }
+}
+
+/// Fully selected marks participate even when the selection has no text runs or an
+/// empty paragraph between blue runs; repeated toggles and undo preserve these targets.
+#[test]
+fn highlight_toggle_checks_ordinary_paragraph_marks() {
+    use wordcraft_doc::props::Highlight;
+    for text in ["AB", "AB\n\nAB", "\n"] {
+        let mut doc = wordcraft_doc::Document::from_text(text);
+        doc.styles.default_chr.highlight = Some(Highlight::Blue);
+        let paths = doc.para_paths(StoryRef::Body);
+        for path in &paths {
+            let p = doc.para_mut(StoryRef::Body, path).unwrap();
+            p.mark.highlight = Some(Highlight::Blue);
+            for r in &mut p.runs {
+                r.props.highlight = Some(Highlight::Blue);
+            }
+        }
+        let mismatch = if text == "AB\n\nAB" { 1 } else { 0 };
+        doc.para_mut(StoryRef::Body, &paths[mismatch]).unwrap().mark.highlight = Some(Highlight::Yellow);
+        let original = serde_json::to_value(&doc).unwrap();
+        let mut s = Session::new(doc);
+        s.last_highlight = Highlight::Blue;
+        run(&mut s, "select.all", json!({}));
+        run(&mut s, "format.highlight", json!({}));
+        for path in &paths {
+            let p = s.doc.para(StoryRef::Body, path).unwrap();
+            assert_eq!(p.mark.highlight, Some(Highlight::Blue), "text={text:?}");
+            assert!(p.runs.iter().all(|r| r.props.highlight == Some(Highlight::Blue)));
+        }
+        run(&mut s, "format.highlight", json!({}));
+        assert!(paths.iter().all(|p| s.doc.para(StoryRef::Body, p).unwrap().mark.highlight == Some(Highlight::None)));
+        run(&mut s, "edit.undo", json!({}));
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(serde_json::to_value(&s.doc).unwrap(), original);
+    }
+}
+
+/// A partial text column excludes paragraph marks and text beyond its selected offsets,
+/// so a different mark colour must not prevent clearing the selected blue characters.
+#[test]
+fn highlight_partial_column_ignores_unselected_marks() {
+    use wordcraft_doc::props::Highlight;
+    let mut doc = wordcraft_doc::Document::from_text("AB\nAB");
+    for path in doc.para_paths(StoryRef::Body) {
+        let p = doc.para_mut(StoryRef::Body, &path).unwrap();
+        p.mark.highlight = Some(Highlight::Yellow);
+        for r in &mut p.runs {
+            r.props.highlight = Some(Highlight::Blue);
+        }
+    }
+    let mut s = Session::new(doc);
+    s.last_highlight = Highlight::Blue;
+    run(&mut s, "select.column", json!({"anchor":Pos::body(0,0),"focus":Pos::body(1,1)}));
+    run(&mut s, "format.highlight", json!({}));
+    for row in 0..2 {
+        let p = s.doc.para_at(&Pos::body(row, 0)).unwrap();
+        assert_eq!(p.props_of_char(0).highlight, Some(Highlight::None));
+        assert_eq!(p.props_of_char(1).highlight, Some(Highlight::Blue));
+        assert_eq!(p.mark.highlight, Some(Highlight::Yellow));
     }
 }

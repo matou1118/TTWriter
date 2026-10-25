@@ -75,6 +75,20 @@ fn reading_toolbar(app: &mut WordApp, ui: &mut Ui, t: Tokens) {
                     }
                 });
                 ui.separator();
+                use wordcraft_engine::cmd::view::ReadPageColor;
+                let colors =
+                    [(ReadPageColor::None, "None", "none"), (ReadPageColor::Sepia, "Sepia", "sepia"), (ReadPageColor::Inverse, "Inverse", "inverse")];
+                let current = app.session.view.read_page_color;
+                let name = colors.iter().find(|c| c.0 == current).map_or("None", |c| c.1);
+                ui.menu_button(format!("{}: {}", tl!("Page color"), tl!(name)), |ui| {
+                    for (color, name, value) in colors {
+                        if ui.selectable_label(current == color, tl!(name)).clicked() {
+                            let _ = app.run("view.readPageColor", json!({"value": value}));
+                            ui.close();
+                        }
+                    }
+                });
+                ui.separator();
                 // Headings to jump to, in the Navigation pane beside the columns (Outline view
                 // is an editing layout, so it isn't offered here).
                 if ui.button(tl!("Navigation Pane")).clicked() {
@@ -774,7 +788,7 @@ fn mi_text(ui: &mut Ui, app: &mut WordApp, text: &str, id: &str, params: Value) 
 }
 
 /// The proofing languages the Language menu offers: tag and English name (translated when drawn).
-pub(crate) const PROOFING_LANGUAGES: [(&str, &str); 12] = [
+pub(crate) const PROOFING_LANGUAGES: [(&str, &str); 16] = [
     ("en-US", "English (United States)"),
     ("en-GB", "English (United Kingdom)"),
     ("en-AU", "English (Australia)"),
@@ -787,6 +801,10 @@ pub(crate) const PROOFING_LANGUAGES: [(&str, &str); 12] = [
     ("ru-RU", "Russian"),
     ("cs-CZ", "Czech"),
     ("id-ID", "Indonesian"),
+    ("es-ES", "Spanish (Spain)"),
+    ("es-MX", "Spanish (Mexico)"),
+    ("es-419", "Spanish (Latin America)"),
+    ("es-UY", "Spanish (Uruguay)"),
 ];
 
 /// The English name of a proofing language tag, as the status bar shows it (no tag: WordCraft's
@@ -827,6 +845,7 @@ pub(crate) fn language_name(tag: Option<&str>) -> String {
             wordcraft_engine::proof::ProofLang::Ru => "Russian".into(),
             wordcraft_engine::proof::ProofLang::Cs => "Czech".into(),
             wordcraft_engine::proof::ProofLang::Id => "Indonesian".into(),
+            wordcraft_engine::proof::ProofLang::Es => "Spanish (Spain)".into(),
             wordcraft_engine::proof::ProofLang::De => "German (Germany)".into(),
             wordcraft_engine::proof::ProofLang::En if tag.eq_ignore_ascii_case("en") => "English (United States)".into(),
             _ => tag.to_string(),
@@ -908,11 +927,27 @@ pub(crate) fn caret_language(app: &WordApp) -> String {
     tl!(&language_name(caret_lang_tag(app).as_deref())).to_string()
 }
 
-/// The language tag at the caret, resolved through the styles and the document default.
-fn caret_lang_tag(app: &WordApp) -> Option<String> {
+/// The formatting at the caret, resolved through the styles and the document default.
+fn caret_char(app: &WordApp) -> wordcraft_doc::resolve::ResolvedChar {
     let s = &app.session;
     let style = s.doc.para_at(&s.sel.focus).and_then(|p| p.props.style.clone());
-    s.doc.styles.resolve_char(style.as_deref(), &s.typing_props()).lang
+    s.doc.styles.resolve_char(style.as_deref(), &s.typing_props())
+}
+
+/// The language tag at the caret, resolved through the styles and the document default.
+fn caret_lang_tag(app: &WordApp) -> Option<String> {
+    caret_char(app).lang
+}
+
+/// Is the text at the caret itself marked Do not check spelling or grammar? (`format.state`
+/// looks at the whole word around a caret, so a partly marked word would read as checked.)
+pub(crate) fn caret_no_proof(app: &WordApp) -> bool {
+    caret_char(app).no_proof
+}
+
+/// Does WordCraft check spelling and grammar in the caret's language at all (Bulgarian: no)?
+pub(crate) fn caret_language_proofed(app: &WordApp) -> bool {
+    wordcraft_engine::proof::has_dictionary(caret_lang_tag(app).as_deref())
 }
 
 /// The Hunspell dictionary the caret's language needs but doesn't have (`pl_PL`), if any (#1167).
@@ -950,6 +985,7 @@ pub(crate) fn language_menu(ui: &mut Ui, app: &mut WordApp) {
             || (tag == "tr-TR" && current.eq_ignore_ascii_case("tr"))
             || (tag == "cs-CZ" && wordcraft_engine::proof::ProofLang::from_tag(Some(&current)) == wordcraft_engine::proof::ProofLang::Cs)
             || (tag == "id-ID" && wordcraft_engine::proof::ProofLang::from_tag(Some(&current)) == wordcraft_engine::proof::ProofLang::Id)
+            || (tag == "es-ES" && current.eq_ignore_ascii_case("es"))
             || (tag == "en-US" && current.eq_ignore_ascii_case("en"))
     };
     let checks = language_checks(&current, listed);
@@ -1134,15 +1170,16 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                     mi(ui, app, "Double Strikethrough", "format.doubleStrikethrough", json!({}));
                 });
                 let hl = app.canvas.last_highlight.clone();
+                let (icon, sw, color) = crate::mini_toolbar::highlight_button_appearance(&hl);
                 split(
                     ui,
                     app,
-                    "highlight",
+                    icon,
                     "Text Highlight Color",
                     "format.highlight",
-                    json!({"color": hl}),
+                    json!({"color": color}),
                     false,
-                    None,
+                    sw,
                     crate::mini_toolbar::highlight_menu,
                 );
                 let fc = app.canvas.last_font_color.clone();
@@ -1658,6 +1695,12 @@ fn design(app: &mut WordApp, ui: &mut Ui) {
                     ("Relaxed", "relaxed"),
                     ("Double", "double"),
                 ] {
+                    // "Open" here is roomy spacing, not the file verb: only a `spacing` row
+                    // translates it, else it stays English.
+                    if l == "Open" {
+                        mi_text(ui, app, crate::i18n::get("spacing", l).unwrap_or(l), "design.paragraphSpacing", json!({"value": v}));
+                        continue;
+                    }
                     mi(ui, app, l, "design.paragraphSpacing", json!({"value": v}));
                 }
             });
@@ -2059,16 +2102,42 @@ fn mailings(app: &mut WordApp, ui: &mut Ui) {
         big(ui, app, "preview", "Preview\nResults", "mailings.preview", json!({}), false);
         stack(ui, |ui| {
             crate::widgets::row(ui, |ui| {
+                small(ui, app, "first", None, "First Record", "mailings.first", json!({}), false);
                 small(ui, app, "previous", None, "Previous Record", "mailings.previous", json!({}), false);
+                record_box(ui, app);
                 small(ui, app, "next", None, "Next Record", "mailings.next", json!({}), false);
+                small(ui, app, "last", None, "Last Record", "mailings.last", json!({}), false);
             });
             small(ui, app, "find", Some("Find Recipient"), "Find Recipient", "mailings.findRecipient", json!({}), false);
             small(ui, app, "checkErrors", Some("Check for Errors"), "Check for Errors", "mailings.checkErrors", json!({}), false);
         });
     });
     group(ui, "Finish", None, app, |ui, app| {
-        big(ui, app, "finish", "Finish &\nMerge", "mailings.finish", json!({}), false);
+        menu_button(ui, app, "finish", Some("Finish &\nMerge"), "Finish & Merge", true, "mailings.finish", |ui, app| {
+            mi(ui, app, "Edit Individual Documents…", "mailings.finish", json!({}));
+            mi(ui, app, "Print Documents…", "mailings.printDocuments", json!({}));
+        });
     });
+}
+
+/// Preview Results' record number: shows the previewed record; a number typed and Enter go there.
+fn record_box(ui: &mut Ui, app: &mut WordApp) {
+    let on = !app.session.merge.rows.is_empty();
+    let shown = if on { (app.session.merge.record + 1).to_string() } else { String::new() };
+    // The draft lives in temp memory while typing (frame-local text would lose keystrokes).
+    let key = egui::Id::new("merge_record_box");
+    let mut text = ui.data(|d| d.get_temp::<String>(key)).unwrap_or_else(|| shown.clone());
+    let r = ui.add_enabled(on, egui::TextEdit::singleline(&mut text).desired_width(36.0).horizontal_align(egui::Align::Center));
+    let r = r.on_hover_text(tl!("Go to Record"));
+    if r.changed() {
+        ui.data_mut(|d| d.insert_temp(key, text.clone()));
+    }
+    if r.lost_focus() {
+        ui.data_mut(|d| d.remove::<String>(key));
+        if ui.input(|i| i.key_pressed(egui::Key::Enter)) && text.trim() != shown {
+            let _ = app.run("mailings.goToRecord", json!({"record": text.trim()}));
+        }
+    }
 }
 
 /// Zotero (`docs/zotero.md`): the Zotero desktop app does the work in its own window.
@@ -2414,6 +2483,7 @@ fn smart_art_design(app: &mut WordApp, ui: &mut Ui) {
     group(ui, "Reset", None, app, |ui, app| {
         big(ui, app, "resetGraphic", "Reset\nGraphic", "smartArt.reset", json!({}), false);
     });
+    graphic_size(ui, app);
 }
 
 /// Chart Design: the selected chart's elements (title, legend, data labels), its data and type,
@@ -2448,6 +2518,11 @@ fn chart_design(app: &mut WordApp, ui: &mut Ui) {
     group(ui, "Type", None, app, |ui, app| {
         big(ui, app, "changeChartType", "Change\nChart Type", "chart.type", json!({}), false);
     });
+    graphic_size(ui, app);
+}
+
+/// Chart Design and SmartArt Design › Size: the selected graphic's height and width.
+fn graphic_size(ui: &mut Ui, app: &mut WordApp) {
     group(ui, "Size", None, app, |ui, app| {
         let (w0, h0) =
             wordcraft_engine::cmd::objects::selected(&app.session).and_then(|(_, o)| o.frame().map(|(w, h, _)| (w, h))).unwrap_or((0.0, 0.0));
@@ -2457,7 +2532,7 @@ fn chart_design(app: &mut WordApp, ui: &mut Ui) {
                     ui.label(egui::RichText::new(tl!(label)).small());
                     let mut v = v0;
                     // The range bounds what is typed or dragged; a size outside it is shown as it
-                    // is (clamped, egui would report a change and resize the chart unasked).
+                    // is (clamped, egui would report a change and resize the graphic unasked).
                     let r = ui.add(egui::DragValue::new(&mut v).speed(1.0).range(36.0..=2000.0).clamp_existing_to_range(false).suffix(" pt"));
                     if r.changed() && v != v0 {
                         if r.dragged() && !r.drag_started() {
@@ -3286,6 +3361,26 @@ mod tests {
         }
     }
 
+    /// #3360, #3553: the Spanishes WordCraft proofs are in the menu, checked by their tags; other
+    /// Spanish regions show by name, and a bare `es` is Spain's.
+    #[test]
+    fn spanish_varieties_are_in_the_language_menu() {
+        for (tag, name) in
+            [("es-ES", "Spanish (Spain)"), ("es-MX", "Spanish (Mexico)"), ("es-419", "Spanish (Latin America)"), ("es-UY", "Spanish (Uruguay)")]
+        {
+            assert!(PROOFING_LANGUAGES.contains(&(tag, name)), "{tag}");
+            assert!(crate::dialogs_layout::LANGUAGES.contains(&(tag, name)), "{tag}");
+            assert_eq!(language_name(Some(tag)), name);
+            let c = language_checks(&tag.to_ascii_lowercase(), |t| t.eq_ignore_ascii_case(tag));
+            assert_eq!((c.extra, c.listed), (None, PROOFING_LANGUAGES.map(|(t, _)| t == tag)), "{tag}");
+        }
+        assert_eq!(language_name(Some("es")), "Spanish (Spain)");
+        assert_eq!(language_name(Some("es-AR")), "Spanish (Argentina)");
+        let c = language_checks("es-AR", |t| t.eq_ignore_ascii_case("es-AR"));
+        assert_eq!(c.extra.as_deref(), Some("Spanish (Argentina)"));
+        assert!(!c.listed.contains(&true));
+    }
+
     #[test]
     fn czech_has_a_name_in_the_language_menu() {
         assert!(PROOFING_LANGUAGES.contains(&("cs-CZ", "Czech")));
@@ -3418,6 +3513,9 @@ mod tests {
     /// in Polish the table tabs were out of reach. They stay on the strip and a click opens them.
     #[test]
     fn table_tabs_stay_clickable_when_the_tab_strip_overflows() {
+        if !crate::i18n::catalogs_embedded() {
+            return;
+        }
         use egui_kittest::kittest::Queryable;
         let mut app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("Text")), crate::Services::default());
         app.run("insert.table", json!({"rows": 3, "cols": 3})).unwrap();
@@ -3445,6 +3543,9 @@ mod tests {
     /// Editing / Share, the tabs stay inside the window, and the buttons keep their room.
     #[test]
     fn tab_strip_never_overlaps_the_right_buttons() {
+        if !crate::i18n::catalogs_embedded() {
+            return;
+        }
         use egui_kittest::kittest::Queryable;
         for lang in ["en", "pl", "de"] {
             for width in [300.0, 420.0, 520.0, 640.0, 765.0, 1280.0] {
@@ -3559,7 +3660,7 @@ mod tests {
         let item = |label: &'static str| By::new().label_contains(label);
         let app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("Bonjour")), crate::Services::default());
         let mut h =
-            egui_kittest::Harness::builder().with_size(vec2(400.0, 400.0)).build_ui_state(|ui, app: &mut WordApp| language_menu(ui, app), app);
+            egui_kittest::Harness::builder().with_size(vec2(400.0, 600.0)).build_ui_state(|ui, app: &mut WordApp| language_menu(ui, app), app);
         h.run();
         assert!(h.query(item("French (France)")).is_none(), "the short list only, on an English document");
         assert!(!h.get(item("Set Proofing Language…")).accesskit_node().is_disabled(), "never greyed out on a fresh document");
@@ -3588,7 +3689,7 @@ mod tests {
         let mut app = WordApp::new(Session::new(wordcraft_doc::Document::from_text("Colour")), crate::Services::default());
         app.run("select.all", json!({})).unwrap();
         let mut h =
-            egui_kittest::Harness::builder().with_size(vec2(400.0, 500.0)).build_ui_state(|ui, app: &mut WordApp| language_menu(ui, app), app);
+            egui_kittest::Harness::builder().with_size(vec2(400.0, 600.0)).build_ui_state(|ui, app: &mut WordApp| language_menu(ui, app), app);
         h.run();
         for (tag, name) in PROOFING_LANGUAGES {
             h.get(By::new().label_contains(name)).click();

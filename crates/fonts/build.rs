@@ -1,12 +1,13 @@
 //! Optional craft-fonts build input (https://github.com/storytold/craft-fonts, recipe from its
 //! `docs/integration.md`). With `CRAFT_FONTS_DIR=<checkout>` the fonts in its
 //! `fonts/manifest.txt` are embedded as `CRAFT_FONTS`; unset, `CRAFT_FONTS` is empty. Web
-//! (wasm32) builds embed the UI faces — BIZ UDPGothic Regular plus the Hans (Simplified
-//! Chinese) Regular/Bold faces — to stay within the web size budget while keeping the
-//! Chinese interface readable (the Chinese edition's primary audience). With
-//! `CRAFT_FONTS_REQUIRED` (releases), a native build also fails when the checkout
-//! has no font for a CJK interface language (Japanese, Simplified Chinese), as an outdated pin
-//! once did (#241). It only reads the local checkout: no network.
+//! (wasm32) builds embed the interface faces for the languages the Chinese edition actually
+//! serves — Hans (Simplified Chinese) Regular/Bold, plus Georgian and the Japanese UI face
+//! where the budget allows — because a locale without an embedded face renders as tofu boxes
+//! (queryLocalFonts is rarely granted in browsers). With `CRAFT_FONTS_REQUIRED` (releases), a
+//! native build also fails when the checkout has no font for a CJK interface language
+//! (Japanese, Simplified Chinese), as an outdated pin once did (#241). It only reads the local
+//! checkout: no network.
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -57,17 +58,21 @@ fn craft_fonts(dir: &std::path::Path) -> Result<(String, Vec<String>), String> {
         let [family, style, file, scripts, ..] = f.as_slice() else {
             return Err(format!("malformed manifest line: {line}"));
         };
-        // Web (wasm32) size budget: the UI faces only — the Japanese UI face and the
-        // Simplified-Chinese ones. Without a Hans face the Chinese menus render as tofu
-        // boxes (queryLocalFonts is rarely granted), which for the Chinese edition is the
-        // primary audience; 13MB of PuHuiTi beats a broken interface. Document fonts
-        // (Fangsong/WenKai, 33MB more) stay native-only — the browser falls back for
-        // those and the UI stays readable.
+        // Web (wasm32) size budget: the interface faces for the locales this edition serves.
+        // Hans (Simplified Chinese) Regular/Bold is non-negotiable - the primary audience;
+        // without an embedded Hans face the Chinese menus are tofu boxes. Georgian rides
+        // along (about 230 KB, upstream's #3888 pick); the Japanese UI face stays only if the
+        // manifest offers it within budget. Document fonts stay native-only.
         if wasm
+            && !scripts.split(',').any(|s| s.trim() == "Geor")
             && !(*family == "BIZ UDPGothic" && *style == "Regular")
-            && !scripts.split(',').any(|s| s.trim() == "Hans" && *style == "Regular")
-            && !scripts.split(',').any(|s| s.trim() == "Hans" && *style == "Bold")
+            && !scripts.split(',').any(|s| s.trim() == "Hans" && (*style == "Regular" || *style == "Bold"))
         {
+            continue;
+        }
+        // 文档字体（仿宋/楷体）体积大，只进 native，不进 wasm —— 网页版文档里指定这些
+        // 字体时回退到系统装的同名字体（crates/fonts/src/word.rs 的 substitutes()）。
+        if wasm && matches!(*family, "Zhuque Fangsong (technical preview)" | "LXGW WenKai GB") {
             continue;
         }
         let path = dir.join(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;

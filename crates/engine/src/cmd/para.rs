@@ -199,7 +199,7 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"props": ParaProps, "onPage"?: {"align"?: "left|center|right|justify|distribute", "left"?: pt, "right"?: pt} (alignment and indents as seen on the page: each paragraph's own direction, after `props`, says which edge is its start)}"#,
         ),
         CommandSpec::new("para.dialog", "Paragraph Settings", "Home › Paragraph", |s, _| {
-            s.ui_requests.push(json!({"open": "paragraph"}));
+            s.push_ui_request(json!({"open": "paragraph"}));
             sel_result(s)
         })
         .pure(),
@@ -213,7 +213,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 return Err(CmdError::Params(format!("unknown sort `{sort}` (recommended|alphabetical)")));
             }
             let list = manage_list(s, sort == "alphabetical");
-            s.ui_requests.push(json!({"open": "manageStyles"}));
+            s.push_ui_request(json!({"open": "manageStyles"}));
             Ok(list)
         })
         .params(r#"{"sort"?: "recommended|alphabetical"} → [{id, name, type: "paragraph|character|linked|table", builtIn, inGallery, hidden, basedOn, priority, format}]"#)
@@ -398,7 +398,7 @@ pub fn indent(s: &mut Session, _: &Value) -> CmdResult {
         };
         let para = s.doc.para_mut(a.story, &path)?;
         match num {
-            Some(n) => para.props.numbering = Some(NumRef { num: n.num, level: (n.level + 1).min(8) }),
+            Some(n) => para.props.numbering = Some(NumRef { num: n.num, level: n.level.saturating_add(1).min(8) }),
             None => {
                 para.props.indent_left = Some(((left / tab).floor() + 1.0) * tab);
                 para.props.cancel_char_indents(true, false, false);
@@ -810,7 +810,7 @@ fn outline_step(s: &mut Session, promote: bool) -> CmdResult {
         let list = p.props.numbering.filter(|n| n.num != 0);
         let target = match (list, heading_level(s, &p.props)) {
             (Some(n), _) => {
-                let level = if promote { n.level.saturating_sub(1) } else { (n.level + 1).min(8) };
+                let level = if promote { n.level.saturating_sub(1) } else { n.level.saturating_add(1).min(8) };
                 if level != n.level {
                     let para = s.doc.para_mut(a.story, &path)?;
                     para.props.numbering = Some(NumRef { num: n.num, level });

@@ -588,6 +588,16 @@ pub struct Exclusion {
     pub contour: Option<Arc<crate::contour::Contour>>,
     /// The sides of the object text may go on (Square, Tight, Through).
     pub side: WrapText,
+    /// A floating table counts a line touching its top as overlapping; shapes do not (#3977).
+    pub table: bool,
+}
+
+impl Exclusion {
+    /// Whether this area keeps text out of the row, including exact top contact for tables.
+    fn intersects_row(&self, top: f32, h: f32, table_h: f32, lo: f32, hi: f32) -> bool {
+        let reaches = if self.table { self.top <= top + table_h } else { self.top < top + h };
+        self.bottom > top && reaches && self.right > lo && self.left < hi
+    }
 }
 
 struct Builder<'a> {
@@ -644,6 +654,11 @@ pub(crate) fn push_caps(rc: &ResolvedChar, c: char, out: &mut String) {
 pub(crate) fn ligature_features(l: wordcraft_doc::props::Ligatures) -> [wordcraft_fonts::Feature; 4] {
     let f = |tag: &[u8; 4], on: bool| wordcraft_fonts::feature_value(tag, on as u32);
     [f(b"liga", l.standard), f(b"clig", l.contextual), f(b"hlig", l.historical), f(b"dlig", l.discretional)]
+}
+
+/// A Khmer letter, sign or digit (U+1780–U+17FF, Khmer Symbols U+19E0–U+19FF).
+fn is_khmer(c: char) -> bool {
+    matches!(u32::from(c), 0x1780..=0x17FF | 0x19E0..=0x19FF)
 }
 
 /// Whether `c`'s capital is more than one character (ß → SS), so All Caps draws more
@@ -1060,7 +1075,10 @@ impl<'a> Builder<'a> {
             // The shaper kerns by default; Word kerns only when Kerning for fonts covers the size.
             // Without `w14:ligatures` the shaper's default (standard and contextual) stays.
             let [kern_off] = no_kern;
-            let all = match rc.ligatures {
+            // Khmer shaping builds its syllables (pre-base vowels, stacked signs) in `liga` and
+            // `clig`, so a run's ligature setting never reaches Khmer text: Word ignores it there.
+            let ligatures = rc.ligatures.filter(|_| !shape_text.chars().any(is_khmer));
+            let all = match ligatures {
                 Some(l) => {
                     let [a, b, c, d] = ligature_features(l);
                     [kern_off, a, b, c, d]
@@ -1068,7 +1086,7 @@ impl<'a> Builder<'a> {
                 None => [kern_off; 5],
             };
             let from = usize::from(rc.kerned());
-            let to = if rc.ligatures.is_some() { all.len() } else { 1 };
+            let to = if ligatures.is_some() { all.len() } else { 1 };
             let features: &[wordcraft_fonts::Feature] = all.get(from..to).unwrap_or_default();
             let shaped = if use_levels {
                 wordcraft_fonts::shape_run(&st.face, shape_text, features, map, key.rtl)
@@ -1914,7 +1932,10 @@ pub fn layout_para(p: &Paragraph, env: &ParaEnv) -> ParaLayout {
     pl.hyph_after = hyphenation_points(&text, to_para, &pl, auto, env.doc.settings.hyphenate_caps, &runs);
     // A paragraph whose text and mark are all a deletion the layout leaves out (a deleted
     // paragraph in the final text, or moved-away text marked Hidden) is gone: it takes no room.
-    let gone = env.hide_deleted.hides(doc, mark_rc.del) && (p.text.is_empty() || left.first() == Some(&(0..p.text.len())));
+    // So is one whose mark is hidden and whose text is empty or hidden too: Word shows nothing of
+    // it, not even its list number, though the number is counted (#3982).
+    let mark_left_out = env.hide_deleted.hides(doc, mark_rc.del) || (mark_rc.hidden && !env.show_hidden);
+    let gone = mark_left_out && (p.text.is_empty() || left.first() == Some(&(0..p.text.len())));
     pl.left_out = left;
     for k in pl.hyph_after.clone() {
         if let Some(c) = pl.clusters.get_mut(k as usize) {
@@ -1926,6 +1947,38 @@ pub fn layout_para(p: &Paragraph, env: &ParaEnv) -> ParaLayout {
         collapse(&mut pl);
     }
     pl
+}
+
+/// The width of the word that starts at each cluster: the clusters up to the first break
+/// opportunity that isn't a hyphenation point, their advance, spaces aside.
+///
+/// The word is the same set the scan this replaces gathered, which stopped at that first
+/// opportunity rather than running on to the end of the paragraph.
+///
+/// Every word is measured once, before the line is broken, so a word that has to be measured
+/// again — it doesn't fit the span beside a floating object, so it moves on to the next row —
+/// costs a lookup rather than another pass over it (#18, #3412).
+///
+/// The width is the sum of the advances, the negative ones included: a font that pulls a glyph
+/// back takes the width off again, so a word whose advances alternate is measured by that sum
+/// and not by how wide it gets on the way. The sum is taken over the whole word for that
+/// reason, and the words after a break are left out of it: they are words of their own.
+///
+/// The sum is added up from the word's end rather than its start, which is the same number in
+/// all but the last bits of a float: the sum a float holds depends on the order it is added in,
+/// and the two differ by far less than the tenth of a point the comparison that uses the width
+/// allows.
+pub(crate) fn word_widths(clusters: &[Cluster], hyph_after: &[u32]) -> Vec<f32> {
+    let n = clusters.len();
+    let mut width = vec![0.0f32; n + 1];
+    for k in (0..n).rev() {
+        let c = &clusters[k];
+        let adv = if c.kind == ClKind::Space { 0.0 } else { c.adv };
+        // The word ends at a break opportunity. A hyphenation point isn't one: the break there
+        // is optional, so the word runs on to the next.
+        width[k] = if c.break_after && hyph_after.binary_search(&(k as u32)).is_err() { adv } else { adv + width[k + 1] };
+    }
+    width
 }
 
 /// Lays a paragraph out as nothing: no height, no spacing, no label, its lines (kept for the
@@ -2001,6 +2054,10 @@ fn break_lines(pl: &mut ParaLayout, env: &ParaEnv, mark_style: u32, level: Optio
     let zone = Some(env.doc.settings.hyphenation_zone).filter(|z| z.is_finite() && *z >= 0.0).unwrap_or(HYPHENATION_ZONE).min(1584.0);
     let hyph_limit = env.doc.settings.consecutive_hyphen_limit as usize;
     let n = pl.clusters.len();
+    // The width of every word, measured once: the word beside a float is measured again for
+    // every row it is tried on, and measuring it again costs a lookup rather than another pass
+    // over the word (#18).
+    let widths = word_widths(&pl.clusters, &pl.hyph_after);
     // A right-to-left paragraph is laid out from its start edge, as if mirrored: indents, tabs,
     // the list label and alignment are measured from the right. Lines are mirrored back (and
     // bidirectional text reordered) once broken; floating objects are mirrored in.
@@ -2046,6 +2103,9 @@ fn break_lines(pl: &mut ParaLayout, env: &ParaEnv, mark_style: u32, level: Optio
         .map(|st| (st.ascent + st.descent) * if let LineSpacing::Multiple(m) = rp.line_spacing { m } else { 1.0 })
         .unwrap_or(14.0)
         .max(1.0);
+    // Exact spacing fixes the table-contact boundary even when the mark has other metrics.
+    // Keep the existing estimate for shapes and for non-exact spacing.
+    let table_h = if let LineSpacing::Exactly(h) = rp.line_spacing { h } else { est_h };
     // The rest of the current row: spans on the far side of floating objects, left to right.
     let mut row_rest: VecDeque<(f32, f32)> = VecDeque::new();
     let mut row_first = 0usize;
@@ -2072,7 +2132,7 @@ fn break_lines(pl: &mut ParaLayout, env: &ParaEnv, mark_style: u32, level: Optio
                 {
                     lo = first_left.max(rp.indent_left) + dw;
                 }
-                match row_spans(exclusions, top, est_h, lo, base_right).map(|mut spans| (spans.pop_front(), spans)) {
+                match row_spans(exclusions, top, est_h, table_h, lo, base_right).map(|mut spans| (spans.pop_front(), spans)) {
                     Ok((Some((a, b)), rest)) => {
                         narrowed = !rest.is_empty() || a > lo || b < base_right;
                         row_rest = rest;
@@ -2256,17 +2316,8 @@ fn break_lines(pl: &mut ParaLayout, env: &ParaEnv, mark_style: u32, level: Optio
                     // floating object and the word fits the full line; then it tries the row's
                     // next span, or the next row. The word runs to the next break that isn't a
                     // hyphenation point.
-                    let word: f32 = (c0..n)
-                        .filter_map(|k| pl.clusters.get(k).map(|c| (k, c)))
-                        .scan(false, |done, (k, c)| {
-                            let end = c.break_after && pl.hyph_after.binary_search(&(k as u32)).is_err();
-                            (!std::mem::replace(done, end)).then_some(c)
-                        })
-                        .filter(|c| c.kind != ClKind::Space)
-                        .map(|c| c.adv)
-                        .sum();
                     let full = base_right - row_lo;
-                    skip = narrowed && skipped < 50 && word <= full + 0.01;
+                    skip = narrowed && skipped < 50 && widths.get(c0).is_some_and(|w| *w <= full + 0.01);
                     // Never split a ligature's letters across lines: the glyph sits on the first
                     // letter, so back up to it (unless it starts the line).
                     let glyphless = |k: usize| pl.clusters.get(k).is_some_and(|c| c.kind == ClKind::Text && c.g1 <= c.g0);
@@ -2365,7 +2416,7 @@ fn break_lines(pl: &mut ParaLayout, env: &ParaEnv, mark_style: u32, level: Optio
                     // Nothing on this row: go below the first object that ends, as when no span is wide enough.
                     exclusions
                         .iter()
-                        .filter(|e| e.bottom > top && e.top < top + est_h && e.right > row_lo && e.left < base_right)
+                        .filter(|e| e.intersects_row(top, est_h, table_h, row_lo, base_right))
                         .map(|e| e.bottom)
                         .reduce(f32::min)
                         .unwrap_or(top + est_h)
@@ -2765,8 +2816,8 @@ fn baseline_offset(spacing: LineSpacing, asc: f32, height: f32, desc: f32) -> f3
 /// The spans of a row at `top` (about `h` tall) between `lo` and `hi` that text can use around
 /// the exclusions, left to right (Square wrapping uses both sides of an object). `Err(y)`: none
 /// here, try again at `y` (below what's in the way).
-fn row_spans(exclusions: &[Exclusion], top: f32, h: f32, lo: f32, hi: f32) -> Result<VecDeque<(f32, f32)>, f32> {
-    let here: Vec<&Exclusion> = exclusions.iter().filter(|e| e.bottom > top && e.top < top + h && e.right > lo && e.left < hi).collect();
+fn row_spans(exclusions: &[Exclusion], top: f32, h: f32, table_h: f32, lo: f32, hi: f32) -> Result<VecDeque<(f32, f32)>, f32> {
+    let here: Vec<&Exclusion> = exclusions.iter().filter(|e| e.intersects_row(top, h, table_h, lo, hi)).collect();
     if let Some(below) = here.iter().filter(|e| e.top_bottom).map(|e| e.bottom).reduce(f32::max) {
         return Err(below);
     }

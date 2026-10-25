@@ -1,5 +1,4 @@
 //! An argument that isn't valid Unicode, such as a Latin-1 file name, never panics the app (#1440).
-#![cfg(unix)]
 
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;

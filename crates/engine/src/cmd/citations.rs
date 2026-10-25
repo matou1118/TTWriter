@@ -539,6 +539,7 @@ fn auto_tag(doc: &Document, src: &Source) -> String {
 }
 
 /// The author of a source for matching untagged entries: the editor when there is no author.
+#[cfg(not(target_arch = "wasm32"))]
 fn by_author(x: &Source) -> &str {
     if x.author.is_empty() { x.editor.as_str() } else { x.author.as_str() }
 }
@@ -1099,7 +1100,7 @@ fn entries_for(s: &mut Session, kind: &str) -> Vec<(String, bool)> {
                 out.push((l, false));
             }
         }
-        let list = pages.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ");
+        let list = pages.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ");
         out.push(if kind.starts_with("INDEX") { (format!("{e}, {list}"), true) } else { (format!("{e}\t{list}"), false) });
     }
     out

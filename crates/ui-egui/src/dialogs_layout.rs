@@ -407,7 +407,7 @@ fn manual_ui(app: &mut WordApp, ui: &mut Ui, f: &mut ManualForm) -> bool {
 // Language
 
 /// Proofing languages offered, by BCP 47 tag, with their English names (translated for display).
-pub const LANGUAGES: [(&str, &str); 36] = [
+pub const LANGUAGES: [(&str, &str); 38] = [
     ("en-US", "English (United States)"),
     ("en-GB", "English (United Kingdom)"),
     ("en-AU", "English (Australia)"),
@@ -420,6 +420,8 @@ pub const LANGUAGES: [(&str, &str); 36] = [
     ("fr-FR", "French (France)"),
     ("es-ES", "Spanish (Spain)"),
     ("es-MX", "Spanish (Mexico)"),
+    ("es-419", "Spanish (Latin America)"),
+    ("es-UY", "Spanish (Uruguay)"),
     ("it-IT", "Italian"),
     ("pt-BR", "Portuguese (Brazil)"),
     ("pt-PT", "Portuguese (Portugal)"),
@@ -1905,8 +1907,9 @@ mod tests {
         assert_eq!(t.rows.iter().map(|r| r.cells.len()).collect::<Vec<_>>(), [3, 3, 3, 3]);
     }
 
-    /// The envelope sizes are in the interface language with the region's decimal separator
-    /// (#1128; the untranslated-text audit found `#10   4.13 × 9.5 in` drawn in English).
+    /// The envelope sizes go through the interface language's catalog and use the region's
+    /// decimal separator (#1128; the untranslated-text audit found `#10   4.13 × 9.5 in` drawn in
+    /// English).
     #[test]
     fn envelope_sizes_follow_the_interface_language_and_region() {
         let size = |name: &str| ENVELOPE_SIZES.iter().find(|s| s.0 == name).map(|(n, w, h)| envelope_label(n, *w, *h)).unwrap();
@@ -1915,10 +1918,11 @@ mod tests {
         let mut a = app();
         a.run("file.options", json!({"region": "it-IT"})).unwrap();
         crate::options::sync(&a);
-        crate::i18n::set_current(crate::i18n::Lang::from_code("it").unwrap());
-        assert_eq!(size("Envelope #10"), "#10   4,13 × 9,5 pollici");
-        assert_eq!(size("Envelope DL"), "DL   110 × 220 mm");
-        crate::i18n::set_current(crate::i18n::Lang::EN);
+        assert_eq!(size("Envelope #10"), "#10   4,13 × 9,5 in");
+        crate::i18n::pseudo::set(true);
+        assert_eq!(size("Envelope #10"), "⟦#10   4,13 × 9,5 in⟧");
+        assert_eq!(size("Envelope DL"), "⟦DL   110 × 220 mm⟧");
+        crate::i18n::pseudo::set(false);
         a.run("file.options", json!({"region": "en-US"})).unwrap();
         crate::options::sync(&a);
     }

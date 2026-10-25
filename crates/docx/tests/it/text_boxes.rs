@@ -234,3 +234,16 @@ fn picture_in_box_keeps_its_frame() {
     let p = read.para(StoryRef::Body, &wordcraft_doc::Path::top(0)).unwrap();
     assert!(matches!(&p.objects[0], InlineObject::Shape { w, h, .. } if *w == 144.0 && *h == 72.0));
 }
+
+#[test]
+fn story_shared_by_many_shapes_is_written_once() {
+    let mut d = Document::from_text("x");
+    let text = "abcdefghij".repeat(5_000);
+    let o = text_box(&mut d, &text, TextBody::default());
+    for _ in 0..500 {
+        d.insert_object(&wordcraft_doc::Pos::body(0, 0), o.clone(), &Default::default()).unwrap();
+    }
+    let xml = document_xml(&wordcraft_docx::write(&d).unwrap());
+    assert!(xml.len() < 2_000_000, "document.xml is {} bytes", xml.len());
+    assert_eq!(xml.matches(text.as_str()).count(), 1);
+}

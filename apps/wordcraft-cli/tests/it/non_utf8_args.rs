@@ -1,7 +1,6 @@
 //! A file name that isn't valid Unicode (`caf\xe9.txt`, Latin-1) never panics the CLI (#1440): the
 //! file a command opens opens, and any other such argument is an error naming it. Not on macOS:
 //! APFS refuses file names that aren't valid UTF-8, so the fixture can't be made there.
-#![cfg(all(unix, not(target_os = "macos")))]
 
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;

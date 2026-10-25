@@ -36,6 +36,12 @@ if (-not $SkipBuild) {
   $env:RUSTUP_TOOLCHAIN = 'stable-x86_64-pc-windows-gnu'
   $env:PATH = "$WbgDir;$env:USERPROFILE\.cargo\bin;$env:PATH"
   $env:CARGO_TARGET_DIR = 'target-gnu'
+  # 中文字体：本地 craft-fonts checkout（同 pages.yml 的 CRAFT_FONTS_DIR）。不设的话
+  # CRAFT_FONTS 为空，网页版中文界面 tofu。
+  $env:CRAFT_FONTS_DIR = Join-Path $Root 'craft-fonts'
+  # 中文界面翻译（craft-i18n 本地源，只含 zh-hans/zh-hant —— 我们的定制翻译）。
+  # 不设的话 CRAFT_I18N 为空，界面英文。
+  $env:CRAFT_I18N_DIR = Join-Path $Root 'craft-i18n-local'
   Push-Location $App
   try {
     # PS5.1 把 native stderr（cargo 的 rustc 警告）转成 ErrorRecord；EAP=Stop 会中断

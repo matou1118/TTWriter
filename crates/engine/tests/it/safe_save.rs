@@ -1,5 +1,4 @@
 //! Original synthetic save cases. Every test owns its directory and document copies.
-#![cfg(not(target_arch = "wasm32"))]
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};

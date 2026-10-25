@@ -120,7 +120,7 @@ fn native_json_with_bad_bytes_is_an_error() {
 
 /// Measures native JSON with a large picture: the compact form a recovery copy wraps, and a
 /// pretty-printed `.json` file. Run on demand:
-/// `cargo test --release -p wordcraft-engine --test recovery_format -- --ignored --nocapture`.
+/// `cargo test --release -p wordcraft-engine --test it recovery_format:: -- --ignored --nocapture`.
 #[test]
 #[ignore = "measurement"]
 fn native_json_size_with_a_large_picture() {
