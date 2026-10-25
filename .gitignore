@@ -16,3 +16,5 @@ skills/*/scripts/__pycache__/
 
 # tool preferences (local only)
 .opencode/
+
+/cdn-shards/

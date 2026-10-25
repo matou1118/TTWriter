@@ -61,36 +61,87 @@
         }
       } catch (e) { /* 上下文创建异常按无 WebGL2 处理过了 */ }
 
-      // ② wasm 下载进度：流式计量，边下边报。不能把分片攒起来再拼 Response——
-      //    62MB 攒进 JS 内存，手机上正好会 OOM（本意是诊断失败，别自己制造失败）。
+      // ② wasm 加载：jsdelivr CDN 分片（绕过 gh 20MB 限制 + 国内加速），失败回退本地 shards/，再回退原始单文件。
+      //    55MB 分片拼接进 JS 内存——手机上峰值约 110MB（wasm 本身 55MB + 临时拼接 55MB），现代设备可接受。
       var origFetch = window.fetch ? window.fetch.bind(window) : null;
-      if (origFetch && typeof TransformStream !== "undefined") {
+      if (origFetch) {
+        var CDN_BASE = "https://cdn.jsdelivr.net/gh/matou1118/TTWriter-cdn@main/cdn-shards/";
+        var LOCAL_BASE = "./shards/";
         window.fetch = function (url, opts) {
-          var p = origFetch(url, opts);
-          if (typeof url === "string" && url.indexOf("_bg.wasm") >= 0) {
-            p = p.then(function (r) {
-              if (!r.ok || !r.body) { return r; }
-              var total = parseInt(r.headers.get("Content-Length") || "0", 10);
-              var loaded = 0;
-              var meter = new TransformStream({
-                transform: function (chunk, ctl) {
-                  loaded += chunk.byteLength;
-                  // gzip 的 Content-Length 是压缩前口径，可能比实际字节大——只在没超时显示总量
-                  var mb = (loaded / 1048576).toFixed(1);
-                  var tail = total > 0 && loaded <= total ? " / " + (total / 1048576).toFixed(1) + " MB" : " MB";
-                  if (progress) { progress.textContent = "下载中 " + mb + tail + "（首次约 40-60 MB，之后走缓存）"; }
-                  ctl.enqueue(chunk);
-                }
-              });
-              // 长度/编码已由解压后的流作废，留着会让 instantiateStreaming 读到错的元数据
-              var h = new Headers(r.headers);
-              h.delete("content-length");
-              h.delete("content-encoding");
-              return new Response(r.body.pipeThrough(meter), { headers: h, status: r.status });
-            });
-          }
-          return p;
+          var s = String(url);
+          if (s.indexOf("_bg.wasm") >= 0) { return loadShardedWasm(s, opts); }
+          return origFetch(url, opts);
         };
+
+        function loadShardedWasm(url, opts) {
+          // 提取 trunk 要加载的 wasm 文件名（含 hash），用于校验分片 manifest 是否同版本
+          var want = url.split("/").pop().split("?")[0].split("#")[0];
+          return tryShards(CDN_BASE, want).catch(function () {
+            if (progress) { progress.textContent = "CDN 分片失败，回退本地源…"; }
+            return tryShards(LOCAL_BASE, want);
+          }).catch(function () {
+            if (progress) { progress.textContent = "分片加载失败，回退单文件…"; }
+            return origFetch(url, opts).then(meterSingle);
+          });
+        }
+
+        function tryShards(base, want) {
+          return origFetch(base + "manifest.json").then(function (r) {
+            if (!r.ok) throw new Error("manifest " + r.status);
+            return r.json();
+          }).then(function (m) {
+            // 版本校验：分片必须和当前 JS 配对的 wasm 同 hash，否则 wasm-bindgen 会崩
+            if (want && m.source && m.source !== want) { throw new Error("版本不匹配 " + m.source + " vs " + want); }
+            var shards = m.shards || [];
+            if (!shards.length) throw new Error("空 manifest");
+            var total = m.size || 0;
+            var loaded = 0;
+            var acc = [];
+            // 顺序下载：并行会让手机内存峰值翻倍，顺序 + 进度更稳
+            function next(i) {
+              if (i >= shards.length) { return Promise.resolve(acc); }
+              return origFetch(base + shards[i]).then(function (r) {
+                if (!r.ok) throw new Error(shards[i] + " " + r.status);
+                return r.arrayBuffer();
+              }).then(function (buf) {
+                loaded += buf.byteLength;
+                if (progress) {
+                  var mb = (loaded / 1048576).toFixed(1);
+                  var tail = total > 0 ? " / " + (total / 1048576).toFixed(1) + " MB" : " MB";
+                  progress.textContent = "下载中 " + mb + tail + "（CDN 分片，首次约 55 MB，之后走缓存）";
+                }
+                acc.push(buf);
+                return next(i + 1);
+              });
+            }
+            return next(0).then(function (bufs) {
+              var tot = total || bufs.reduce(function (s, b) { return s + b.byteLength; }, 0);
+              var merged = new Uint8Array(tot);
+              var off = 0;
+              for (var i = 0; i < bufs.length; i++) { merged.set(new Uint8Array(bufs[i]), off); off += bufs[i].byteLength; }
+              return new Response(merged, { headers: { "content-type": "application/wasm" } });
+            });
+          });
+        }
+
+        function meterSingle(r) {
+          if (!r.ok || !r.body || typeof TransformStream === "undefined") { return r; }
+          var total = parseInt(r.headers.get("Content-Length") || "0", 10);
+          var loaded = 0;
+          var meter = new TransformStream({
+            transform: function (chunk, ctl) {
+              loaded += chunk.byteLength;
+              var mb = (loaded / 1048576).toFixed(1);
+              var tail = total > 0 && loaded <= total ? " / " + (total / 1048576).toFixed(1) + " MB" : " MB";
+              if (progress) { progress.textContent = "下载中 " + mb + tail + "（单文件回退）"; }
+              ctl.enqueue(chunk);
+            }
+          });
+          var h = new Headers(r.headers);
+          h.delete("content-length");
+          h.delete("content-encoding");
+          return new Response(r.body.pipeThrough(meter), { headers: h, status: r.status });
+        }
       }
 
       // ③ 失败亮出来（module script 顶层 await 失败 → unhandledrejection）

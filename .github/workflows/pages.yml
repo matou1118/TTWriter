@@ -108,6 +108,21 @@ jobs:
             cp assets/app-icon/hicolor/256x256/apps/ai.storyteller.wordcraft.png _site/app/wordcraft-icon-256.png
             cp assets/app-icon/hicolor/128x128/apps/ai.storyteller.wordcraft.png _site/app/wordcraft-icon-128.png
             cp assets/app-icon/wordcraft.svg _site/app/
+            # Shard wasm into <=18MB pieces + manifest for jsdelivr CDN mirror (cdn-shards/
+            # in repo, committed from local builds) and local fallback (_site/app/shards/,
+            # regenerated each CI build so it always matches the deployed wasm hash).
+            python3 -c "
+import os, json, math, glob
+w = sorted(glob.glob('_site/app/*_bg.wasm'))
+if not w: raise SystemExit('no _bg.wasm to shard')
+w = w[0]; data = open(w,'rb').read()
+sh = 18*1048576; n = max(1, math.ceil(len(data)/sh))
+os.makedirs('_site/app/shards', exist_ok=True)
+files = [f'{i}.bin' for i in range(n)]
+for i in range(n): open(f'_site/app/shards/{i}.bin','wb').write(data[i*sh:(i+1)*sh])
+open('_site/app/shards/manifest.json','w').write(json.dumps({'size':len(data),'shards':files,'source':os.path.basename(w)}))
+print(f'sharded {len(data)} bytes -> {n} shards (local fallback)')
+"
           fi
           ls -la _site
       - uses: actions/configure-pages@v5
