@@ -30,14 +30,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # ---- 网页版（/app/）：release 发布或手动触发才重编，平时复用 -----------------
       # Pages 每次 deployment 整站替换，所以 site-only 改动也要把上次的 app 带上：
       # dist/web 按代码哈希缓存（Cargo.lock + wordcraft-web 源码没变 → 缓存命中）。
       - name: restore the last built app
         id: appcache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: dist/web
           key: webapp-${{ hashFiles('Cargo.lock', 'apps/wordcraft-web/src/**', 'apps/wordcraft-web/index.html', 'apps/wordcraft-web/Trunk.toml') }}
@@ -59,7 +59,7 @@ jobs:
 
       - name: install trunk
         if: steps.webapp.outputs.build == 'true'
-        uses: jetli/trunk-action@v0.5.0
+        uses: jetli/trunk-action@v0.5.1
         with:
           version: "v0.21.14"
 
@@ -67,7 +67,7 @@ jobs:
       # 浏览器里 queryLocalFonts 极少被授予，wasm 里必须自带 Hans 字形。
       - name: check out craft-fonts (the CJK faces for the web app)
         if: steps.webapp.outputs.build == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: storytold/craft-fonts
           path: craft-fonts
@@ -83,7 +83,7 @@ jobs:
 
       - name: save the built app for site-only redeployments
         if: steps.webapp.outputs.build == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: dist/web
           key: webapp-${{ hashFiles('Cargo.lock', 'apps/wordcraft-web/src/**', 'apps/wordcraft-web/index.html', 'apps/wordcraft-web/Trunk.toml') }}
@@ -134,8 +134,8 @@ jobs:
           git diff --cached --quiet && { echo "no changes"; exit 0; }
           git commit -m "shards for TTWriter ${{ github.sha }}"
           git push origin main
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
   deploy:
@@ -146,4 +146,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
