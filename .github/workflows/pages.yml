@@ -123,11 +123,11 @@ jobs:
         run: |
           if [ -z "$CDN_TOKEN" ]; then echo "CDN_TOKEN empty, skipping CDN sync"; exit 0; fi
           tmp=$(mktemp -d)
-          git clone --depth 1 https://x-access-token:$CDN_TOKEN@github.com/matou1118/TTWriter-cdn.git $tmp
-          rm -rf $tmp/cdn-shards
-          mkdir -p $tmp/cdn-shards
-          cp _site/app/shards/* $tmp/cdn-shards/
-          cd $tmp
+          git clone --depth 1 "https://x-access-token:$CDN_TOKEN@github.com/matou1118/TTWriter-cdn.git" "$tmp"
+          rm -rf "$tmp/cdn-shards"
+          mkdir -p "$tmp/cdn-shards"
+          cp _site/app/shards/* "$tmp/cdn-shards/"
+          cd "$tmp"
           git config user.name "wordcraft-ci"
           git config user.email "ci@wordcraft.local"
           git add -A
